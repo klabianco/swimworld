@@ -149,6 +149,15 @@
   .loginform{display:grid;gap:10px}
   .loginform label{display:grid;gap:4px;font-weight:800;font-size:14px;color:var(--deep)}
   .loginform input{font:700 17px Nunito,sans-serif;padding:11px 12px;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink,#0b2d44)}
+  .chip.build{background:#ffd76a;font-weight:900}
+  .buildbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:min(720px,calc(100% - 20px));background:rgba(247,251,255,.96);border-radius:20px;padding:10px 12px;box-shadow:0 8px 30px rgba(8,43,69,.35);display:grid;gap:8px;z-index:30}
+  .buildbar .bhead{display:flex;gap:10px;align-items:baseline;font-size:13px;font-weight:800;color:var(--muted)} .buildbar .bhead b{font-family:var(--display);font-weight:400;font-size:20px;color:var(--deep)}
+  .palette{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+  .pblock{flex:0 0 auto;width:58px;border:0;border-radius:12px;padding:6px 4px 4px;background:#eef4f7;font:800 11px Nunito,sans-serif;color:var(--ink,#0b2d44);display:grid;justify-items:center;gap:3px;box-shadow:0 3px 0 rgba(8,43,69,.2)}
+  .pblock i{display:block;width:30px;height:30px;border-radius:7px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.18)}
+  .pblock.on{background:var(--deep);color:#fff;transform:translateY(2px);box-shadow:none}
+  .btools{display:flex;gap:8px} .btools .btn{font-size:17px;padding:9px 14px} .btools #bDone{margin-left:auto}
+  .btools .seg.on{background:var(--coral);color:#fff}
   .movelink{width:100%;font:700 13px/1.4 Nunito,sans-serif;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink,#0b2d44)}
   .btn.back{background:#e3eef3;color:var(--deep);font-size:18px;padding-block:10px}
   /* Selected button: it fills with water, a wave rolls across it, bubbles rise, and it bobs like it's floating. */
@@ -228,6 +237,7 @@
     <div class="chip coins" id="coinChip"><span class="coin" aria-hidden="true"></span><b id="coinVal">0</b></div>
     <button class="chip" id="swimmerBtn" type="button">Menu</button>
     <button class="chip" id="viewBtn" type="button">View</button>
+    <button class="chip build" id="buildBtn" type="button" hidden>Build</button>
   </div>
 </div>
 
@@ -286,6 +296,11 @@
       <p class="note" id="gateNote"></p>
     </div>
   </div>
+</div>
+<div id="buildBar" class="buildbar" hidden>
+  <div class="bhead"><b>Building</b><span id="bNote">Tap to place a block · drag to spin around</span></div>
+  <div class="palette" id="palette"></div>
+  <div class="btools"><button id="bRemove" class="btn seg" type="button">Remove</button><button id="bZoomIn" class="btn seg" type="button">+</button><button id="bZoomOut" class="btn seg" type="button">−</button><button id="bDone" class="btn primary" type="button">Done</button></div>
 </div>
 <div id="loginPanel" class="overlay" hidden>
   <div class="panel title">
@@ -352,6 +367,7 @@
     <div class="row2">
       <button id="resumeBtn" class="btn primary" type="button">Keep swimming</button>
       <button id="shopBtn" class="btn primary" type="button">Dive Shop</button>
+      <button id="homeBtn" class="btn primary" type="button" hidden>Swim home</button>
       <button id="exitBtn" class="btn secondary" type="button">Exit to title</button>
       <button id="moveBtn" class="btn secondary" type="button">Play on another device</button>
       <button id="logoutBtn" class="btn secondary" type="button" hidden>Log out</button>
@@ -490,7 +506,8 @@ function initAudio(){ if (ac) return; try { ac = new (window.AudioContext||windo
 /* ---------- Input ---------- */
 const keys = {};
 const playing = () => mode === 'pool' || mode === 'race' || mode === 'ocean';
-addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' && e.key !== 'Escape') return; const k = e.key.toLowerCase(); keys[k] = true;
+addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' && e.key !== 'Escape') return;
+  if (building){ const bk = e.key.toLowerCase(); if (bk === 'escape' || bk === 'b') exitBuild(); else if (bk === 'r'){ buildRemove = !buildRemove; renderPalette(); } else if (/^[0-9]$/.test(bk)){ buildType = (+bk + 9) % 10; buildRemove = false; renderPalette(); } return; } const k = e.key.toLowerCase(); keys[k] = true;
   if (!$('gatePanel').hidden) return;   // the login ask can't be skipped with hotkeys
   if (k === ' ' && !e.repeat && mode === 'race' && race && race.state === 'go'){ raceStroke(race); e.preventDefault(); }
   if (['w','a','s','d'].includes(k) && playing()) e.preventDefault();
@@ -515,10 +532,11 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const ptr = { x:0, y:0, down:false };
 const mmHit = { x:-1e4, y:-1e4, r:0 };   // where the minimap is on screen: tapping it opens the full map
 const onMinimap = e => mode === 'ocean' && Math.hypot(e.clientX - mmHit.x, e.clientY - mmHit.y) < mmHit.r;
-cv.addEventListener('pointerdown', e => { if (onMinimap(e) && !paused){ initAudio(); openMap(); return; } initAudio(); ptr.down = true; ptr.x = e.clientX; ptr.y = e.clientY; try{cv.setPointerCapture(e.pointerId);}catch(_){} });
-cv.addEventListener('pointermove', e => { if (ptr.down && playing() && !paused && camMode !== 'first'){ camHead += (e.clientX - ptr.x)*.007; camHoldT = time + 1.5; }   // drag to look around
+cv.addEventListener('pointerdown', e => { if (building){ buildDrag = { x: e.clientX, y: e.clientY, moved: false }; try { cv.setPointerCapture(e.pointerId); } catch(_){} return; } if (onMinimap(e) && !paused){ initAudio(); openMap(); return; } initAudio(); ptr.down = true; ptr.x = e.clientX; ptr.y = e.clientY; try{cv.setPointerCapture(e.pointerId);}catch(_){} });
+cv.addEventListener('pointermove', e => { if (building && buildDrag){ const dx = e.clientX - buildDrag.x; if (Math.abs(dx) + Math.abs(e.clientY - buildDrag.y) > 6) buildDrag.moved = true; if (buildDrag.moved){ buildYaw += dx*.008; buildDrag.x = e.clientX; buildDrag.y = e.clientY; } return; } if (ptr.down && playing() && !paused && camMode !== 'first'){ camHead += (e.clientX - ptr.x)*.007; camHoldT = time + 1.5; }   // drag to look around
   ptr.x = e.clientX; ptr.y = e.clientY; cv.style.cursor = onMinimap(e) ? 'pointer' : ''; });
 const ptrUp = () => { ptr.down = false; };
+cv.addEventListener('pointerup', e => { if (building && buildDrag){ if (!buildDrag.moved) buildTap(e.clientX, e.clientY); buildDrag = null; } });
 cv.addEventListener('pointerup', ptrUp); cv.addEventListener('pointercancel', ptrUp);
 const left  = () => keys.arrowleft || keys.a, right = () => keys.arrowright || keys.d;
 const upK   = () => keys.arrowup || keys.w,   downK = () => keys.arrowdown || keys.s;
@@ -1273,6 +1291,92 @@ function drawSharkWarn(){
   ctx.save(); ctx.translate(x - 56, y); ctx.rotate(a + Math.PI/2); ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(9, 5); ctx.lineTo(3, 3); ctx.lineTo(3, 11); ctx.lineTo(-3, 11); ctx.lineTo(-3, 3); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill(); ctx.restore();
 }
+/* ---------- Building on your home island (like Minecraft) ----------
+   Once you've found your house, stand on its island and press Build. Place blocks on a 1 m grid around your house:
+   walls, roofs, glass, lamps... Blocks cost coins and give them back when removed. They save with your swimmer. */
+const BLOCKS = [
+  { name:'Wood',  col:0xb07a45, cost:1 }, { name:'Stone', col:0x9a9ea3, cost:1 }, { name:'Brick', col:0xb4503c, cost:1 },
+  { name:'Glass', col:0xaee3f5, cost:3, glass:true }, { name:'White', col:0xf2efe6, cost:1 }, { name:'Roof',  col:0xc0392b, cost:1 },
+  { name:'Sand',  col:0xe9d8a6, cost:1 }, { name:'Grass', col:0x4f9d3a, cost:1 }, { name:'Blue',  col:0x3c78d8, cost:1 },
+  { name:'Pink',  col:0xf28fb5, cost:1 }, { name:'Lamp',  col:0xffe08a, cost:3, glow:true } ];
+const BUILD_R = 6.6, BUILD_H = 12, BUILD_MAX = 1500, LAWN_Y = .65;
+const HOME_TREES = [[-5, 3], [5.5, -2], [-3, -5.5], [4, 5], [-4.5, -2]];   // palms on your island (meters from the middle)
+// save.build keeps every block as 4 characters: x, y, z and the block type packed into one base-36 number
+const packBlock = (x, y, z, t) => ((((x + 16)*32 + (z + 16))*16 + y)*16 + t).toString(36).padStart(4, '0');
+let homeBlocks = null, blockGroup = null, blockMeshes = [], blockIndex = [], blocksFrom = null;
+function loadBlocks(){ homeBlocks = new Map(); const s = blocksFrom = save.build || '';
+  for (let i=0;i + 4 <= s.length;i += 4){ const v = parseInt(s.slice(i, i + 4), 36); homeBlocks.set(`${(v >> 13) - 16},${(v >> 4) % 16},${((v >> 8) % 32) - 16}`, v % 16); } }
+function storeBlocks(){ save.build = [...homeBlocks].map(([k, t]) => { const [x, y, z] = k.split(',').map(Number); return packBlock(x, y, z, t); }).join(''); blocksFrom = save.build; persist(); }
+function cellOK(x, y, z){
+  if (y < 0 || y >= BUILD_H || x < -15 || x > 15 || z < -15 || z > 15) return false;
+  const cx = x + .5, cz = z + .5, r = Math.hypot(cx, cz);
+  return r < BUILD_R && r > 3.4 && HOME_TREES.every(([tx, tz]) => Math.hypot(cx - tx, cz - tz) > 1.1);   // not inside your house or a palm tree
+}
+function drawBlocks(){
+  if (!houseGroup) return;
+  if (!blockGroup){ blockGroup = new THREE.Group(); houseGroup.add(blockGroup);
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    blockMeshes = BLOCKS.map(b => { const mat = new THREE.MeshStandardMaterial({ color: b.col, roughness: b.glass ? .1 : .75, metalness: b.glass ? .1 : 0,
+      transparent: !!b.glass, opacity: b.glass ? .45 : 1, emissive: b.glow ? 0xffc040 : 0x000000, emissiveIntensity: b.glow ? 1.4 : 0 });
+      const m = new THREE.InstancedMesh(geo, mat, BUILD_MAX); m.count = 0; m.castShadow = !b.glass; m.receiveShadow = true; blockGroup.add(m); return m; }); }
+  if (!homeBlocks || (!building && (save.build || '') !== blocksFrom)) loadBlocks();   // a different swimmer was loaded
+  const n = BLOCKS.map(() => 0), mtx = new THREE.Matrix4(); blockIndex = BLOCKS.map(() => []);
+  for (const [k, t] of homeBlocks){ const [x, y, z] = k.split(',').map(Number), m = blockMeshes[t]; if (!m || n[t] >= BUILD_MAX) continue;
+    mtx.makeTranslation(x + .5, LAWN_Y + y + .5, z + .5); m.setMatrixAt(n[t], mtx); blockIndex[t][n[t]] = k; n[t]++; }
+  blockMeshes.forEach((m, t) => { m.count = n[t]; m.instanceMatrix.needsUpdate = true; m.computeBoundingSphere(); });
+}
+let building = false, buildType = 0, buildRemove = false, buildYaw = .8, buildZoom = 17, buildDrag = null;
+const onHome = o => o && Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < HOUSE.r + 40 && (save.houseFound || save.homeRuns);
+function enterBuild(){
+  const o = ocean; if (mode !== 'ocean' || !o || !onHome(o) || !o.onLand) return;
+  building = true; paused = true; ptr.down = false; if (!homeBlocks) loadBlocks();
+  $('buildBar').hidden = false; $('limbs').hidden = true; renderPalette(); buildYaw = camHead + Math.PI; sfx(660, .1, 'triangle', .05);
+}
+function exitBuild(){ if (!building) return; building = false; paused = false; $('buildBar').hidden = true; $('limbs').hidden = !playing(); camInit = false; storeBlocks(); flushCloud(); graceAfterPause(); }
+function renderPalette(){
+  const box = $('palette'); box.innerHTML = '';
+  BLOCKS.forEach((b, i) => { const el = document.createElement('button'); el.type = 'button'; el.className = 'pblock' + (i === buildType && !buildRemove ? ' on' : '');
+    el.innerHTML = `<i style="background:#${b.col.toString(16).padStart(6, '0')}${b.glass ? ';opacity:.6' : ''}"></i>${b.name}<small>${b.cost} coin${b.cost > 1 ? 's' : ''}</small>`;
+    el.onclick = () => { buildType = i; buildRemove = false; renderPalette(); }; box.appendChild(el); });
+  $('bRemove').classList.toggle('on', buildRemove);
+  $('bNote').textContent = `${homeBlocks ? homeBlocks.size : 0} blocks · ${save.coins || 0} coins · ${buildRemove ? 'tap a block to remove it' : 'tap to place a block'} · drag to spin around`;
+}
+function buildCamera(){
+  const p = .78, C = new THREE.Vector3(HOUSE.x*U + Math.cos(buildYaw)*buildZoom*.2, LAWN_Y + 1.5, HOUSE.y*U + Math.sin(buildYaw)*buildZoom*.2);   // aim a bit toward you, so the island sits above the block bar
+  camera.position.set(C.x + Math.cos(buildYaw)*Math.cos(p)*buildZoom, C.y + Math.sin(p)*buildZoom, C.z + Math.sin(buildYaw)*Math.cos(p)*buildZoom); camera.lookAt(C);
+}
+const _ray = new THREE.Raycaster(), _ndc = new THREE.Vector2();
+function buildTap(cx, cy){
+  _ndc.set(cx/W*2 - 1, -(cy/H)*2 + 1); _ray.setFromCamera(_ndc, camera);
+  const hits = _ray.intersectObjects(blockMeshes, false), hit = hits[0];
+  let cell = null;
+  if (hit){ const t = blockMeshes.indexOf(hit.object), key = blockIndex[t][hit.instanceId];
+    if (buildRemove){ homeBlocks.delete(key); save.coins = (save.coins || 0) + BLOCKS[t].cost; sfx(300, .08, 'square', .04); drawBlocks(); renderPalette(); return; }
+    const [x, y, z] = key.split(',').map(Number), nn = hit.face.normal; cell = [x + Math.round(nn.x), y + Math.round(nn.y), z + Math.round(nn.z)]; }
+  else { if (buildRemove) return; const o = _ray.ray.origin, d = _ray.ray.direction; if (d.y >= 0) return;
+    const k = (LAWN_Y - o.y)/d.y, gx = o.x + d.x*k - HOUSE.x*U, gz = o.z + d.z*k - HOUSE.y*U; cell = [Math.floor(gx), 0, Math.floor(gz)]; }
+  const [x, y, z] = cell, key = `${x},${y},${z}`, b = BLOCKS[buildType];
+  if (!cellOK(x, y, z) || homeBlocks.has(key)){ $('bNote').textContent = y >= BUILD_H ? 'That is as high as you can build.' : "You can't build there. Stay on the grass, away from the house and the palm trees."; sfx(200, .12, 'square', .04); return; }
+  if (homeBlocks.size >= BUILD_MAX){ $('bNote').textContent = 'Your island is full of blocks!'; return; }
+  if ((save.coins || 0) < b.cost){ $('bNote').textContent = `You need ${b.cost} coin${b.cost > 1 ? 's' : ''} for a ${b.name.toLowerCase()} block. Find pearls and treasure to earn more!`; sfx(200, .12, 'square', .04); return; }
+  save.coins -= b.cost; homeBlocks.set(key, buildType); sfx(520 + y*30, .07, 'triangle', .05); drawBlocks(); renderPalette();
+}
+// blocks on the ground are walls you walk around
+function blockCollide(o){
+  if (!homeBlocks || !homeBlocks.size || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) > HOUSE.r + 60) return;
+  const lx = o.x*U - HOUSE.x*U, lz = o.y*U - HOUSE.y*U, rr = .3;
+  for (const [k] of homeBlocks){ const [x, y, z] = k.split(',').map(Number); if (y > 1 || Math.abs(x + .5 - lx) > 1.5 || Math.abs(z + .5 - lz) > 1.5) continue;
+    const px = clamp(lx, x, x + 1), pz = clamp(lz, z, z + 1), dx = lx - px, dz = lz - pz, d = Math.hypot(dx, dz);
+    if (d < rr){ const nx = d > 1e-6 ? dx/d : (lx < x + .5 ? -1 : 1), nz = d > 1e-6 ? dz/d : 0; o.x += nx*(rr - d)/U; o.y += nz*(rr - d)/U; o.vx *= .5; o.vy *= .5; } }
+}
+$('buildBtn').onclick = () => { initAudio(); enterBuild(); };
+$('bDone').onclick = () => exitBuild();
+$('bRemove').onclick = () => { buildRemove = !buildRemove; renderPalette(); };
+$('bZoomIn').onclick = () => { buildZoom = Math.max(7, buildZoom - 3); };
+$('bZoomOut').onclick = () => { buildZoom = Math.min(30, buildZoom + 3); };
+// Menu: jump straight to your island once you've found it
+$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
+  o.onShip = false; o.onBoat = null; o.ride = null; o.ang = -Math.PI/2; camInit = false; banner('Welcome home!', 'Press Build to build around your house'); };
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
   if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y); }
 function chestsNear(o){ const out = [], cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
@@ -1617,6 +1721,7 @@ function walkStep(o, dt){
   o.x += o.vx*dt; o.y += o.vy*dt;
   o.walkPh = (o.walkPh || 0) + dt*(walking ? 8 : 0); o.walking = walking;
   o.depth = 0; o.vd = 0; o.pitch = 0; o.idle = 0; o.air = airMax(); o.gasp = false;
+  blockCollide(o);
   for (const [cx, cy, r] of landObstacles()){ const dx = o.x - cx, dy = o.y - cy, d = Math.hypot(dx, dy), rr = r + 12;
     if (d < rr && d > 1e-6){ o.x = cx + dx/d*rr; o.y = cy + dy/d*rr; } }
 }
@@ -1709,6 +1814,7 @@ function updOcean(dt){
   o.rideTarget = o.ride || o.onLand ? null : findDolphin(o);
   { const f = friendNear(o), tb = $('talkBtn'); if (tb.hidden === !!f) tb.hidden = !f;
     if (f){ const t = f.person ? ({ keeper:'Talk to the lighthouse keeper', captain:'Talk to the pirate captain', gunner:'Talk to the gunner', lookout:'Talk to the lookout', deckhand:'Talk to the deckhand' }[f.person] || 'Talk to the fisherman') : `Talk to the ${SPECIES_NAME[f.id].toLowerCase()}`; if (tb.firstChild.textContent !== t) tb.firstChild.textContent = t; } }
+  { const bb = $('buildBtn'), showB = !!o.onLand && onHome(o); if (bb.hidden === showB) bb.hidden = !showB; }
   { const jb = $('jumpBtn'), showJ = curChar().id === 'dolphin' && !o.onLand && !o.ride; if (jb.hidden === showJ) jb.hidden = !showJ;
     const sb = $('sonarBtn'), showS = showJ && hasGear('sonar'); if (sb.hidden === showS) sb.hidden = !showS; }
   const rb = $('rideBtn'), ladder = shipLadderNear(o), boat = !ladder && boatNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat);
@@ -3249,6 +3355,7 @@ function updOceanWorld(o){
     m.userData.tail.rotation.y = w*.45; m.userData.body.rotation.y = -w*.07; m.userData.body.rotation.x = clamp((s.turnRate || 0)*-.25, -.35, .35); });
   if (others.size) drawOthers(time);
   drawQuest(time);
+  if (houseGroup && (!blockGroup || (!building && (save.build || '') !== blocksFrom))) drawBlocks();
   if (afloatShip){ const [plx, plz] = shipLocal(o.x, o.y), near = Math.hypot(plx, plz) < 60;   // the crew watches you when you come close
     for (const p of PIRATES) if (p.model){ const m = p.model, [x, z] = pirateSpot(p), h = shipDeckH(x, z) ?? 3; m.visible = true;
       const walking = !!p.pace, yawTo = near && !walking ? Math.atan2(plx - x, plz - z) : walking ? (Math.cos(time*.35) > 0 ? Math.PI/2 : -Math.PI/2) : Math.PI/2;
@@ -3501,7 +3608,7 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4);
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105);
@@ -3542,6 +3649,7 @@ function setMode(m){
 }
 let resA = null, resB = null, deadIn = null;
 function madeItHome(o){
+  if (o.homeDone) return; o.homeDone = true;
   deadIn = 'ocean'; const t = o.tripT || 0, first = !save.homeRuns, best = !save.homeBest || t < save.homeBest;
   save.homeRuns = (save.homeRuns || 0) + 1; if (best) save.homeBest = t; save.coins = (save.coins || 0) + 100; addXP(300, true); persist(); flushCloud();
   [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
@@ -3551,7 +3659,7 @@ function madeItHome(o){
     `<div class="res-score">${fmt(t)}</div><p class="res-line">swimming time across the ocean</p>
      <p class="res-line">Best ${fmt(save.homeBest)} · made it home ${save.homeRuns} ${save.homeRuns === 1 ? 'time' : 'times'}</p>
      <p class="res-line">+100 coins · +300 XP · ${Math.round(save.dist).toLocaleString()} m swum in all · ${save.pearls} pearls</p>`,
-    'Swim home again', () => startOcean(), 'Exit to title', () => setMode('title'), 'dead');
+    'Stay and build', () => { setMode('ocean'); banner('Your island!', 'Press Build to build around your house'); }, 'Swim home again', () => startOcean(), 'dead');
 }
 // Running out of air or getting caught by a shark ends your swim.
 function die(cause){
@@ -3596,6 +3704,7 @@ function renderPanel(){
     ? ZONES.map((z,i) => save.worlds.includes(i)
       ? `<span class="wchip on" style="background:rgb(${z.water.join(',')})">${z.name}</span>` : `<span class="wchip">??? world</span>`).join('')
     : `<span class="wchip">7 ocean worlds are waiting past the gate</span>`;
+  $('homeBtn').hidden = !(mode === 'ocean' && (save.houseFound || save.homeRuns));
   $('logoutBtn').hidden = !(STANDALONE && fbAuth && account); $('moveBtn').hidden = STANDALONE;
   $('saveInfo').textContent = STANDALONE ? (fbAuth && account ? `Logged in as ${fbAuth.name}. Your swimmer saves to your account.` : 'Not logged in. Progress saves on this device only.') : account ? 'Progress saves to your account, so you can continue on any device.'
     : 'Progress saves on this device. Use Continue on the title screen to log in and keep it on your account.';
