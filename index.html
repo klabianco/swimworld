@@ -80,7 +80,9 @@
   .ridebtn{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 92px);border:0;border-radius:999px;
     padding:12px 22px;font-family:var(--display);font-size:22px;background:#bfe6ff;color:var(--ink);box-shadow:0 5px 0 rgba(8,43,69,.35);
     display:flex;align-items:center;gap:10px;animation:bob 1.6s ease-in-out infinite}
-  #talkBtn{background:#ffe7b0}
+  #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
+  #jumpBtn{background:#bfe6ff}
+  .limb.jump{background:#c9f0e0;font-size:22px}
   .coins{display:flex;align-items:center;gap:8px;font-family:var(--display);font-size:20px;font-weight:400}
   .coin{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff3b0,#ffc53d 45%,#c98a10);box-shadow:inset 0 0 0 2px #b07a10}
   .shop{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
@@ -228,7 +230,7 @@
 
 <div id="limbs" class="limbs" hidden>
   <div id="stickPad" class="stickpad" aria-label="Joystick: drag to swim"><div id="stickKnob" class="knob"></div></div>
-  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
+  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb jump" id="jumpBtn" type="button" hidden>Jump<small>J</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
 </div>
 <button id="rideBtn" class="ridebtn" type="button" hidden>Ride the dolphin<small>E</small></button>
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
@@ -495,6 +497,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 't' && !e.repeat) talkToFriend();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
+  if (k === 'j' && !e.repeat) dolphinJump();
   // Escape closes whatever window is open (shop, map, menu, where-to-swim); with nothing open it opens the Menu
   if (k === 'escape' && !e.repeat){
     if (!$('shopPanel').hidden) closeShop();
@@ -633,7 +636,7 @@ let shopFrom = null, shopLock = 0;
 // the highlight starts on "Back to swimming", so Space (which is also the dive key) or Enter can never buy something by accident
 function pickShopBack(){ pick = Math.max(0, menuBtns().indexOf($('shopClose'))); showPick(); }
 function openShop(){ shopFrom = !$('panel').hidden ? 'panel' : null; $('panel').hidden = true; paused = true; renderShop(); $('shopPanel').hidden = false; pickShopBack(); }
-function closeShop(){ $('shopPanel').hidden = true; paused = false; if (ocean) ocean.shopNear = true; showPick(); }
+function closeShop(){ $('shopPanel').hidden = true; paused = false; graceAfterPause(); if (ocean) ocean.shopNear = true; showPick(); }
 $('shopBtn').onclick = openShop; $('shopClose').onclick = closeShop;
 
 /* ---------- Diving: hold Space (or the Dive button) to go under ----------
@@ -650,7 +653,7 @@ function diveStep(o, dt, maxDepth){
   // Stay afloat by swimming: a stroke or kick in the last moment, or still gliding along.
   // Stop moving and you slowly sink.
   o.idle = (o.idle || 0) + dt;
-  const moving = o.idle < 1.2 || Math.hypot(o.vx, o.vy) > 30;
+  const moving = o.idle < 1.2 || Math.hypot(o.vx, o.vy) > 30 || time < sayUntil;   // chatting: you tread water
   const sinking = !want && !o.gasp && !moving;
   const target = want ? -.55 : (!sinking && o.depth > .15 ? .45 : 0);
   o.pitch += (target - o.pitch)*Math.min(1, dt*3);
@@ -1118,6 +1121,23 @@ function updCannons(o, dt){
         banner('Boom! A cannonball hit you', lost ? `-${lost} coins. Dive under when you hear the boom!` : 'Dive under when you hear the boom!'); } } }
   o.balls = o.balls.filter(b => !b.done || b.y > -3);
 }
+/* Dolphins can leap out of the water: at the surface, press Jump (or J). The faster you're swimming, the higher you go.
+   Nothing can bite you in mid-air. */
+function dolphinJump(){
+  const o = ocean; if (mode !== 'ocean' || !o || paused || curChar().id !== 'dolphin' || o.onLand || o.ride || o.jumpY > 0 || (o.depth || 0) > .6) return;
+  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = 4.2 + Math.min(3, sp*.9); o.jumpY = .01; o.depth = 0; o.vd = 0;
+  sfx(300, .3, 'sine', .06, 0, 320); for (let i=0;i<12;i++) bubble(o.x + (Math.random()-.5)*30, o.y + (Math.random()-.5)*30, (Math.random()-.5)*40, (Math.random()-.5)*40);
+}
+function jumpStep(o, dt){
+  if (!(o.jumpY > 0)) return false;
+  o.jumpV -= 9.8*dt; o.jumpY += o.jumpV*dt; o.idle = 0; o.depth = 0; o.vd = 0;
+  const fx = Math.cos(o.ang), fy = Math.sin(o.ang); o.x += o.vx*dt; o.y += o.vy*dt;   // sail through the air with no water to slow you
+  const w = wantHeading(); if (w) o.ang += clamp(angDiff(w.ang, o.ang), -1.2*dt, 1.2*dt);
+  if (o.jumpY <= 0){ o.jumpY = 0; o.jumpV = 0; o.depth = .5; o.vd = .8; sfx(160, .35, 'sine', .08, 0, -80);
+    for (let i=0;i<18;i++) bubble(o.x + fx*20 + (Math.random()-.5)*40, o.y + fy*20 + (Math.random()-.5)*40, (Math.random()-.5)*60, (Math.random()-.5)*60); }
+  return true;
+}
+$('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); dolphinJump(); });
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
   if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y); }
 function chestsNear(o){ const out = [], cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
@@ -1272,7 +1292,7 @@ function drawWorldMap(){
   $('worldNote').textContent = `${save.worlds.length} of 7 places found. In Swimworld they're squeezed close together so you can swim from one to the next.`;
 }
 function openMap(){ if (mode !== 'ocean') return; paused = true; drawSeaMap(); drawWorldMap(); $('mapPanel').hidden = false; resetPick(); }
-function closeMap(){ $('mapPanel').hidden = true; paused = false; }
+function closeMap(){ $('mapPanel').hidden = true; paused = false; graceAfterPause(); }
 $('mapClose').onclick = closeMap;
 
 /* ---------- Dolphins you can ride ---------- */
@@ -1365,7 +1385,7 @@ function updSharks(o, dt){
       else if (s.state === 'lunge' && s.t > 1.1) set('recover');
       else if (s.state === 'recover' && s.t > 1.4) set('chase');
       const hl = ANIMAL_BODY.shark[0]/U, sfx_ = Math.cos(s.ang), sfy = Math.sin(s.ang), segD = ([px, py]) => { const t = clamp((px - s.x)*sfx_ + (py - s.y)*sfy, -hl, hl); return Math.hypot(px - s.x - sfx_*t, py - s.y - sfy*t); };
-      if (bodyPoints(o).some(p => segD(p) < ANIMAL_BODY.shark[1]/U + BODY_W + 8) && Math.abs((o.depth || 0) - s.depth) < 1.1){   // touching the shark's body
+      if (!(o.jumpY > .3) && bodyPoints(o).some(p => segD(p) < ANIMAL_BODY.shark[1]/U + BODY_W + 8) && Math.abs((o.depth || 0) - s.depth) < 1.1){   // touching the shark's body
         if (sharkMode() === 'dangerous'){ o.hurtT = 1; die('shark'); return; }
         // gentle: a nip that costs coins, a shove away, and the shark swims off
         const lost = Math.min(save.coins || 0, 10); save.coins = (save.coins || 0) - lost; persist();
@@ -1462,7 +1482,7 @@ function updOcean(dt){
   }
   else if (o.ride){ updRide(o, dt); if (mode === 'dead') return; }
   else {
-    swimMove(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return;
+    if (!jumpStep(o, dt)){ swimMove(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return; }
     const cur = currentAt(o.x, o.y, time);
     o.x += cur[0]*.3*dt; o.y += cur[1]*.3*dt; o.cur = cur;
   }
@@ -1521,6 +1541,7 @@ function updOcean(dt){
   o.rideTarget = o.ride || o.onLand ? null : findDolphin(o);
   { const f = friendNear(o), tb = $('talkBtn'); if (tb.hidden === !!f) tb.hidden = !f;
     if (f){ const t = f.person ? ({ keeper:'Talk to the lighthouse keeper', captain:'Talk to the pirate captain', pirate:'Talk to the pirate' }[f.person] || 'Talk to the fisherman') : `Talk to the ${SPECIES_NAME[f.id].toLowerCase()}`; if (tb.firstChild.textContent !== t) tb.firstChild.textContent = t; } }
+  { const jb = $('jumpBtn'), showJ = curChar().id === 'dolphin' && !o.onLand && !o.ride; if (jb.hidden === showJ) jb.hidden = !showJ; }
   const rb = $('rideBtn'), ladder = shipLadderNear(o), boat = !ladder && boatNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat);
   if (rb.hidden === showRide) rb.hidden = !showRide;
   if (showRide){ const t = o.onShip || o.onBoat ? 'Jump into the sea' : ladder ? 'Climb aboard' : boat ? 'Climb into the boat' : o.ride ? 'Let go' : 'Ride the dolphin'; if (rb.firstChild.textContent !== t) rb.firstChild.textContent = t; }
@@ -3238,8 +3259,9 @@ function render3D(dt){
       m.position.copy(rideModel.position); m.position.y += .42; m.position.x += Math.sin(ocean.ang)*.1; m.position.z -= Math.cos(ocean.ang)*.1;
       m.rotation.set(0, -ocean.ang, rideModel.rotation.z); poseModel(m, RIDE_POSE, t);
     } else {
-      m.position.set(px, (wy + m.userData.float)*(1 - sub) - dep, pz);
-      m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, ocean.pitch || 0); poseModel(m, swimPose(ocean), ocean.swimPh || 0); }
+      const air = ocean.jumpY || 0, airPitch = air > 0 ? clamp(Math.atan2(ocean.jumpV, Math.max(2.5, Math.hypot(ocean.vx, ocean.vy)/METERS))*.7, -.8, .8) : 0;   // nose up on the way up, down on the way down
+      m.position.set(px, (wy + m.userData.float)*(1 - sub) - dep + air, pz);
+      m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, air > 0 ? airPitch : (ocean.pitch || 0)); poseModel(m, swimPose(ocean), ocean.swimPh || 0); }
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
@@ -3277,7 +3299,7 @@ function setMode(m){
   mode = m; paused = false;
   if (m === 'title' && startArmed){ startArmed = false; $('startBtn').textContent = 'Start Game'; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
-  $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
+  $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
   if (m === 'title'){ prepRace(true); race.idle = true; }
   ptr.down = false; refreshLevelChip(); resetPick();
@@ -3325,7 +3347,9 @@ function refreshLevelChip(){
   $('rankChip').title = b ? `${(b - x).toLocaleString()} XP to ${RANKS[i + 1].n}` : 'Top rank!';
 }
 function openPanel(){ if (!playing() || paused) return; paused = true; ptr.down = false; renderPanel(); $('panel').hidden = false; resetPick(); }
-function closePanel(){ $('panel').hidden = true; paused = false; showPick(); }
+function closePanel(){ $('panel').hidden = true; paused = false; showPick(); graceAfterPause(); }
+// coming back from a menu or the map: a moment to get going again before you start to sink
+function graceAfterPause(){ for (const o of [ocean, hub, race]) if (o) o.idle = -2; }
 function renderPanel(){
   document.querySelectorAll('[data-shark]').forEach(b => b.classList.toggle('on', b.dataset.shark === sharkMode()));
   $('placeBtn').textContent = mode === 'ocean' ? 'Back to pool' : 'Swim to the ocean';
