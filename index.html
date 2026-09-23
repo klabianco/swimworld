@@ -1478,6 +1478,7 @@ function updOcean(dt){
   d = Math.hypot(o.x, o.y);
   updSharks(o, dt); if (mode === 'dead') return;
   updCannons(o, dt); if (mode === 'dead') return;
+  mpTick(dt);
   o.tripT = (o.tripT || 0) + dt;
   { const hx = HOUSE.x - o.x, hy = HOUSE.y - o.y, hd = Math.hypot(hx, hy);
     if (!save.houseFound && hd < 2600){ save.houseFound = true; persist(); flushCloud();
@@ -1558,6 +1559,9 @@ function drawMinimap(){
   // the ocean has no edge: past the map, the dot rides the rim pointing your way
   const d = Math.hypot(ocean.x, ocean.y), k = Math.min(1, WORLD_R/Math.max(d, 1)) * .96;
   const px = x + size/2 + ocean.x/WORLD_R*k*size/2, py = y + size/2 + ocean.y/WORLD_R*k*size/2;
+  for (const f of others.values()){ const fd = Math.hypot(f.x, f.y), fk = Math.min(1, WORLD_R/Math.max(fd, 1))*.96;
+    ctx.fillStyle = '#fff'; circ(ctx, x + size/2 + f.x/WORLD_R*fk*size/2, y + size/2 + f.y/WORLD_R*fk*size/2, 4.5);
+    ctx.fillStyle = '#2f7fe8'; circ(ctx, x + size/2 + f.x/WORLD_R*fk*size/2, y + size/2 + f.y/WORLD_R*fk*size/2, 3); }
   ctx.fillStyle = '#fff'; circ(ctx,px,py,5); ctx.fillStyle = '#ff6f59'; circ(ctx,px,py,3.2);
   ctx.font = "800 12px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   const pm = Math.round(d/METERS), txt = pm < 1000 ? `${pm} m from Pool Island` : `${(pm/1000).toFixed(1)} km from Pool Island`;
@@ -2925,6 +2929,7 @@ function updOceanWorld(o){
     const fast = s.state === 'lunge' ? 16 : s.state === 'chase' ? 11 : 6, w = Math.sin(time*fast + s.ph);
     m.userData.tail.rotation.y = w*.45; m.userData.body.rotation.y = -w*.07; m.userData.body.rotation.x = clamp((s.turnRate || 0)*-.25, -.35, .35); });
   for (let i = o.sharks.length; i < sharkPool.length; i++) sharkPool[i].visible = false;
+  if (others.size) drawOthers(time);
   if (afloatShip){ const [plx, plz] = shipLocal(o.x, o.y), near = Math.hypot(plx, plz) < 60;   // the crew watches you when you come close
     for (const p of PIRATES) if (p.model){ const m = p.model, [x, z] = pirateSpot(p), h = shipDeckH(x, z) ?? 3; m.visible = true;
       const walking = !!p.pace, yawTo = near && !walking ? Math.atan2(plx - x, plz - z) : walking ? (Math.cos(time*.35) > 0 ? Math.PI/2 : -Math.PI/2) : Math.PI/2;
@@ -3206,6 +3211,7 @@ function charThumb(id){
 let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
+  if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
   mode = m; paused = false;
   if (m === 'title' && startArmed){ startArmed = false; $('startBtn').textContent = 'Start Game'; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
@@ -3412,7 +3418,66 @@ async function startAccount(){
   if (inGame){ paused = false; if (ocean) buildMinimap(); banner(`Logged in as ${fbAuth.name}!`, 'Your swimmer now saves to your account.'); }
   else { enterGame(); banner(cloud ? `Welcome back, ${fbAuth.name}!` : `Hi, ${fbAuth.name}!`, cloud ? `${RANKS[rankOf()].n} · ${xpNow().toLocaleString()} XP · ${save.coins || 0} coins` : 'Your swimmer saves to your account.'); }
 }
-function logOut(){ persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
+/* ---------- Swimming together: everyone logged in on the website shares one ocean ----------
+   Each swimmer writes where they are to the Realtime Database (ocean/<user id>) a few times a second and listens to everyone
+   else's spot through one live stream. Only names and positions are shared, and there's no chat. */
+const RTDB = 'https://testing123-ac9c1.firebaseio.com';
+const others = new Map();                     // user id -> { n, c, x, y, w, a, p, l, g, seen, sx, sy, sw, sa, model, tag }
+let mpSrc = null, mpOn = false, mpSendT = 0, mpLast = '', mpRetryT = 0;
+const mpReady = () => STANDALONE && account && fbAuth && mode === 'ocean';
+async function mpConnect(){
+  if (mpSrc) return; mpOn = true;
+  let tok; try { tok = await fbToken(); } catch(e){ mpRetryT = 10; mpOn = false; return; }
+  const src = new EventSource(`${RTDB}/ocean.json?auth=${encodeURIComponent(tok)}`); mpSrc = src;
+  const take = (uid, v) => { if (uid === fbAuth?.uid) return;
+    if (!v){ const o = others.get(uid); if (o){ dropOther(o); others.delete(uid); } return; }
+    const o = others.get(uid), fresh = !o;
+    const n = o || { sx: v.x, sy: v.y, sw: v.w ?? 0, sa: v.a ?? 0 }; Object.assign(n, v, { seen: performance.now() }); others.set(uid, n);
+    if (fresh && v.n && mode === 'ocean') banner(`${v.n} is swimming too!`, 'Look for their name in the water'); };
+  const onData = (kind) => e => { let msg; try { msg = JSON.parse(e.data); } catch(_){ return; } if (!msg) return;
+    const parts = msg.path.split('/').filter(Boolean);
+    if (!parts.length){ if (kind === 'put'){ for (const [uid, o] of others) if (!msg.data || !(uid in msg.data)){ dropOther(o); others.delete(uid); } }
+      for (const uid in (msg.data || {})) take(uid, msg.data[uid]); }
+    else if (parts.length === 1) kind === 'put' ? take(parts[0], msg.data) : take(parts[0], { ...(others.get(parts[0]) || {}), ...msg.data });
+    else { const o = others.get(parts[0]); if (o) take(parts[0], { ...o, [parts[1]]: msg.data }); } };
+  src.addEventListener('put', onData('put')); src.addEventListener('patch', onData('patch'));
+  const again = () => { src.close(); if (mpSrc === src) mpSrc = null; mpRetryT = 3; };   // the login token runs out every hour: reconnect with a new one
+  src.addEventListener('auth_revoked', again); src.addEventListener('cancel', again); src.onerror = () => { if (src.readyState === 2) again(); };
+}
+function mpSay(body){ return fbToken().then(tok => fetch(`${RTDB}/ocean/${fbAuth.uid}.json?auth=${encodeURIComponent(tok)}`,
+  body ? { method: 'PUT', body: JSON.stringify(body), keepalive: true } : { method: 'DELETE', keepalive: true })).catch(() => {}); }
+function mpLeave(){
+  if (mpSrc){ mpSrc.close(); mpSrc = null; } if (mpOn && fbAuth) mpSay(null); mpOn = false; mpLast = '';
+  for (const o of others.values()) dropOther(o); others.clear(); }
+addEventListener('pagehide', () => { if (mpOn) mpLeave(); });
+function mpTick(dt){
+  if (!mpReady()){ if (mpOn || mpSrc) mpLeave(); return; }
+  if (!mpSrc){ if ((mpRetryT -= dt) <= 0) mpConnect(); return; }
+  if ((mpSendT -= dt) > 0) return; mpSendT = .2;   // five times a second
+  const o = ocean, m = player; if (!m) return;
+  const me = { n: fbAuth.name.slice(0, 20), c: curChar().id, g: curChar().id === 'swimmer' ? (save.gear || []).join(',').slice(0, 60) : '',
+    x: Math.round(o.x), y: Math.round(o.y), w: +m.position.y.toFixed(2), a: +o.ang.toFixed(2), p: +m.rotation.z.toFixed(2),
+    l: o.onShip ? 2 : o.onBoat ? 3 : o.onLand ? 1 : 0, d: +(o.depth || 0).toFixed(2) };
+  const key = JSON.stringify(me); if (key === mpLast && (mpSendT = .2, (o.mpIdle = (o.mpIdle || 0) + .2) < 4)) return;   // still: resend only now and then so you don't vanish
+  o.mpIdle = 0; mpLast = key; mpSay({ ...me, t: { '.sv': 'timestamp' } });
+}
+function dropOther(o){ if (o.model?.parent) o.model.parent.remove(o.model); if (o.tag?.parent) o.tag.parent.remove(o.tag); o.model = o.tag = null; }
+function drawOthers(t){
+  for (const [uid, o] of others){
+    if (performance.now() - o.seen > 15000 || (o.t && Date.now() - o.t > 60000)){ dropOther(o); others.delete(uid); continue; }   // gone quiet: they closed the game
+    if (!o.model || o.kind !== o.c){ dropOther(o); o.model = buildModel(o.c || 'swimmer'); o.model.rotation.order = 'YZX'; o.kind = o.c; oceanWorld.add(o.model);
+      o.tag = sprite(labelTex(o.n || 'Swimmer', '#082b45', '#fff', 512, 128, 80), 1.4, .35); oceanWorld.add(o.tag); }
+    const k = .18, moving = Math.hypot(o.x - o.sx, o.y - o.sy) > 1.5;   // glide toward the latest spot between updates
+    o.sx += (o.x - o.sx)*k; o.sy += (o.y - o.sy)*k; o.sw += ((o.w ?? 0) - o.sw)*k; o.sa = lerpAngle(o.sa, o.a ?? 0, k);
+    const m = o.model, u = m.userData; m.visible = true;
+    m.position.set(o.sx*U, o.sw, o.sy*U); m.rotation.set(0, -o.sa, o.p ?? 0);
+    if (u.gear){ const on = id => (o.g || '').split(',').includes(id);
+      for (const f of u.gear.fins) f.visible = on('fins'); u.gear.mask.visible = u.gear.snork.visible = on('snorkel'); u.gear.tank.visible = on('scuba');
+      for (const q of u.gear.goggles) q.visible = !on('snorkel'); u.gear.capM.color.set(on('goldcap') ? 0xf5c030 : 0x1f5fe0); }
+    if (o.l && u.kind === 'swimmer') poseWalk(m, moving ? t*8 : 0, moving); else poseModel(m, moving ? null : RIDE_POSE, t*1.2);
+    o.tag.position.set(o.sx*U, o.sw + (o.l ? 1.2 : .9), o.sy*U); }
+}
+function logOut(){ mpLeave(); persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
 function openGate(){ paused = true; ptr.down = false; for (const id of ['panel','shopPanel','mapPanel']) $(id).hidden = true; $('gateNote').textContent = ''; $('gatePanel').hidden = false; resetPick(); }
 $('gateLogin').onclick = async () => {
   const btn = $('gateLogin'); btn.disabled = true; btn.textContent = 'Logging in…'; $('gateNote').textContent = '';
@@ -3460,7 +3525,7 @@ $('continueBtn').onclick = async () => {
 /* ---------- Main loop ---------- */
 let last = performance.now(), chipT = 0;
 function frame(now){
-  const dt = Math.min(.05, (now - last)/1000); last = now; time += dt;
+  const dt = clamp((now - last)/1000, 0, .05); last = Math.max(last, now); time += dt;   // never let time run backwards
   if (!paused){
     if (mode === 'race') updRace(dt);
     else if (mode === 'pool') updPool(dt);
