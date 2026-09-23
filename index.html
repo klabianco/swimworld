@@ -222,6 +222,7 @@
     <div class="chip rank" id="rankChip"><div class="rk"><b id="rankName">Guppy</b><span id="xpVal">0 XP</span></div><div class="xpbar"><i id="xpFill"></i></div><span id="xpFloat" aria-hidden="true"></span></div>
     <div class="chip coins" id="coinChip"><span class="coin" aria-hidden="true"></span><b id="coinVal">0</b></div>
     <button class="chip" id="swimmerBtn" type="button">Menu</button>
+    <button class="chip" id="viewBtn" type="button">View</button>
   </div>
 </div>
 
@@ -493,8 +494,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'e' && !e.repeat) toggleRide();
   if (k === 't' && !e.repeat) talkToFriend();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
-  if (k === 'c' && playing() && !paused){ camMode = camMode === 'chase' ? 'first' : camMode === 'first' ? 'top' : 'chase'; camInit = false;
-    banner(camMode === 'first' ? 'First-person view' : camMode === 'top' ? 'Top view' : 'Behind-you view', ''); }
+  if (k === 'c' && playing() && !paused) nextView();
   // Escape closes whatever window is open (shop, map, menu, where-to-swim); with nothing open it opens the Menu
   if (k === 'escape' && !e.repeat){
     if (!$('shopPanel').hidden) closeShop();
@@ -3356,6 +3356,11 @@ function renderPanel(){
   }
 }
 $('swimmerBtn').onclick = openPanel;
+// camera views: behind you, through your own eyes, or from above (the View button, or C)
+function nextView(){ if (!playing() || paused) return; camMode = camMode === 'chase' ? 'first' : camMode === 'first' ? 'top' : 'chase'; camInit = false;
+  const name = camMode === 'first' ? 'First-person view' : camMode === 'top' ? 'Top view' : 'Behind-you view'; $('viewBtn').textContent = camMode === 'first' ? 'View: eyes' : camMode === 'top' ? 'View: top' : 'View';
+  banner(name, ''); }
+$('viewBtn').onclick = () => { initAudio(); nextView(); };
 document.querySelectorAll('[data-shark]').forEach(b => b.onclick = () => { save.sharkMode = b.dataset.shark; persist(); flushCloud(); renderPanel(); sfx(700, .08, 'triangle');
   if (ocean && save.sharkMode === 'friendly') for (const s of ocean.sharks) if (s.state !== 'patrol'){ s.state = 'retreat'; s.t = 0; } });
 $('resumeBtn').onclick = closePanel;
