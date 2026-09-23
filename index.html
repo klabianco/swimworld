@@ -37,6 +37,7 @@
   .bump{animation:bump .35s ease}
   @keyframes bump{40%{transform:scale(1.18)}}
   .lvl{display:flex;align-items:center;gap:8px}
+  .chip.quest{background:#fff3d6;font-weight:900;font-size:13px;color:#7a4b00;max-width:260px}
   .chip.rank{position:relative;display:flex;flex-direction:column;gap:5px;align-items:stretch}
   .chip.rank .rk{display:flex;gap:8px;justify-content:space-between;align-items:baseline;font-size:12px;font-weight:800;color:var(--muted)}
   .chip.rank .rk b{font-family:var(--display);font-weight:400;font-size:15px;color:var(--deep)}
@@ -219,6 +220,7 @@
     <div class="chip"><div class="lbl" id="hudLbl">Points</div><div class="big" id="hudVal">50</div>
       <div class="progress" id="hudProg"><i id="hudProgFill"></i></div></div>
     <div class="chip" id="hudSub"></div>
+    <div class="chip quest" id="questChip" hidden></div>
   </div>
   <div class="hud-col right">
     <div class="chip lvl" id="airChip" hidden><span>Air</span><div class="xpbar"><i id="airFill"></i></div></div>
@@ -1002,7 +1004,7 @@ function getChunk(cx,cy){
     const JCH = [.12, .3, .25, .3, .4, .25, 1.1], DEADLY = [0, .35, .3, .35, .4, .3, .6];
     for (let q = JCH[mz]; q > 0; q -= 1) if (R() < Math.min(1, q)){ const deadly = R() < DEADLY[mz];
       c.jellies.push({ x:X0 + R()*CH, y:Y0 + R()*CH, ph:R()*TAU, wr:40 + R()*80, d0:1 + R()*3.2, deadly, size:.22 + R()*.25, tl: deadly ? 1.4 + R()*1.4 : .35 + R()*.4 }); }
-    for (const [buddy, chance] of ({ 0:[['dolphin',.22]], 1:[['otter',.28]], 2:[['penguin',.45]], 3:[['dolphin',.3], ['manta',.22]], 5:[['turtle',.28], ['whale',.06]] })[mz] || [])
+    for (const [buddy, chance] of ({ 0:[['dolphin',.22]], 1:[['otter',.28], ['whale',.07]], 2:[['penguin',.45]], 3:[['dolphin',.3], ['manta',.22]], 5:[['turtle',.28], ['whale',.15]] })[mz] || [])
       if (R() < chance) c.buddies.push({ id:buddy, bx:mx, by:my, rad:(buddy === 'whale' ? 320 : 90) + R()*110, w:(R()<.5?-1:1)*(buddy === 'whale' ? .06 : .25+R()*.2), ph:R()*TAU });
     if (R() < .5) c.pearls.push({ x:X0+30+R()*(CH-60), y:Y0+30+R()*(CH-60), id:key+'#0' });
     if (R() < .15) c.pearls.push({ x:X0+30+R()*(CH-60), y:Y0+30+R()*(CH-60), id:key+'#1' });
@@ -1187,6 +1189,80 @@ function drawWhiskers(){
   ctx.font = "900 13px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(8,43,69,.8)'; ctx.lineWidth = 3;
   const t = `Treasure ${Math.round(n.d/METERS)} m`; ctx.strokeText(t, cx, cy + 40); ctx.fillText(t, cx, cy + 40);
 }
+/* Whale quests (for dolphins). Talk to a humpback whale (T) and she asks for help:
+   - Lost calf: her baby wandered off. Find it (it shows on your minimap) and lead it back; it follows you.
+   - Scattered song: three glowing song shells floated away. Collect them and bring them back.
+   Finishing a quest pays coins and XP. One quest at a time; a quest stays with you until you finish it or leave the ocean. */
+const QUEST_PAY = { calf: [150, 120], song: [120, 100] };
+function whaleSpot(b){ const [x, y] = buddyPos(b); return [x, y]; }
+function whaleTalk(o, b){
+  const q = o.quest, [wx, wy] = whaleSpot(b);
+  if (q && q.whale === b && q.state === 'done'){
+    const [c, xp] = QUEST_PAY[q.kind]; save.whaleQuests = (save.whaleQuests || 0) + 1; o.quest = null;
+    addCoins(c, 'Quest complete!'); addXP(xp); persist(); flushCloud(); [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
+    say('Humpback whale', q.kind === 'calf' ? "My baby! You found her! Thank you, brave little dolphin. Come back any time. I'll have more to ask." : 'Ooooooooo... My song is whole again! Listen to it echo across the whole ocean. Thank you, friend!', 9); return; }
+  if (q && q.whale === b){ const tgt = q.kind === 'calf' ? (q.state === 'find' ? q.calf : { x: wx, y: wy }) : (q.shells.find(s => !s.got) || { x: wx, y: wy });
+    const d = Math.round(Math.hypot(tgt.x - o.x, tgt.y - o.y)/METERS);
+    say('Humpback whale', q.kind === 'calf' ? (q.state === 'find' ? `Please hurry! My baby is somewhere to the ${compassWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away.` : 'Bring her close to me!')
+      : `You have ${q.got} of 3 song shells. The next one glows to the ${compassWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away.`, 8); return; }
+  if (q){ say('Humpback whale', 'You look busy helping someone else already. Finish that first, little one!', 6); return; }
+  const kind = (save.whaleQuests || 0) % 2 === 0 ? 'calf' : 'song', R = mulberry((Math.random()*1e9)|0);
+  if (kind === 'calf'){ const a = R()*TAU, d = (120 + R()*100)*METERS, calf = { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d };
+    o.quest = { kind, whale: b, state: 'find', calf, calfAng: 0 };
+    say('Humpback whale', `Oh, little dolphin, please help! My baby wandered off to the ${compassWord(calf.x - o.x, calf.y - o.y)}. Find her and lead her back to me! She'll show on your map.`, 10); }
+  else { const shells = [0, 1, 2].map(i => { const a = R()*TAU, d = (50 + R()*110)*METERS; return { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d, got: false }; });
+    o.quest = { kind, whale: b, state: 'collect', shells, got: 0 };
+    say('Humpback whale', 'Ooooo... my song broke into three glowing shells and they floated away. Could you bring them back to me? Look for the golden glow, and watch your map!', 10); }
+  banner('New quest!', kind === 'calf' ? 'Find the lost baby whale' : 'Collect 3 song shells'); sfx(660, .2, 'triangle', .06); sfx(990, .25, 'triangle', .06, .12);
+}
+function questStep(o, dt){
+  const q = o.quest, chip = $('questChip');
+  if (!q || curChar().id !== 'dolphin'){ if (!chip.hidden) chip.hidden = true; return; }
+  const [wx, wy] = whaleSpot(q.whale); let txt;
+  if (q.kind === 'calf'){
+    if (q.state === 'find'){ if (Math.hypot(q.calf.x - o.x, q.calf.y - o.y) < 5*METERS){ q.state = 'lead'; banner('You found the baby whale!', 'Lead her back to her mom. She will follow you.'); sfx(784, .2, 'triangle', .06); }
+      txt = `Find the baby whale · ${Math.round(Math.hypot(q.calf.x - o.x, q.calf.y - o.y)/METERS)} m ${compassWord(q.calf.x - o.x, q.calf.y - o.y)}`; }
+    else if (q.state === 'lead'){ const bx = o.x - Math.cos(o.ang)*4*METERS, by = o.y - Math.sin(o.ang)*4*METERS;   // she swims along behind you
+      const k = Math.min(1, dt*1.5); q.calf.x += (bx - q.calf.x)*k; q.calf.y += (by - q.calf.y)*k; q.calfAng = Math.atan2(o.y - q.calf.y, o.x - q.calf.x);
+      if (Math.hypot(q.calf.x - wx, q.calf.y - wy) < 14*METERS){ q.state = 'done'; banner('Reunited!', 'Talk to the whale (T) for your reward'); }
+      txt = `Lead her home · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${compassWord(wx - o.x, wy - o.y)}`; }
+    else txt = 'Talk to the whale for your reward!';
+  } else {
+    for (const sh of q.shells) if (!sh.got && Math.hypot(sh.x - o.x, sh.y - o.y) < 3*METERS && (o.depth || 0) < 2.5){ sh.got = true; q.got++; sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1);
+      banner(`Song shell ${q.got} of 3!`, q.got === 3 ? 'Bring them back to the whale' : 'Find the next golden glow'); }
+    if (q.got === 3 && q.state === 'collect'){ q.state = 'return'; }
+    if (q.state === 'return' && Math.hypot(wx - o.x, wy - o.y) < 16*METERS) q.state = 'done';
+    const next = q.shells.find(s => !s.got);
+    txt = q.state === 'done' ? 'Talk to the whale for your reward!' : next ? `Song shells ${q.got}/3 · next ${Math.round(Math.hypot(next.x - o.x, next.y - o.y)/METERS)} m ${compassWord(next.x - o.x, next.y - o.y)}` : `Back to the whale · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${compassWord(wx - o.x, wy - o.y)}`;
+  }
+  chip.hidden = false; if (chip.textContent !== txt) chip.textContent = txt;
+}
+let calfModel = null; const shellGlow = [];
+function drawQuest(t){
+  const o = ocean, q = o && o.quest, calfOn = q && q.kind === 'calf' && q.state !== 'done';
+  if (calfOn && !calfModel){ calfModel = buildWhale(); calfModel.scale.setScalar(.32); oceanWorld.add(calfModel); }
+  if (calfModel){ calfModel.visible = !!calfOn || !!(q && q.kind === 'calf');
+    if (calfModel.visible){ const x = q.calf.x*U, z = q.calf.y*U; calfModel.position.set(x, waveH(x, z, OC.amp, 1) - .35, z); calfModel.rotation.y = -(q.calfAng || t*.3); poseModel(calfModel, null, t*1.6); } }
+  const shells = q && q.kind === 'song' ? q.shells : [];
+  shells.forEach((sh, i) => { let m = shellGlow[i]; if (!m){ m = new THREE.Mesh(new THREE.SphereGeometry(.3, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffd76a, emissive: 0xffb020, emissiveIntensity: 2.2, roughness: .3 })); shellGlow.push(m); oceanWorld.add(m); }
+    m.visible = !sh.got; const x = sh.x*U, z = sh.y*U; m.position.set(x, waveH(x, z, OC.amp, 1) - .2 + Math.sin(t*2 + i)*.15, z); m.scale.setScalar(1 + Math.sin(t*4 + i)*.12); });
+  for (let i = shells.length; i < shellGlow.length; i++) shellGlow[i].visible = false;
+}
+/* Shark warning: when a shark is hunting you (or cruising close by), a red warning with an arrow shows where it is. */
+function drawSharkWarn(){
+  const o = ocean; if (!o || o.onLand || sharkMode() === 'friendly') return;
+  let best = null, bd = 1e9;
+  for (const s of o.sharks){ const d = Math.hypot(s.x - o.x, s.y - o.y), hunting = s.state === 'chase' || s.state === 'lunge' || s.state === 'recover';
+    if ((hunting && d < 70*METERS) || d < 25*METERS){ if (d < bd){ bd = d; best = s; } } }
+  if (!best) return;
+  const pulse = .55 + .45*Math.sin(time*9), a = Math.atan2(best.y - o.y, best.x - o.x) - camHead, x = 96, y = 150;
+  const g = ctx.createRadialGradient(W/2, H/2, Math.min(W, H)*.35, W/2, H/2, Math.max(W, H)*.72);   // red glow at the screen edges
+  g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, `rgba(255,40,40,${.28*pulse})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = `rgba(200,30,30,${.8 + .2*pulse})`; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 80, y - 20, 160, 40, 20) : ctx.rect(x - 80, y - 20, 160, 40); ctx.fill();
+  ctx.font = "900 17px Nunito, sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(`Shark! ${Math.round(bd/METERS)} m`, x - 34, y + 1);
+  ctx.save(); ctx.translate(x - 56, y); ctx.rotate(a + Math.PI/2); ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(9, 5); ctx.lineTo(3, 3); ctx.lineTo(3, 11); ctx.lineTo(-3, 11); ctx.lineTo(-3, 3); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill(); ctx.restore();
+}
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
   if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y); }
 function chestsNear(o){ const out = [], cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
@@ -1220,7 +1296,7 @@ function currentAt(x, y, t){
    A turtle can talk to sea turtles, an otter to otters, a dolphin to dolphins. They never say exactly
    where your house is: they point you roughly the right way and hand over a piece of an old sea map. */
 const MAP_N = 6;
-const SPECIES_NAME = { turtle:'Sea turtle', otter:'Otter', dolphin:'Dolphin' };
+const SPECIES_NAME = { turtle:'Sea turtle', otter:'Otter', dolphin:'Dolphin', whale:'Humpback whale', manta:'Manta ray', penguin:'Penguin', shark:'Shark' };
 // The lighthouse stands on a rocky islet partway along the way home: a landmark you can steer by.
 const LIGHTHOUSE = { x:0, y:0 };
 function placeLighthouse(){ const d = Math.hypot(HOUSE.x, HOUSE.y), a = Math.atan2(HOUSE.y, HOUSE.x) + .18; LIGHTHOUSE.x = Math.cos(a)*d*.45; LIGHTHOUSE.y = Math.sin(a)*d*.45; }
@@ -1239,8 +1315,8 @@ function friendNear(o){
   const me = curChar().id; if (me === 'swimmer') return personNear(o); if (!SPECIES_NAME[me] || o.onLand) return null;
   let best = null, bd = 150;
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
-  const check = b => { const [x, y] = buddyPos(b), d = Math.hypot(x - o.x, y - o.y); if (d < bd){ bd = d; best = b; } };
-  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of getChunk(cx+a, cy+b).buddies) if (bb.id === me) check(bb);
+  const check = b => { const [x, y] = buddyPos(b), d = Math.hypot(x - o.x, y - o.y) - (b.id === 'whale' ? 280 : 0); if (d < bd){ bd = d; best = b; } };   // whales are big: talk from anywhere alongside
+  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of getChunk(cx+a, cy+b).buddies) if (bb.id === me || (me === 'dolphin' && bb.id === 'whale')) check(bb);
   if (me === 'turtle'){ const tt = LANDMARKS.find(L => L.kind === 'turtletown');
     if (Math.hypot(tt.x - o.x, tt.y - o.y) < 900) for (let i=0;i<6;i++) check({ id:'turtle', bx:tt.x, by:tt.y, rad:330, w:.12, ph:i/6*TAU, town:true }); }
   return best;
@@ -1256,6 +1332,7 @@ const talkCount = {};
 function talkToFriend(){
   const o = ocean; if (mode !== 'ocean' || !o || paused) return;
   const b = friendNear(o); if (!b) return;
+  if (b.id === 'whale'){ whaleTalk(o, b); return; }
   const [bx, by] = b.person ? [b.bx, b.by] : buddyPos(b), dx = HOUSE.x - bx, dy = HOUSE.y - by, m = Math.hypot(dx, dy)/METERS;
   const dir = compassWord(dx, dy), far = m > 550 ? 'very, very far away' : m > 300 ? 'a long swim from here' : m > 120 ? 'not too far now' : 'really close';
   const who = b.person ? ({ keeper:'Lighthouse keeper', captain:'Pirate captain', gunner:'Pirate gunner', lookout:'Pirate lookout', deckhand:'Pirate deckhand' }[b.person] || 'Fisherman') : SPECIES_NAME[b.id], key = b.person ? b.key : `${b.bx},${b.by},${b.ph.toFixed(3)}`;
@@ -1515,19 +1592,21 @@ function walkStep(o, dt){
 }
 // body sizes (meters): half the body's length along its heading, its radius, how deep its middle swims, and its half-height
 const ANIMAL_BODY = { dolphin:[.95, .35, .14, .35], turtle:[.45, .45, .05, .25], otter:[.45, .28, .05, .25], penguin:[.25, .2, .08, .25],
-  manta:[.7, 2.1, 3.2, .45], whale:[5.2, 1.5, 2.6, 1.6], shark:[1.5, .45, 0, .45] };
-function bumpCapsule(o, cx, cy, ang, body, depth){
-  const [hl, r, , hh] = body; if (Math.abs((o.depth || 0) - depth) > hh + .3) return;
-  const fx = Math.cos(ang), fy = Math.sin(ang), t = clamp((o.x - cx)*fx + (o.y - cy)*fy, -hl/U, hl/U);
-  keepOutCircle(o, cx + fx*t, cy + fy*t, r/U);
+  manta:[.7, 2.1, 3.2, .45], whale:[5.2, 1.5, 1.1, 2.4],   /* a whale is big: only a very high leap clears it */ shark:[1.5, .45, 0, .45] };
+function bumpCapsule(o, cx, cy, ang, body, depth, kind){
+  const [hl, r, , hh] = body; if (Math.abs((o.depth || 0) - (o.jumpY || 0) - depth) > hh + .3) return;   // (in the air counts as above the water)
+  const fx = Math.cos(ang), fy = Math.sin(ang), t = clamp((o.x - cx)*fx + (o.y - cy)*fy, -hl/U, hl/U), px = cx + fx*t, py = cy + fy*t;
+  if (o.jumpY > 0 && !o.bonked && Math.hypot(o.x - px, o.y - py) < r/U + BODY_F){ o.bonked = true; sfx(110, .3, 'sine', .1, 0, -50);   // leapt right into it
+    banner('Bonk!', `You bumped into the ${(SPECIES_NAME[kind] || kind).toLowerCase()}`); setTimeout(() => { o.bonked = false; }, 1500); }
+  keepOutCircle(o, px, py, r/U);
 }
 function bumpAnimals(o){
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
   for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of getChunk(cx + a, cy + b).buddies){
     if (bb === o.rideFrom) continue; const body = ANIMAL_BODY[bb.id]; if (!body) continue;
     const [x, y, ang] = buddyPos(bb); if (Math.hypot(x - o.x, y - o.y) > (body[0] + body[1])/U + 80) continue;
-    bumpCapsule(o, x, y, ang, body, body[2]); }
-  for (const s of o.sharks) if (Math.hypot(s.x - o.x, s.y - o.y) < 160) bumpCapsule(o, s.x, s.y, s.ang, ANIMAL_BODY.shark, s.depth);
+    bumpCapsule(o, x, y, ang, body, body[2], bb.id); }
+  for (const s of o.sharks) if (Math.hypot(s.x - o.x, s.y - o.y) < 160) bumpCapsule(o, s.x, s.y, s.ang, ANIMAL_BODY.shark, s.depth, 'shark');
 }
 function updOcean(dt){
   const o = ocean; o.prevDepth = o.depth || 0;
@@ -1552,7 +1631,7 @@ function updOcean(dt){
   let d = Math.hypot(o.x,o.y);
   // animals are solid: you bump off whales, sharks, dolphins and the rest instead of swimming through them
   const air = o.jumpY || 0;   // a leaping dolphin sails over things lower than the jump
-  if (!o.onLand && !o.ride && air < .3) bumpAnimals(o);
+  if (!o.onLand && !o.ride) bumpAnimals(o);
   // the island's underwater slope is solid: you glide up it instead of through it
   if (!o.onLand && !o.ride){ const gh = groundAt(o.x, o.y); if (gh > -3.3 && (o.depth || 0) > -gh - .35){ o.depth = Math.max(0, -gh - .35); if ((o.vd || 0) > 0) o.vd = 0; } }
   // swim up a beach and you climb out onto the island
@@ -1589,6 +1668,7 @@ function updOcean(dt){
   d = Math.hypot(o.x, o.y);
   updSharks(o, dt); if (mode === 'dead') return;
   updCannons(o, dt); if (mode === 'dead') return;
+  questStep(o, dt);
   mpTick(dt);
   o.tripT = (o.tripT || 0) + dt;
   { const hx = HOUSE.x - o.x, hy = HOUSE.y - o.y, hd = Math.hypot(hx, hy);
@@ -1675,6 +1755,9 @@ function drawMinimap(){
   const d = Math.hypot(ocean.x, ocean.y), k = Math.min(1, WORLD_R/Math.max(d, 1)) * .96;
   const px = x + size/2 + ocean.x/WORLD_R*k*size/2, py = y + size/2 + ocean.y/WORLD_R*k*size/2;
   drawNSEW();
+  { const q = ocean.quest; if (q){ const pts = q.kind === 'calf' ? [q.state === 'find' ? q.calf : { x: whaleSpot(q.whale)[0], y: whaleSpot(q.whale)[1] }] : q.state === 'collect' ? q.shells.filter(s2 => !s2.got) : [{ x: whaleSpot(q.whale)[0], y: whaleSpot(q.whale)[1] }];
+    for (const tp of pts){ const hd = Math.hypot(tp.x, tp.y), hk = Math.min(1, WORLD_R/Math.max(hd, 1))*.96, sx = x + size/2 + tp.x/WORLD_R*hk*size/2, sy = y + size/2 + tp.y/WORLD_R*hk*size/2;
+      ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = 'rgba(8,43,69,.9)'; ctx.lineWidth = 2; ctx.beginPath(); for (let i=0;i<10;i++){ const rr = i%2 ? 2.4 : 5.5, aa = -Math.PI/2 + i*Math.PI/5; ctx.lineTo(sx + Math.cos(aa)*rr, sy + Math.sin(aa)*rr); } ctx.closePath(); ctx.stroke(); ctx.fill(); } } }
   if (time < sonarUntil) for (const h of sonarHits){ const hd = Math.hypot(h.x, h.y), hk = Math.min(1, WORLD_R/Math.max(hd, 1))*.96, sx = x + size/2 + h.x/WORLD_R*hk*size/2, sy = y + size/2 + h.y/WORLD_R*hk*size/2;
     if (h.k === 'chest'){ ctx.fillStyle = '#ffc53d'; ctx.fillRect(sx - 3, sy - 3, 6, 6); } else { ctx.fillStyle = '#fff'; circ(ctx, sx, sy, 2.2); } }
   for (const f of others.values()){ const fd = Math.hypot(f.x, f.y), fk = Math.min(1, WORLD_R/Math.max(fd, 1))*.96;
@@ -2116,7 +2199,7 @@ function buildWhale(){
     const f = new THREE.SphereGeometry(1, 12, 6); f.scale(.7, .08, 2.4); f.translate(-.4, 0, s*2.3); const m = new THREE.Mesh(f, bellyM); m.castShadow = true; pv.add(m); limbs[id] = pv; }
   const tail = new THREE.Group(); tail.position.x = -6; body.add(tail);
   const fl = new THREE.SphereGeometry(1, 16, 8); fl.scale(.9, .1, 2.2); fl.translate(-.6, 0, 0); const flm = new THREE.Mesh(fl, top); flm.castShadow = true; tail.add(flm);
-  root.userData = { kind:'whale', body, limbs, tail, float:-2.6 }; return root;
+  root.userData = { kind:'whale', body, limbs, tail, float:-1.1 }; return root;
 }
 function buildModel(id){ return id === 'turtle' ? buildTurtle() : id === 'otter' ? buildOtter() : id === 'dolphin' ? buildDolphin() : id === 'penguin' ? buildPenguin() : id === 'manta' ? buildManta() : id === 'whale' ? buildWhale() : buildSwimmer(); }
 function poseModel(m, L, t){
@@ -3089,6 +3172,7 @@ function updOceanWorld(o){
     m.userData.tail.rotation.y = w*.45; m.userData.body.rotation.y = -w*.07; m.userData.body.rotation.x = clamp((s.turnRate || 0)*-.25, -.35, .35); });
   for (let i = o.sharks.length; i < sharkPool.length; i++) sharkPool[i].visible = false;
   if (others.size) drawOthers(time);
+  drawQuest(time);
   if (afloatShip){ const [plx, plz] = shipLocal(o.x, o.y), near = Math.hypot(plx, plz) < 60;   // the crew watches you when you come close
     for (const p of PIRATES) if (p.model){ const m = p.model, [x, z] = pirateSpot(p), h = shipDeckH(x, z) ?? 3; m.visible = true;
       const walking = !!p.pace, yawTo = near && !walking ? Math.atan2(plx - x, plz - z) : walking ? (Math.cos(time*.35) > 0 ? Math.PI/2 : -Math.PI/2) : Math.PI/2;
@@ -3721,7 +3805,7 @@ function frame(now){
     const mw = W*.9, mh = H*.8, r = Math.min(W, H)*.18; ctx.roundRect ? ctx.roundRect((W - mw)/2, (H - mh)/2, mw, mh, r) : ctx.rect((W - mw)/2, (H - mh)/2, mw, mh);
     ctx.fill('evenodd'); ctx.restore(); }
   if ((mode === 'race' || mode === 'results') && race){ drawRaceOverlay(); drawBeat(); }
-  else if (mode === 'ocean' && ocean){ drawMinimap(); drawWhiskers(); }
+  else if (mode === 'ocean' && ocean){ drawMinimap(); drawWhiskers(); drawSharkWarn(); }
   if (!account && playing() && !paused && (guestT += dt) > GUEST_SECS){ if (STANDALONE) openLogin(true); else openGate(); }
   chipT -= dt; if (chipT <= 0){ chipT = .5; refreshLevelChip(); $('coinVal').textContent = save.coins || 0; }
   requestAnimationFrame(frame);
