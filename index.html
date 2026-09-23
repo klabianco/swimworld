@@ -966,10 +966,20 @@ function depthAt(x, y){
 }
 const floorY = (x, y) => -depthAt(x, y);
 const chunks = new Map();
+/* More of your own kind live where you swim: otters in the kelp, dolphins in warm and coastal seas, turtles on the reefs.
+   They're added on top of each area's usual animals, so you always have someone to talk to. */
+const KIN = { otter:[0, 1], dolphin:[0, 1, 3, 4, 5], turtle:[0, 3, 4, 5] };
+function chunkBuddies(c){
+  const me = curChar().id;
+  if (c.kinFor !== me){ c.kinFor = me; c.kin = [];
+    const R = mulberry(hash(c.cx*7 + 3, c.cy*13 + me.length*101)), mx = (c.cx + .5)*CH, my = (c.cy + .5)*CH, z = zoneAt(mx, my);
+    if ((KIN[me] || []).includes(z) && R() < .35) c.kin.push({ id: me, bx: mx + (R() - .5)*CH*.6, by: my + (R() - .5)*CH*.6, rad: 90 + R()*110, w: (R() < .5 ? -1 : 1)*(.25 + R()*.2), ph: R()*TAU }); }
+  return c.kin.length ? c.buddies.concat(c.kin) : c.buddies;
+}
 function getChunk(cx,cy){
   const key = cx + ',' + cy; let c = chunks.get(key); if (c) return c;
   const R = mulberry(hash(cx,cy)); const X0 = cx*CH, Y0 = cy*CH;
-  c = { spots:[], items:[], canopy:[], glow:[], fish:[], buddies:[], pearls:[], jellies:[], chests:[], boats:[] };
+  c = { cx, cy, spots:[], items:[], canopy:[], glow:[], fish:[], buddies:[], pearls:[], jellies:[], chests:[], boats:[] };
   for (let i=0;i<5;i++) c.spots.push({ x:X0+R()*CH, y:Y0+R()*CH, r:40+R()*90, light:R()<.5 });
   const n = 5 + (R()*5|0);
   for (let i=0;i<n;i++){
@@ -1259,7 +1269,7 @@ function drawSharkWarn(){
   const g = ctx.createRadialGradient(W/2, H/2, Math.min(W, H)*.35, W/2, H/2, Math.max(W, H)*.72);   // red glow at the screen edges
   g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, `rgba(255,40,40,${.28*pulse})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = `rgba(200,30,30,${.8 + .2*pulse})`; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x - 80, y - 20, 160, 40, 20) : ctx.rect(x - 80, y - 20, 160, 40); ctx.fill();
-  ctx.font = "900 17px Nunito, sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(`Shark! ${Math.round(bd/METERS)} m`, x - 34, y + 1);
+  ctx.font = "900 16px Nunito, sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(`${PRED[best.k || 'white'].name.split(' ').pop().replace(/^./, c => c.toUpperCase())}! ${Math.round(bd/METERS)} m`, x - 34, y + 1);
   ctx.save(); ctx.translate(x - 56, y); ctx.rotate(a + Math.PI/2); ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(9, 5); ctx.lineTo(3, 3); ctx.lineTo(3, 11); ctx.lineTo(-3, 11); ctx.lineTo(-3, 3); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill(); ctx.restore();
 }
@@ -1316,7 +1326,7 @@ function friendNear(o){
   let best = null, bd = 150;
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
   const check = b => { const [x, y] = buddyPos(b), d = Math.hypot(x - o.x, y - o.y) - (b.id === 'whale' ? 280 : 0); if (d < bd){ bd = d; best = b; } };   // whales are big: talk from anywhere alongside
-  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of getChunk(cx+a, cy+b).buddies) if (bb.id === me || (me === 'dolphin' && bb.id === 'whale')) check(bb);
+  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of chunkBuddies(getChunk(cx+a, cy+b))) if (bb.id === me || (me === 'dolphin' && bb.id === 'whale')) check(bb);
   if (me === 'turtle'){ const tt = LANDMARKS.find(L => L.kind === 'turtletown');
     if (Math.hypot(tt.x - o.x, tt.y - o.y) < 900) for (let i=0;i<6;i++) check({ id:'turtle', bx:tt.x, by:tt.y, rad:330, w:.12, ph:i/6*TAU, town:true }); }
   return best;
@@ -1436,7 +1446,7 @@ function findDolphin(o){
   if (curChar().id !== 'swimmer') return null;   // only people ride dolphins
   let best = null, bd = 130;
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
-  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of getChunk(cx+a, cy+b).buddies){
+  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of chunkBuddies(getChunk(cx+a, cy+b))){
     if (bb.id !== 'dolphin' || bb === o.rideFrom) continue;
     const [x, y] = buddyPos(bb), d = Math.hypot(x - o.x, y - o.y); if (d < bd){ bd = d; best = bb; } }
   return (o.depth || 0) < 1.2 ? best : null;
@@ -1480,6 +1490,26 @@ function updRide(o, dt){
 /* ---------- Sharks: they patrol, chase you if you come close, and bite ----------
    They never enter the Sunny Lagoon around Home, and they won't bite someone riding a dolphin. */
 const DANGER = [0, .5, .35, .55, 1, .3, 1];
+/* Every ocean has its own predator, and it depends on what you are. (Laguna Beach, by Pool Island, is always safe.) */
+const PRED = {
+  white:     { name:'Great white shark', spd:1,    turn:1,   body:[1.5, .45, 0, .45] },
+  tiger:     { name:'Tiger shark',       spd:.95,  turn:1.1, body:[1.5, .45, 0, .45] },
+  orca:      { name:'Orca',              spd:1.15, turn:1.3, body:[2.4, .75, 0, .7] },
+  seal:      { name:'Leopard seal',      spd:.85,  turn:1.7, body:[1.1, .4, 0, .4] },
+  barracuda: { name:'Barracuda',         spd:1.2,  turn:1.35,body:[.8, .15, 0, .25] },
+  squid:     { name:'Giant squid',       spd:.7,   turn:.9,  body:[1.8, .6, 0, .8] },
+};
+function predFor(zone, me){
+  switch (zone){
+    case 1: return me === 'dolphin' || me === 'otter' ? 'orca' : 'white';          // Catalina: orcas hunt otters and dolphins
+    case 2: return me === 'dolphin' || me === 'turtle' ? 'orca' : 'seal';          // Antarctica: leopard seals, and orcas
+    case 3: return 'tiger';                                                        // Great Barrier Reef
+    case 4: return me === 'turtle' ? 'tiger' : 'barracuda';                        // Caribbean
+    case 5: return 'tiger';                                                        // Hawaii: tiger sharks love turtles
+    case 6: return 'squid';                                                        // Mariana Trench
+    default: return 'white'; }
+}
+const predName = s => PRED[s.k || 'white'].name;
 // Sharks are faster than you but turn badly. Up close they line up and lunge in a straight line,
 // so a hard swerve at the last moment makes them overshoot and swing wide to come back.
 const SHARK_SPD = { patrol:70, chase:150, lunge:260, recover:60, retreat:130 };
@@ -1488,9 +1518,9 @@ const sharkMode = () => save.sharkMode || 'gentle';
 const SHARK_GENTLE = { chase:.75, lunge:.78 };
 const SHARK_TURN = { patrol:1.2, chase:.85, lunge:.1, recover:1.3, retreat:1.2 };
 function steerTo(s, tx, ty, dt){
-  const want = Math.atan2(ty - s.y, tx - s.x), err = ((want - s.ang + Math.PI)%TAU + TAU)%TAU - Math.PI, tr = SHARK_TURN[s.state];
+  const P = PRED[s.k || 'white'], want = Math.atan2(ty - s.y, tx - s.x), err = ((want - s.ang + Math.PI)%TAU + TAU)%TAU - Math.PI, tr = SHARK_TURN[s.state]*(s.state === 'lunge' ? 1 : P.turn);
   const turn = clamp(err, -tr*dt, tr*dt); s.ang += turn; s.turnRate = turn/dt; s.err = err;
-  const top = SHARK_SPD[s.state]*(sharkMode() === 'gentle' ? (SHARK_GENTLE[s.state] || 1) : 1);
+  const top = SHARK_SPD[s.state]*P.spd*(sharkMode() === 'gentle' ? (SHARK_GENTLE[s.state] || 1) : 1);
   s.sp = lerp(s.sp || top, top, Math.min(1, dt*(s.state === 'lunge' ? 5 : 1.5)));
   s.x += Math.cos(s.ang)*s.sp*dt; s.y += Math.sin(s.ang)*s.sp*dt;
 }
@@ -1500,7 +1530,7 @@ function updSharks(o, dt){
   o.sharkSpawnT -= dt;
   if (o.sharks.length < want && o.sharkSpawnT <= 0){ o.sharkSpawnT = 5;
     const a = Math.random()*TAU, d = 1900 + Math.random()*1000, x = o.x + Math.cos(a)*d, y = o.y + Math.sin(a)*d;
-    if (zoneAt(x, y) !== 0) o.sharks.push({ x, y, cx:x, cy:y, depth:1.6, dT:1.6, ang:Math.random()*TAU, state:'patrol', t:0, pa:Math.random()*TAU, ph:Math.random()*TAU }); }
+    const zz = zoneAt(x, y); if (zz !== 0){ const k = predFor(zz, curChar().id); o.sharks.push({ k, x, y, cx:x, cy:y, depth: k === 'squid' ? 6 : 1.6, dT: k === 'squid' ? 6 : 1.6, ang:Math.random()*TAU, state:'patrol', t:0, pa:Math.random()*TAU, ph:Math.random()*TAU }); } }
   let chasing = false;
   for (const s of o.sharks){
     const dx = o.x - s.x, dy = o.y - s.y, d = Math.hypot(dx, dy), safe = o.zone === 0 || !!o.onLand || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 1500;
@@ -1509,7 +1539,7 @@ function updSharks(o, dt){
     if (s.state === 'patrol'){
       s.pa += dt*.22; steerTo(s, s.cx + Math.cos(s.pa)*420, s.cy + Math.sin(s.pa)*420, dt); s.dT = 1.6;
       if (d < 720 && !safe && sharkMode() !== 'friendly'){ set('chase');
-        if (!o.sharkSeen){ o.sharkSeen = true; coach("Shark! It's faster than you, but it can't turn well. When it lunges, swerve hard to the side. Or ride a dolphin, or get back to Laguna Beach.", 9); } }
+        if (!o.sharkSeen){ o.sharkSeen = true; coach(`${predName(s)}! It's faster than you, but it can't turn well.`  + " When it lunges, swerve hard to the side. Or ride a dolphin, or get back to Laguna Beach.", 9); } }
     } else if (s.state === 'retreat'){ steerTo(s, s.x - dx, s.y - dy, dt); s.dT = 2.2; if (s.t > 6){ set('patrol'); s.cx = s.x; s.cy = s.y; } }
     else {
       chasing = true; s.dT = clamp(o.depth || 0, .3, 5);
@@ -1518,14 +1548,14 @@ function updSharks(o, dt){
       if (s.state === 'chase' && d < 320 && Math.abs(s.err) < .3){ set('lunge'); sfx(140, .4, 'sawtooth', .05, 0, -70); }
       else if (s.state === 'lunge' && s.t > 1.1) set('recover');
       else if (s.state === 'recover' && s.t > 1.4) set('chase');
-      const hl = ANIMAL_BODY.shark[0]/U, sfx_ = Math.cos(s.ang), sfy = Math.sin(s.ang), segD = ([px, py]) => { const t = clamp((px - s.x)*sfx_ + (py - s.y)*sfy, -hl, hl); return Math.hypot(px - s.x - sfx_*t, py - s.y - sfy*t); };
-      if (!(o.jumpY > .3) && bodyPoints(o).some(p => segD(p) < ANIMAL_BODY.shark[1]/U + BODY_W + 8) && Math.abs((o.depth || 0) - s.depth) < 1.1){   // touching the shark's body
-        if (hasGear('armor')){ o.vx += dx/(d || 1)*120; o.vy += dy/(d || 1)*120; set('retreat'); sfx(900, .15, 'triangle', .06); banner('Clang!', 'The shark bit your armor shell and swam off'); continue; }
-        if (sharkMode() === 'dangerous'){ o.hurtT = 1; die('shark'); return; }
+      const PB = PRED[s.k || 'white'].body, hl = PB[0]/U, sfx_ = Math.cos(s.ang), sfy = Math.sin(s.ang), segD = ([px, py]) => { const t = clamp((px - s.x)*sfx_ + (py - s.y)*sfy, -hl, hl); return Math.hypot(px - s.x - sfx_*t, py - s.y - sfy*t); };
+      if (!(o.jumpY > .3) && bodyPoints(o).some(p => segD(p) < PB[1]/U + BODY_W + 8) && Math.abs((o.depth || 0) - s.depth) < 1.1){   // touching the shark's body
+        if (hasGear('armor')){ o.vx += dx/(d || 1)*120; o.vy += dy/(d || 1)*120; set('retreat'); sfx(900, .15, 'triangle', .06); banner('Clang!', `The ${predName(s).toLowerCase()} bit your armor shell and swam off`); continue; }
+        if (sharkMode() === 'dangerous'){ o.hurtT = 1; o.biter = predName(s); die('shark'); return; }
         // gentle: a nip that costs coins, a shove away, and the shark swims off
         const lost = Math.min(save.coins || 0, 10); save.coins = (save.coins || 0) - lost; persist();
         o.hurtT = 1; o.vx += dx/(d || 1)*160; o.vy += dy/(d || 1)*160; set('retreat'); sfx(120, .3, 'sawtooth', .07, 0, -60);
-        banner('Chomp! The shark nipped you', lost ? `-${lost} coins. Swerve when it lunges!` : 'Swerve when it lunges!'); continue; }
+        banner(`Chomp! The ${predName(s).toLowerCase()} nipped you`, lost ? `-${lost} coins. Swerve when it lunges!` : 'Swerve when it lunges!'); continue; }
     }
     s.depth += (s.dT - s.depth)*Math.min(1, dt*1.3);
   }
@@ -1602,11 +1632,11 @@ function bumpCapsule(o, cx, cy, ang, body, depth, kind){
 }
 function bumpAnimals(o){
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
-  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of getChunk(cx + a, cy + b).buddies){
+  for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bb of chunkBuddies(getChunk(cx + a, cy + b))){
     if (bb === o.rideFrom) continue; const body = ANIMAL_BODY[bb.id]; if (!body) continue;
     const [x, y, ang] = buddyPos(bb); if (Math.hypot(x - o.x, y - o.y) > (body[0] + body[1])/U + 80) continue;
     bumpCapsule(o, x, y, ang, body, body[2], bb.id); }
-  for (const s of o.sharks) if (Math.hypot(s.x - o.x, s.y - o.y) < 160) bumpCapsule(o, s.x, s.y, s.ang, ANIMAL_BODY.shark, s.depth, 'shark');
+  for (const s of o.sharks) if (Math.hypot(s.x - o.x, s.y - o.y) < 160) bumpCapsule(o, s.x, s.y, s.ang, PRED[s.k || 'white'].body, s.depth, 'shark');
 }
 function updOcean(dt){
   const o = ocean; o.prevDepth = o.depth || 0;
@@ -3058,17 +3088,18 @@ function buildLighthouse(){
 }
 
 /* ---------- Sharks: a sleek body, countershaded, with gills and a proper tail ---------- */
-function buildShark(){
+function buildShark(topCol = 0x4f6272, stripes = false){
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const prof = [[.01,-1.35],[.07,-1.15],[.15,-.8],[.24,-.35],[.3,.05],[.3,.35],[.26,.7],[.19,.95],[.1,1.15],[.02,1.28]].map(([r, y]) => new THREE.Vector2(r, y));
   const bg = new THREE.LatheGeometry(prof, 28); bg.rotateZ(-Math.PI/2); bg.scale(1, .86, .72);
   const p = bg.attributes.position, nrm = new THREE.Vector3(); bg.computeVertexNormals();
-  const cols = new Float32Array(p.count*3), top = new THREE.Color(0x4f6272), belly = new THREE.Color(0xeef2f4), t = new THREE.Color();
-  for (let i=0;i<p.count;i++){ nrm.fromBufferAttribute(bg.attributes.normal, i); t.copy(belly).lerp(top, THREE.MathUtils.smoothstep(nrm.y, -.35, .15)); cols.set([t.r, t.g, t.b], i*3); }
+  const cols = new Float32Array(p.count*3), top = new THREE.Color(topCol), belly = new THREE.Color(0xeef2f4), t = new THREE.Color(), band = new THREE.Color(0x2f2a1c);
+  for (let i=0;i<p.count;i++){ nrm.fromBufferAttribute(bg.attributes.normal, i); t.copy(belly).lerp(top, THREE.MathUtils.smoothstep(nrm.y, -.35, .15));
+    if (stripes && nrm.y > 0 && Math.sin(p.getX(i)*14) > .45) t.lerp(band, .7); cols.set([t.r, t.g, t.b], i*3); }
   bg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const skin = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .5, metalness: .05 });
   const trunk = new THREE.Mesh(bg, skin); trunk.castShadow = true; body.add(trunk);
-  const finM = new THREE.MeshStandardMaterial({ color: 0x4f6272, roughness: .55, side: THREE.DoubleSide });
+  const finM = new THREE.MeshStandardMaterial({ color: topCol, roughness: .55, side: THREE.DoubleSide });
   const fin = (pts) => { const s = new THREE.Shape(); s.moveTo(pts[0][0], pts[0][1]); for (let i=1;i<pts.length;i++) s.lineTo(pts[i][0], pts[i][1]); s.closePath(); return new THREE.ShapeGeometry(s); };
   const dorsal = new THREE.Mesh(fin([[-.25, 0], [-.02, .62], [.28, 0]]), finM); dorsal.position.set(.05, .2, 0); dorsal.castShadow = true; body.add(dorsal);
   const dorsal2 = new THREE.Mesh(fin([[-.08, 0], [0, .14], [.07, 0]]), finM); dorsal2.position.set(-.85, .08, 0); body.add(dorsal2);
@@ -3084,6 +3115,49 @@ function buildShark(){
   root.userData = { kind:'shark', body, tail }; root.scale.setScalar(1.25);
   return root;
 }
+
+function buildOrca(){   // a big black-and-white dolphin with a tall fin and white eye patches
+  const m = buildDolphin(), blk = 0x16191c;
+  m.traverse(o => { if (o.material?.color){ const c = o.material.color.getHex(); o.material = o.material.clone(); if (c === 0x5f7f98) o.material.color.set(blk); else if (c === 0xd5e1e8) o.material.color.set(0xf4f4f0); } });
+  for (const sg of [-1, 1]){ const pch = ellip(.09, 1.6, .7, .5, std(0xf4f4f0, .4)); pch.position.set(.58, .1, sg*.17); m.userData.body.add(pch); }
+  const fin = new THREE.Mesh(new THREE.ConeGeometry(.12, .7, 4).scale(1, 1, .25), std(blk, .35)); fin.position.set(-.05, .55, 0); m.userData.body.add(fin);
+  m.userData.kind = 'orca'; m.scale.setScalar(2.2); return m;
+}
+function buildSeal(){   // leopard seal: long spotted grey body, big head, front flippers
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const spots = canvasTex(128, 128, (c, w, h) => { c.fillStyle = '#8a9096'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(40,45,50,.55)'; for (let i=0;i<60;i++){ c.beginPath(); c.arc((i*37)%w, (i*71)%h, 3 + (i%4), 0, TAU); c.fill(); } });
+  const skin = new THREE.MeshStandardMaterial({ map: spots, roughness: .6 });
+  const trunk = caps(.3, 1.3, skin); trunk.geometry.scale(1, .8, .9); body.add(trunk);
+  const head = ellip(.22, 1.35, .9, .95, skin); head.position.set(.95, .05, 0); body.add(head);
+  for (const sg of [-1, 1]){ const e = ellip(.03, 1, 1, 1, std(0x050505, .1)); e.position.set(1.14, .12, sg*.1); body.add(e);
+    const fl = ellip(.08, 2.4, .3, 1, skin); fl.position.set(.45, -.18, sg*.3); fl.rotation.y = sg*.5; body.add(fl); }
+  const tail = new THREE.Group(); tail.position.x = -.85; body.add(tail);
+  for (const sg of [-1, 1]){ const hf = ellip(.08, 2, .25, 1.2, skin); hf.position.set(-.18, 0, sg*.1); hf.rotation.y = sg*.35; tail.add(hf); }
+  root.userData = { kind:'seal', body, tail }; return root;
+}
+function buildBarracuda(){   // long, thin, silver, toothy
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const prof = [[.01,-.9],[.05,-.75],[.08,-.4],[.09,0],[.08,.4],[.06,.7],[.02,.92]].map(([r, y]) => new THREE.Vector2(r, y));
+  const g = new THREE.LatheGeometry(prof, 16); g.rotateZ(-Math.PI/2); g.scale(1, 1, .8);
+  const silver = std(0xc3ccd4, .25, .6); body.add(new THREE.Mesh(g, silver));
+  for (let k=0;k<6;k++){ const bar = new THREE.Mesh(new THREE.TorusGeometry(.085, .008, 4, 12, Math.PI), std(0x59636b, .4)); bar.rotation.y = Math.PI/2; bar.position.x = .45 - k*.15; body.add(bar); }
+  for (const sg of [-1, 1]){ const e = ellip(.018, 1, 1, 1, std(0x050505, .1)); e.position.set(.72, .03, sg*.05); body.add(e); }
+  const tail = new THREE.Group(); tail.position.x = -.88; body.add(tail);
+  const tf = new THREE.Mesh(new THREE.ConeGeometry(.14, .22, 3).rotateZ(Math.PI/2).scale(1, 1, .15), silver); tf.position.x = -.08; tail.add(tf);
+  root.userData = { kind:'barracuda', body, tail }; root.scale.setScalar(1.3); return root;
+}
+function buildSquid(){   // giant squid: long red mantle, big eyes, eight arms trailing behind
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const red = std(0xb2413a, .5);
+  const mantle = new THREE.Mesh(new THREE.ConeGeometry(.35, 1.8, 16).rotateZ(Math.PI/2), red); mantle.position.x = -.2; body.add(mantle);   // pointy end first
+  for (const sg of [-1, 1]){ const fin = ellip(.3, 1, .08, 1.2, red); fin.position.set(-.95, 0, sg*.18); body.add(fin);
+    const e = ellip(.09, 1, 1, 1, std(0xeeeeee, .2)); e.position.set(.72, .05, sg*.2); body.add(e); const pu = ellip(.05, 1, 1, 1, std(0x050505, .1)); pu.position.set(.76, .05, sg*.26); body.add(pu); }
+  const tail = new THREE.Group(); tail.position.x = .75; body.add(tail);   // the arms (they wave like a tail)
+  for (let k=0;k<8;k++){ const a = k/8*TAU, arm = new THREE.Mesh(new THREE.CylinderGeometry(.015, .05, 1.8, 6).rotateZ(Math.PI/2), red);
+    arm.position.set(.9, Math.cos(a)*.12, Math.sin(a)*.12); arm.rotation.set(0, Math.sin(a)*.12, Math.cos(a)*.12); tail.add(arm); }
+  root.userData = { kind:'squid', body, tail }; root.scale.setScalar(1.6); return root;
+}
+const PRED_BUILD = { white: () => buildShark(), tiger: () => buildShark(0x6d6a4a, true), orca: buildOrca, seal: buildSeal, barracuda: buildBarracuda, squid: buildSquid };
 
 /* ---------- Per-frame ocean update ---------- */
 const _fp = new THREE.Vector3();
@@ -3154,7 +3228,7 @@ function updOceanWorld(o){
   for (const m of jellyPool){ if (!m.userData.used) m.visible = false; m.userData.used = false; }
   // animal buddies
   const used = { turtle:0, otter:0, dolphin:0, penguin:0, manta:0, whale:0 }, buddies = [];
-  for (const c of visibleChunks) for (const b of c.buddies) if (b !== o.rideFrom) buddies.push(b);
+  for (const c of visibleChunks) for (const b of chunkBuddies(c)) if (b !== o.rideFrom) buddies.push(b);
   const tt = LANDMARKS.find(L => L.kind === 'turtletown');
   if (Math.hypot(tt.x*U - px, tt.y*U - pz) < 70) for (let i=0;i<6;i++) buddies.push({ id:'turtle', bx:tt.x, by:tt.y, rad:330, w:.12, ph:i/6*TAU, town:true });
   buddies.sort((a, b) => Math.hypot(a.bx*U - px, a.by*U - pz) - Math.hypot(b.bx*U - px, b.by*U - pz));
@@ -3165,12 +3239,14 @@ function updOceanWorld(o){
     m.position.set(bx, waveH(bx, bz, OC.amp, 1) + m.userData.float, bz); m.rotation.y = -ang; poseModel(m, null, time*1.2 + b.ph); }
   for (const id in buddyPool) buddyPool[id].forEach((m, i) => { if (i >= used[id]) m.visible = false; });
   // sharks
-  o.sharks.forEach((s, i) => { let m = sharkPool[i]; if (!m){ m = buildShark(); sharkPool.push(m); oceanWorld.add(m); }
+  const usedP = {};
+  for (const m of sharkPool) m.visible = false;
+  o.sharks.forEach(s => { const k = s.k || 'white', i = usedP[k] = (usedP[k] || 0) + 1; let m = sharkPool.filter(pm => pm.userData.pk === k)[i - 1];
+    if (!m){ m = PRED_BUILD[k](); m.userData.pk = k; sharkPool.push(m); oceanWorld.add(m); }
     m.visible = true; const x = s.x*U, zz = s.y*U;
     m.position.set(x, -s.depth + (s.depth < .6 ? waveH(x, zz, OC.amp, 1)*.8 : 0), zz); m.rotation.set(0, -s.ang, 0);
     const fast = s.state === 'lunge' ? 16 : s.state === 'chase' ? 11 : 6, w = Math.sin(time*fast + s.ph);
     m.userData.tail.rotation.y = w*.45; m.userData.body.rotation.y = -w*.07; m.userData.body.rotation.x = clamp((s.turnRate || 0)*-.25, -.35, .35); });
-  for (let i = o.sharks.length; i < sharkPool.length; i++) sharkPool[i].visible = false;
   if (others.size) drawOthers(time);
   drawQuest(time);
   if (afloatShip){ const [plx, plz] = shipLocal(o.x, o.y), near = Math.hypot(plx, plz) < 60;   // the crew watches you when you come close
@@ -3484,7 +3560,7 @@ function die(cause){
   $('airChip').hidden = true; $('rideBtn').hidden = true; limbQueue.length = 0;
   sfx(220, .5, 'sine', .08, 0, -120); sfx(150, .7, 'sine', .08, .35, -80);
   const shark = cause === 'shark', jelly = cause === 'jelly', cannon = cause === 'cannon';
-  showResults(shark ? 'A shark got you!' : jelly ? 'Stung by a jellyfish!' : cannon ? 'Hit by a cannonball!' : 'You ran out of air!',
+  showResults(shark ? `A ${(ocean && ocean.biter || 'shark').toLowerCase()} got you!` : jelly ? 'Stung by a jellyfish!' : cannon ? 'Hit by a cannonball!' : 'You ran out of air!',
     `<div class="res-score" style="font-size:48px">Game over</div>
      <p class="res-line">${cannon ? 'The pirates saw you coming. When you hear the boom, dive under or swerve, because cannonballs can\'t reach you deep down. Or sneak up to the rope ladder and climb aboard.' : jelly ? 'Glowing red jellyfish have long, deadly tentacles. Swim wide around them, and never dive underneath one.' : shark ? 'Sharks are faster than you, but they turn badly. When one lunges, swerve hard to the side.  Or ride a dolphin, or stay near Laguna Beach and Pool Island, where sharks never go.'
        : 'You stayed under too long. Come up before your Air bar runs out, and keep moving so you don\'t sink.'}</p>`,
