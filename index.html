@@ -138,6 +138,10 @@
   .btn.seg small{display:block;font-family:var(--body,Nunito),sans-serif;font-size:11px;font-weight:800;opacity:.75;margin-top:3px}
   .btn.seg.on{background:var(--deep);color:var(--foam)}
   @media (max-width:520px){.sharkset{grid-template-columns:1fr 1fr 1fr}.sharkset>span{grid-column:1/-1}}
+  .loginform{display:grid;gap:10px}
+  .loginform label{display:grid;gap:4px;font-weight:800;font-size:14px;color:var(--deep)}
+  .loginform input{font:700 17px Nunito,sans-serif;padding:11px 12px;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink,#0b2d44)}
+  .movelink{width:100%;font:700 13px/1.4 Nunito,sans-serif;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink,#0b2d44)}
   .btn.back{background:#e3eef3;color:var(--deep);font-size:18px;padding-block:10px}
   /* Selected button: it fills with water, a wave rolls across it, bubbles rise, and it bobs like it's floating. */
   .btn{position:relative;overflow:hidden;isolation:isolate}
@@ -274,6 +278,34 @@
     </div>
   </div>
 </div>
+<div id="loginPanel" class="overlay" hidden>
+  <div class="panel title">
+    <div><p class="kicker" id="loginKicker">Your swimmer, on any device</p><h2 id="loginTitle">Log in</h2></div>
+    <p class="explain" id="loginExplain">Log in with your swimmer name and password to load your swimmer. New here? Make an account. It only takes a second.</p>
+    <form id="loginForm" class="loginform" autocomplete="on" onsubmit="return false">
+      <label>Swimmer name<input id="loginName" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="e.g. vienna"></label>
+      <label>Password<input id="loginPass" type="password" autocomplete="current-password" maxlength="40" placeholder="at least 6 letters or numbers"></label>
+    </form>
+    <div class="actions">
+      <button id="loginGo" class="btn primary" type="button">Log in</button>
+      <button id="loginSwap" class="btn secondary" type="button">Make a new account</button>
+      <button id="loginBack" class="btn back" type="button">← Back</button>
+      <p class="note" id="loginNote"></p>
+    </div>
+  </div>
+</div>
+<div id="movePanel" class="overlay" hidden>
+  <div class="panel title">
+    <div><p class="kicker">Take your swimmer with you</p><h2>Play on another device</h2></div>
+    <p class="explain">Open this link on any iPad, phone or computer. Your swimmer, coins, XP, gear and places come with you. Anyone who opens it gets a copy of your swimmer, so only send it to yourself.</p>
+    <input id="moveLink" class="movelink" type="text" readonly aria-label="Link to your swimmer">
+    <div class="actions">
+      <button id="moveCopy" class="btn primary" type="button">Copy link</button>
+      <button id="moveClose" class="btn secondary" type="button">Back</button>
+      <p class="note" id="moveNote"></p>
+    </div>
+  </div>
+</div>
 <div id="shopPanel" class="overlay" hidden>
   <div class="panel">
     <div><p class="kicker">Pool Island</p><h2>Dive Shop</h2></div>
@@ -313,6 +345,8 @@
       <button id="placeBtn" class="btn primary" type="button">Back to pool</button>
       <button id="shopBtn" class="btn primary" type="button">Dive Shop</button>
       <button id="exitBtn" class="btn secondary" type="button">Exit to title</button>
+      <button id="moveBtn" class="btn secondary" type="button">Play on another device</button>
+      <button id="logoutBtn" class="btn secondary" type="button" hidden>Log out</button>
     </div>
     <div class="sharkset"><span>Sharks</span>
       <button class="btn seg" type="button" data-shark="friendly">Friendly<small>Never bite</small></button>
@@ -375,6 +409,10 @@ function mergeSaves(a, b){
   m.houseFound = !!(a.houseFound || b.houseFound); m.tutorialDone = !!(a.tutorialDone || b.tutorialDone);
   return m;
 }
+/* Moving a swimmer between devices: the whole save rides along in a link, https://klabianco.github.io/swimworld/#save=... */
+const SITE_URL = 'https://klabianco.github.io/swimworld/';
+function saveCode(sv){ const { updatedAt, ...d } = sv; return btoa(unescape(encodeURIComponent(JSON.stringify(d)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function readSaveCode(c){ try { const d = JSON.parse(decodeURIComponent(escape(atob(c.replace(/-/g, '+').replace(/_/g, '/'))))); return d && typeof d === 'object' && Array.isArray(d.worlds) ? d : null; } catch(e){ return null; } }
 function readLocal(){ try { const s = localStorage.getItem(LOCAL_KEY) || localStorage.getItem('swimworlds.v1'); return s ? migrate(JSON.parse(s)) : null; } catch(e){ return null; } }
 function persist(){ try { localStorage.setItem(LOCAL_KEY, JSON.stringify(save)); } catch(e){} if (account) cloudDirty = true; }
 async function flushCloud(){
@@ -444,7 +482,7 @@ function initAudio(){ if (ac) return; try { ac = new (window.AudioContext||windo
 /* ---------- Input ---------- */
 const keys = {};
 const playing = () => mode === 'pool' || mode === 'race' || mode === 'ocean';
-addEventListener('keydown', e => { const k = e.key.toLowerCase(); keys[k] = true;
+addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' && e.key !== 'Escape') return; const k = e.key.toLowerCase(); keys[k] = true;
   if (!$('gatePanel').hidden) return;   // the login ask can't be skipped with hotkeys
   if (LIMB_KEYS[k] && !e.repeat && !e.metaKey && !e.ctrlKey){ pressLimb(LIMB_KEYS[k]); if (playing()) e.preventDefault(); }
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k) && playing()) e.preventDefault();
@@ -457,6 +495,8 @@ addEventListener('keydown', e => { const k = e.key.toLowerCase(); keys[k] = true
   if (k === 'escape' && !e.repeat){
     if (!$('shopPanel').hidden) closeShop();
     else if (!$('mapPanel').hidden) closeMap();
+    else if (!$('loginPanel').hidden){ if (!$('loginBack').hidden) $('loginBack').click(); }
+    else if (!$('movePanel').hidden) $('moveClose').click();
     else if (!$('panel').hidden) closePanel();
     else if (mode === 'choose') $('chooseBack').click();
     else if (playing() && !paused) openPanel(); } });
@@ -3229,7 +3269,8 @@ function renderPanel(){
     ? ZONES.map((z,i) => save.worlds.includes(i)
       ? `<span class="wchip on" style="background:rgb(${z.water.join(',')})">${z.name}</span>` : `<span class="wchip">??? world</span>`).join('')
     : `<span class="wchip">7 ocean worlds are waiting past the gate</span>`;
-  $('saveInfo').textContent = STANDALONE ? 'Progress saves on this device.' : account ? 'Progress saves to your account, so you can continue on any device.'
+  $('logoutBtn').hidden = !(STANDALONE && fbAuth && account); $('moveBtn').hidden = STANDALONE;
+  $('saveInfo').textContent = STANDALONE ? (fbAuth && account ? `Logged in as ${fbAuth.name}. Your swimmer saves to your account.` : 'Not logged in. Progress saves on this device only.') : account ? 'Progress saves to your account, so you can continue on any device.'
     : 'Progress saves on this device. Use Continue on the title screen to log in and keep it on your account.';
   const box = $('chars'); box.innerHTML = '';
   for (const c of CHARS){
@@ -3261,12 +3302,13 @@ function limbsNow(){ return mode === 'race' ? race && race.limbs : mode === 'poo
 
 /* ---------- Keyboard menus: up/down to choose, Space or Enter to press ---------- */
 let pick = 0;
-function menuEl(){ for (const id of ['gatePanel','shopPanel','mapPanel','panel','results','choose','title']) if (!$(id).hidden) return $(id); return null; }
+function menuEl(){ for (const id of ['loginPanel','gatePanel','movePanel','shopPanel','mapPanel','panel','results','choose','title']) if (!$(id).hidden) return $(id); return null; }
 function menuBtns(){ const el = menuEl(); return el ? [...el.querySelectorAll('.btn')].filter(b => !b.disabled) : []; }
 function showPick(){ const bs = menuBtns(); bs.forEach((b,i) => b.classList.toggle('picked', i === pick)); }
 function resetPick(){ pick = 0; showPick(); }
 document.querySelectorAll('.btn').forEach(b => b.addEventListener('pointerenter', () => { const i = menuBtns().indexOf(b); if (i >= 0){ pick = i; showPick(); } }));
 addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'INPUT'){ if (e.key === 'Enter' && e.target.closest('#loginPanel')){ e.preventDefault(); $('loginGo').click(); } return; }
   const bs = menuBtns(); if (!bs.length) return;
   const k = e.key;
   if (k === 'ArrowDown' || k === 'ArrowRight'){ pick = (pick + 1) % bs.length; showPick(); e.preventDefault(); }
@@ -3275,7 +3317,12 @@ addEventListener('keydown', e => {
 });
 
 /* ---------- Title screen ---------- */
-if (STANDALONE) $('titleNote').textContent = 'Continue loads the swimmer saved on this device.';
+$('logoutBtn').onclick = () => logOut();
+$('moveBtn').onclick = () => { persist(); $('panel').hidden = true; $('moveLink').value = SITE_URL + '#save=' + saveCode(save); $('moveNote').textContent = ''; $('movePanel').hidden = false; resetPick(); };
+$('moveClose').onclick = () => { $('movePanel').hidden = true; $('panel').hidden = false; renderPanel(); resetPick(); };
+$('moveCopy').onclick = async () => { const inp = $('moveLink'); inp.select();
+  let ok = false; try { await navigator.clipboard.writeText(inp.value); ok = true; } catch(e){ try { ok = document.execCommand('copy'); } catch(_){} }
+  $('moveNote').textContent = ok ? 'Copied! Send it to yourself (Messages, email or AirDrop) and open it on the other device.' : 'Select the link above and copy it.'; };
 function titleNote(text, warn){ const n = $('titleNote'); n.textContent = text; n.className = 'note' + (warn ? ' warn' : ''); }
 function enterGame(){ setMode('choose'); }
 function goPool(){ if (!save.tutorialDone) startRace(true, true); else startPool(); }
@@ -3298,6 +3345,74 @@ $('startBtn').onclick = () => {
 /* Guests get about a minute of play, then they're asked to log in so their progress is saved. */
 const GUEST_SECS = 60;
 let guestT = 0;
+/* Accounts on the public website: a swimmer name + password, kept by Firebase (free plan, never bills). The name becomes a
+   made-up email (name@swimworld.game) because that's what Firebase logs in with. Each save lives at saves/<user id>, and the
+   database rules only let you read and write your own. The API key below is a public ID, not a secret. */
+const FB = { key: 'AIzaSyAgYkL8in6pDCgcYEZJBE5FM5529hwCp3M', project: 'testing123-ac9c1' }, AUTH_KEY = 'swimworld.auth';
+const nameSlug = n => n.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+let fbAuth = (() => { try { return JSON.parse(localStorage.getItem(AUTH_KEY)) || null; } catch(e){ return null; } })();
+function fbKeep(a){ fbAuth = a; try { a ? localStorage.setItem(AUTH_KEY, JSON.stringify(a)) : localStorage.removeItem(AUTH_KEY); } catch(e){} }
+async function fbPost(url, body){ const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || 'NETWORK'); return j; }
+async function fbSign(name, pass, create){
+  const j = await fbPost(`https://identitytoolkit.googleapis.com/v1/accounts:${create ? 'signUp' : 'signInWithPassword'}?key=${FB.key}`,
+    { email: nameSlug(name) + '@swimworld.game', password: pass, returnSecureToken: true });
+  fbKeep({ uid: j.localId, name: name.trim(), refresh: j.refreshToken, token: j.idToken, exp: Date.now() + (+j.expiresIn - 60)*1000 }); return fbAuth; }
+async function fbToken(){
+  if (!fbAuth) throw new Error('LOGGED_OUT');
+  if (Date.now() < fbAuth.exp) return fbAuth.token;
+  const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FB.key}`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(fbAuth.refresh) });
+  const j = await r.json(); if (!r.ok){ if (r.status === 400) fbKeep(null); throw new Error(j.error?.message || 'NETWORK'); }
+  fbKeep({ ...fbAuth, token: j.id_token, refresh: j.refresh_token, exp: Date.now() + (+j.expires_in - 60)*1000 }); return fbAuth.token; }
+// looks like the claude.ai database to the rest of the game: account.db.doc(...).get() / .set()
+const fbDb = { doc: () => ({
+  async get(){ const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FB.project}/databases/(default)/documents/saves/${fbAuth.uid}`, { headers: { Authorization: 'Bearer ' + await fbToken() } });
+    if (r.status === 404) return { exists: false, data: () => null };
+    const j = await r.json(); if (!r.ok) throw new Error(j.error?.message || 'NETWORK');
+    const d = JSON.parse(j.fields?.data?.stringValue || '{}'); return { exists: true, data: () => d }; },
+  async set(obj){ const r = await fetch(`https://firestore.googleapis.com/v1/projects/${FB.project}/databases/(default)/documents/saves/${fbAuth.uid}`, { method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + await fbToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { data: { stringValue: JSON.stringify(obj) }, name: { stringValue: fbAuth.name }, updatedAt: { integerValue: String(Date.now()) } } }) });
+    if (!r.ok){ const e = new Error('save failed'); e.code = r.status >= 500 || r.status === 0 ? 'unavailable' : 'denied'; throw e; } } }) };
+const FB_ERR = { EMAIL_EXISTS: 'That swimmer name is taken. Try another one, or log in.', INVALID_LOGIN_CREDENTIALS: 'Wrong swimmer name or password.', INVALID_PASSWORD: 'Wrong swimmer name or password.',
+  EMAIL_NOT_FOUND: 'No swimmer with that name yet. Make a new account?', INVALID_EMAIL: 'Names can use letters, numbers, dots, dashes and underscores.', TOO_MANY_ATTEMPTS_TRY_LATER: 'Too many tries. Wait a minute and try again.' };
+let loginCreate = false, loginGate = false;
+function openLogin(gate){
+  loginGate = !!gate; loginCreate = false; if (playing()){ paused = true; ptr.down = false; }
+  for (const id of ['panel','shopPanel','mapPanel','movePanel']) $(id).hidden = true;
+  $('loginKicker').textContent = gate ? 'Nice swimming!' : 'Your swimmer, on any device';
+  $('loginBack').hidden = gate; $('loginNote').textContent = ''; setLoginMode(false); $('loginPanel').hidden = false; resetPick();
+  setTimeout(() => { try { $('loginName').focus(); } catch(e){} }, 50); }
+function setLoginMode(create){
+  loginCreate = create; $('loginTitle').textContent = create ? 'Make an account' : (loginGate ? 'Log in to keep playing' : 'Log in');
+  $('loginExplain').textContent = create ? 'Pick a swimmer name and a password. Use them to log in on any iPad, phone or computer.'
+    : loginGate ? 'Log in or make a free account to keep playing. Your coins, XP and gear are saved, and you can play on any device.' : 'Log in with your swimmer name and password to load your swimmer. New here? Make an account.';
+  $('loginGo').textContent = create ? 'Make my account' : 'Log in'; $('loginSwap').textContent = create ? 'I already have an account' : 'Make a new account';
+  $('loginPass').autocomplete = create ? 'new-password' : 'current-password'; $('loginNote').textContent = ''; }
+$('loginSwap').onclick = () => setLoginMode(!loginCreate);
+$('loginBack').onclick = () => { $('loginPanel').hidden = true; if (playing()) paused = false; resetPick(); };
+$('loginGo').onclick = async () => {
+  const name = $('loginName').value, pass = $('loginPass').value, note = $('loginNote');
+  if (nameSlug(name).length < 3){ note.textContent = 'Swimmer names need at least 3 letters or numbers.'; return; }
+  if (pass.length < 6){ note.textContent = 'Passwords need at least 6 letters or numbers.'; return; }
+  const btn = $('loginGo'); btn.disabled = true; note.textContent = loginCreate ? 'Making your account…' : 'Logging in…';
+  try { await fbSign(name, pass, loginCreate); await startAccount(); }
+  catch(e){ note.textContent = FB_ERR[(e.message || '').split(' ')[0]] || "Couldn't reach the server. Check the internet and try again."; }
+  finally { btn.disabled = false; }
+};
+// logged in: bring the account's swimmer together with whatever is being played right now, then keep saving to the account
+async function startAccount(){
+  account = { db: fbDb, uid: fbAuth.uid };
+  let cloud = null; try { const snap = await fbDb.doc().get(); if (snap.exists) cloud = migrate(JSON.parse(JSON.stringify(snap.data()))); } catch(e){}
+  const inGame = playing(), current = inGame || (save.xp || 0) > 0 ? save : readLocal();
+  save = Object.assign(fresh(), cloud ? (current ? mergeSaves(cloud, current) : cloud) : (current || {}));
+  persist(); cloudDirty = true; flushCloud(); guestT = 0;
+  $('loginPanel').hidden = true; resetPick();
+  if (inGame){ paused = false; if (ocean) buildMinimap(); banner(`Logged in as ${fbAuth.name}!`, 'Your swimmer now saves to your account.'); }
+  else { enterGame(); banner(cloud ? `Welcome back, ${fbAuth.name}!` : `Hi, ${fbAuth.name}!`, cloud ? `${RANKS[rankOf()].n} · ${xpNow().toLocaleString()} XP · ${save.coins || 0} coins` : 'Your swimmer saves to your account.'); }
+}
+function logOut(){ persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
 function openGate(){ paused = true; ptr.down = false; for (const id of ['panel','shopPanel','mapPanel']) $(id).hidden = true; $('gateNote').textContent = ''; $('gatePanel').hidden = false; resetPick(); }
 $('gateLogin').onclick = async () => {
   const btn = $('gateLogin'); btn.disabled = true; btn.textContent = 'Logging in…'; $('gateNote').textContent = '';
@@ -3318,7 +3433,7 @@ $('gateLogin').onclick = async () => {
 };
 $('continueBtn').onclick = async () => {
   initAudio();
-  if (STANDALONE){ const local = readLocal(); if (local){ account = null; save = Object.assign(fresh(), local); enterGame(); banner('Welcome back!', 'Loaded the swimmer saved on this device.'); } else titleNote('No saved swimmer on this device yet. Press Start Game to begin.', true); return; }
+  if (STANDALONE){ if (fbAuth){ titleNote('Logging in…'); try { await fbToken(); await startAccount(); return; } catch(e){ if (fbAuth){ titleNote("Couldn't reach the server. Check the internet and try again.", true); return; } } } openLogin(false); return; }
   const btn = $('continueBtn'); btn.disabled = true; btn.textContent = 'Logging in…'; titleNote('Checking your account…');
   try {
     const [user, db] = await Promise.all([useCap('user'), useCap('db')]);
@@ -3372,11 +3487,21 @@ function frame(now){
     ctx.fill('evenodd'); ctx.restore(); }
   if ((mode === 'race' || mode === 'results') && race) drawRaceOverlay();
   else if (mode === 'ocean' && ocean) drawMinimap();
-  if (!STANDALONE && !account && playing() && !paused && (guestT += dt) > GUEST_SECS) openGate();
+  if (!account && playing() && !paused && (guestT += dt) > GUEST_SECS){ if (STANDALONE) openLogin(true); else openGate(); }
   chipT -= dt; if (chipT <= 0){ chipT = .5; refreshLevelChip(); $('coinVal').textContent = save.coins || 0; }
   const Lnow = limbsNow(); if (Lnow) for (const b of limbBtns) b.classList.toggle('on', Lnow[b.dataset.limb].t >= 0);
   requestAnimationFrame(frame);
 }
+function initTitleNotes(){
+if (STANDALONE) $('titleNote').textContent = fbAuth ? `Continue logs in as ${fbAuth.name}.` : 'Continue logs you in so you can play on any device.';
+{ const m = location.hash.match(/^#save=([\w-]+)/);   // arrived with a swimmer in the link: keep it on this device
+  if (m){ try { history.replaceState(null, '', location.pathname + location.search); } catch(e){}
+    const d = readSaveCode(m[1]);
+    if (d){ const merged = mergeSaves(readLocal(), migrate(d)); try { localStorage.setItem(LOCAL_KEY, JSON.stringify(merged)); } catch(e){}
+      titleNote(`Your swimmer is here! ${merged.coins || 0} coins, ${(merged.xp || 0).toLocaleString()} XP. Press Continue to keep playing.`); }
+    else titleNote("That swimmer link didn't work. Try copying it again.", true); } }
+}
+initTitleNotes();
 setMode('title');
 try { loadAssets(); } catch(e){}
 requestAnimationFrame(frame);
