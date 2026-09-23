@@ -256,11 +256,11 @@
       <p class="kicker">A swimming simulator</p>
       <h1>Swim<em>world</em></h1>
     </div>
-    <p class="explain"><b>Find your way home.</b> Your house is on a secret island somewhere in the ocean. Explore, ask for directions and collect map pieces to find it.</p>
+    <p class="explain"><b>Your own island in a real ocean.</b> Build your dream house, then swim out to explore real places on Earth, find treasure, go on quests and make friends.</p>
     <ul class="how">
       <li><b>Swim</b>Use the joystick, or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrow keys, to swim. Hold <kbd>Space</kbd> or Dive to go under. Drag the screen to look around.</li>
       <li><b>Stay alive</b>Keep moving or you'll sink. Come up for air. Stay away from sharks and red jellyfish.</li>
-      <li><b>Get clues</b>Press <kbd>T</kbd> to talk to fishermen, the lighthouse keeper, or animals like you. Press <kbd>M</kbd> for your map.</li>
+      <li><b>Build &amp; explore</b>Press Build on your island to place blocks. Press <kbd>T</kbd> to talk to people and animals, and <kbd>M</kbd> for your map.</li>
       <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, talk to people and find new places. Coins buy fins, snorkels and scuba gear at the Dive Shop. XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
     </ul>
     <div class="actions">
@@ -1385,18 +1385,19 @@ function chestsNear(o){ const out = [], cx = Math.floor(o.x/CH), cy = Math.floor
   return out; }
 function jellyPos(j){ return [j.x + Math.cos(time*.1 + j.ph)*j.wr, j.y + Math.sin(time*.13 + j.ph)*j.wr, j.d0 + Math.sin(time*.35 + j.ph)*.5]; }
 const taken = new Set();
-const newOcean = () => ({ x:0, y:-(islR(-Math.PI/2)/U + 110), vx:0, vy:-60, ang:-Math.PI/2, zone:0, bg:[...ZONES[0].water], dark:0, limbs:newLimbs(), edgeMsg:0, saveT:0,
+const newOcean = () => ({ x:HOUSE.x, y:HOUSE.y + HOUSE.r - 110, vx:0, vy:0, ang:Math.PI/2, onLand:true, homeDone:true,   // everyone starts on their own island
+   zone:0, bg:[...ZONES[0].water], dark:0, limbs:newLimbs(), edgeMsg:0, saveT:0,
     hurtT:0, sharks:[], sharkSpawnT:2, beatT:0, ride:null, rideFrom:null, rideAway:null, rideTarget:null });
 function startOcean(){
   updShipChest();
-  ocean = newOcean();
-  syncHouse(); placeLighthouse(); parts = []; setMode('ocean'); $('airChip').hidden = true;
-  banner('Find your way home!', 'Your house is far out in the ocean. Look for its tall yellow flag.');
+  syncHouse(); placeLighthouse(); ocean = newOcean(); save.houseFound = true;
+  parts = []; setMode('ocean'); $('airChip').hidden = true;
+  banner('Your island!', 'Press Build to build, or swim out and explore the oceans of the world');
   ocean.tripT = 0;
   ocean.teach = !save.tutorialDone;
   if (!ocean.teach) coach(OCEAN_HELLO, 10);
 }
-const OCEAN_HELLO = 'Find your way home! Your house is on an island somewhere out here, with a tall yellow flag. Waves and currents push you around, so keep swimming, and watch out for sharks.';
+const OCEAN_HELLO = 'This is your island! Press Build to build your dream house. Then swim out to explore real oceans, find treasure and help the animals. The people and animals you meet can point you back home.';
 // Waves and currents: the pool is calm, the ocean pushes you around.
 const CURRENT = [45, 60, 95, 70, 85, 55, 75];     // strength per world
 function currentAt(x, y, t){
@@ -1749,7 +1750,7 @@ function updOcean(dt){
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onLand){ walkStep(o, dt); $('airChip').hidden = true;
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; }        // walked back into the sea
-    if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40){ madeItHome(o); return; }
+    if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
   else if (o.ride){ updRide(o, dt); if (mode === 'dead') return; }
   else {
@@ -1806,6 +1807,7 @@ function updOcean(dt){
   questStep(o, dt);
   mpTick(dt);
   o.tripT = (o.tripT || 0) + dt;
+  if (!o.wentFar && Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) > 300*METERS){ o.wentFar = true; o.homeDone = false; }   // a real trip: coming back home counts
   { const hx = HOUSE.x - o.x, hy = HOUSE.y - o.y, hd = Math.hypot(hx, hy);
     if (!save.houseFound && hd < 2600){ save.houseFound = true; persist(); flushCloud();
       banner('You spotted your house!', 'Swim to the beach and walk up to your front door!'); [659,784,988].forEach((f,i) => sfx(f,.18,'triangle',.07,i*.1)); } }
@@ -3644,12 +3646,12 @@ function setMode(m){
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
-  if (m === 'title'){ ocean = newOcean(); ocean.vy = 0; syncHouse(); placeLighthouse(); }   // the title floats over the real ocean, by Pool Island
+  if (m === 'title'){ syncHouse(); placeLighthouse(); ocean = newOcean(); }   // the title floats over the real ocean, by Pool Island
   ptr.down = false; refreshLevelChip(); resetPick();
 }
 let resA = null, resB = null, deadIn = null;
 function madeItHome(o){
-  if (o.homeDone) return; o.homeDone = true;
+  if (o.homeDone) return; o.homeDone = true; o.wentFar = false;
   deadIn = 'ocean'; const t = o.tripT || 0, first = !save.homeRuns, best = !save.homeBest || t < save.homeBest;
   save.homeRuns = (save.homeRuns || 0) + 1; if (best) save.homeBest = t; save.coins = (save.coins || 0) + 100; addXP(300, true); persist(); flushCloud();
   [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
