@@ -249,7 +249,7 @@
       <li><b>Swim</b>Use the joystick, or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrow keys, to swim. Hold <kbd>Space</kbd> or Dive to go under. Drag the screen to look around.</li>
       <li><b>Stay alive</b>Keep moving or you'll sink. Come up for air. Stay away from sharks and red jellyfish.</li>
       <li><b>Get clues</b>Press <kbd>T</kbd> to talk to fishermen, the lighthouse keeper, or animals like you. Press <kbd>M</kbd> for your map.</li>
-      <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, race in the pool and find new places. Coins buy fins, snorkels and scuba gear at the Dive Shop. XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
+      <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, talk to people and find new places. Coins buy fins, snorkels and scuba gear at the Dive Shop. XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
     </ul>
     <div class="actions">
       <button id="startBtn" class="btn primary" type="button">Start Game</button>
@@ -349,7 +349,6 @@
   <div class="panel">
     <div class="row2">
       <button id="resumeBtn" class="btn primary" type="button">Keep swimming</button>
-      <button id="placeBtn" class="btn primary" type="button">Back to pool</button>
       <button id="shopBtn" class="btn primary" type="button">Dive Shop</button>
       <button id="exitBtn" class="btn secondary" type="button">Exit to title</button>
       <button id="moveBtn" class="btn secondary" type="button">Play on another device</button>
@@ -1196,17 +1195,18 @@ function chestsNear(o){ const out = [], cx = Math.floor(o.x/CH), cy = Math.floor
   return out; }
 function jellyPos(j){ return [j.x + Math.cos(time*.1 + j.ph)*j.wr, j.y + Math.sin(time*.13 + j.ph)*j.wr, j.d0 + Math.sin(time*.35 + j.ph)*.5]; }
 const taken = new Set();
+const newOcean = () => ({ x:0, y:-(islR(-Math.PI/2)/U + 110), vx:0, vy:-60, ang:-Math.PI/2, zone:0, bg:[...ZONES[0].water], dark:0, limbs:newLimbs(), edgeMsg:0, saveT:0,
+    hurtT:0, sharks:[], sharkSpawnT:2, beatT:0, ride:null, rideFrom:null, rideAway:null, rideTarget:null });
 function startOcean(){
   updShipChest();
-  ocean = { x:0, y:-(islR(-Math.PI/2)/U + 110), vx:0, vy:-60, ang:-Math.PI/2, zone:0, bg:[...ZONES[0].water], dark:0, limbs:newLimbs(), edgeMsg:0, saveT:0,
-    hurtT:0, sharks:[], sharkSpawnT:2, beatT:0, ride:null, rideFrom:null, rideAway:null, rideTarget:null };
+  ocean = newOcean();
   syncHouse(); placeLighthouse(); parts = []; setMode('ocean'); $('airChip').hidden = true;
   banner('Find your way home!', 'Your house is far out in the ocean. Look for its tall yellow flag.');
   ocean.tripT = 0;
   ocean.teach = !save.tutorialDone;
   if (!ocean.teach) coach(OCEAN_HELLO, 10);
 }
-const OCEAN_HELLO = 'Find your way home! Your house is on an island somewhere out here, with a tall yellow flag. Waves and currents push you around, so keep stroking, and watch out for sharks.';
+const OCEAN_HELLO = 'Find your way home! Your house is on an island somewhere out here, with a tall yellow flag. Waves and currents push you around, so keep swimming, and watch out for sharks.';
 // Waves and currents: the pool is calm, the ocean pushes you around.
 const CURRENT = [45, 60, 95, 70, 85, 55, 75];     // strength per world
 function currentAt(x, y, t){
@@ -1535,7 +1535,6 @@ function updOcean(dt){
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onLand){ walkStep(o, dt); $('airChip').hidden = true;
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; }        // walked back into the sea
-    if (Math.abs(o.x - POOL_SPOT.x) < POOL_SPOT.w && Math.abs(o.y - POOL_SPOT.y) < POOL_SPOT.h){ persist(); startPool('ocean'); banner('Back to the pool', ''); return; }
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40){ madeItHome(o); return; }
   }
   else if (o.ride){ updRide(o, dt); if (mode === 'dead') return; }
@@ -1548,7 +1547,7 @@ function updOcean(dt){
   o.dx = (o.dx || 0) + cur[0]*dt*1.6; o.dy = (o.dy || 0) + cur[1]*dt*1.6;
   if (o.teach && !o.onLand && time > sayUntil){
     if ((o.swimPh || 0) < 3) coach('Swim with the joystick (or W A S D / arrow keys). Push the way you want to go. Drag the screen to look around.');
-    else { o.teach = false; coach(OCEAN_HELLO, 10); }
+    else { o.teach = false; save.tutorialDone = true; persist(); coach(OCEAN_HELLO, 10); }
   } else if (coachTimer > 0){ coachTimer -= dt; if (coachTimer <= 0) coach(''); }
   let d = Math.hypot(o.x,o.y);
   // animals are solid: you bump off whales, sharks, dolphins and the rest instead of swimming through them
@@ -2686,7 +2685,7 @@ function buildIsland(){
     const rim = new THREE.Mesh(new THREE.BoxGeometry(w + .4, .14, h + .4), std(0xf2efe6, .6)); rim.position.set(px, .62, pz); rim.receiveShadow = true; g.add(rim);
     const wat = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ color: 0x33c6dc, roughness: .08, metalness: .1, emissive: 0x0a4a5a, emissiveIntensity: .4 }));
     wat.rotation.x = -Math.PI/2; wat.position.set(px, .7, pz); g.add(wat);
-    const ps = sprite(labelTex('TO THE POOL', '#2fbf71', '#fff', 768, 200, 110), 2.6, .7); ps.position.set(px, 1.7, pz); g.add(ps); }
+  }
   oceanWorld.add(g);
 }
 const LM_GROUPS = {};
@@ -3293,7 +3292,7 @@ function render3D(dt){
   if (mode !== lastMode){ camInit = false; lastMode = mode; }
   const t = time; poolWater.uniforms.uTime.value = t; channelWater.uniforms.uTime.value = t; seaWater.uniforms.uTime.value = t; oceanWater.uniforms.uTime.value = t;
   causticMat.uniforms.uTime.value = t;
-  if ((mode === 'race' || mode === 'results' || mode === 'title' || mode === 'choose') && race){
+  if ((mode === 'race' || mode === 'results') && race){
     if (builtFor !== race){ buildRaceWorld(race); builtFor = race; }
     renderer.toneMappingExposure = EXPO; WATERU.tint.value.set(0x1a8fb0); WATERU.k.value = .1; WATERU.under.value = 0;
     updRaceWorld(race);
@@ -3323,7 +3322,7 @@ function render3D(dt){
     placeCamera(hub.x*U, -dep, hub.y*U, hub.ang, dt, 'pool', sub, -DEPTH + .25);
     underwaterLook(poolScene, [poolWater, channelWater, seaWater], camera.position.y < 0, POOL_UW, .085, POOL_FOG, .005);
     draw(poolScene);
-  } else if (mode === 'ocean' && ocean){
+  } else if ((mode === 'ocean' || mode === 'title' || mode === 'choose') && ocean){
     if (!oceanBuilt) buildOcean();
     updOceanWorld(ocean);
     const m = playerModel(oceanScene), px = ocean.x*U, pz = ocean.y*U, wy = waveH(px, pz, OC.amp, 1);
@@ -3342,7 +3341,7 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep, pz, ocean.ang, dt, ocean.onShip || ocean.onBoat ? 'ship' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4);
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep, pz, ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4);
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105);
@@ -3378,7 +3377,7 @@ function setMode(m){
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
-  if (m === 'title'){ prepRace(true); race.idle = true; }
+  if (m === 'title'){ ocean = newOcean(); ocean.vy = 0; syncHouse(); placeLighthouse(); }   // the title floats over the real ocean, by Pool Island
   ptr.down = false; refreshLevelChip(); resetPick();
 }
 let resA = null, resB = null, deadIn = null;
@@ -3392,7 +3391,7 @@ function madeItHome(o){
     `<div class="res-score">${fmt(t)}</div><p class="res-line">swimming time across the ocean</p>
      <p class="res-line">Best ${fmt(save.homeBest)} · made it home ${save.homeRuns} ${save.homeRuns === 1 ? 'time' : 'times'}</p>
      <p class="res-line">+100 coins · +300 XP · ${Math.round(save.dist).toLocaleString()} m swum in all · ${save.pearls} pearls</p>`,
-    'Swim home again', () => startOcean(), 'Pool or ocean', () => { prepRace(true); race.idle = true; setMode('choose'); }, 'dead');
+    'Swim home again', () => startOcean(), 'Exit to title', () => setMode('title'), 'dead');
 }
 // Running out of air or getting caught by a shark ends your swim.
 function die(cause){
@@ -3405,8 +3404,8 @@ function die(cause){
     `<div class="res-score" style="font-size:48px">Game over</div>
      <p class="res-line">${cannon ? 'The pirates saw you coming. When you hear the boom, dive under or swerve, because cannonballs can\'t reach you deep down. Or sneak up to the rope ladder and climb aboard.' : jelly ? 'Glowing red jellyfish have long, deadly tentacles. Swim wide around them, and never dive underneath one.' : shark ? 'Sharks are faster than you, but they turn badly. When one lunges, swerve hard to the side.  Or ride a dolphin, or stay near Laguna Beach and Pool Island, where sharks never go.'
        : 'You stayed under too long. Come up before your Air bar runs out, and keep moving so you don\'t sink.'}</p>`,
-    'Try again', () => where === 'ocean' ? startOcean() : where === 'race' ? startRace(lesson) : startPool(),
-    'Pool or ocean', () => { prepRace(true); race.idle = true; setMode('choose'); }, 'dead');
+    'Try again', () => startOcean(),
+    'Exit to title', () => setMode('title'), 'dead');
 }
 function showResults(title, html, aLabel, aFn, bLabel, bFn, m = 'results'){
   setMode(m); $('resTitle').textContent = title; $('resBody').innerHTML = html;
@@ -3429,7 +3428,6 @@ function closePanel(){ $('panel').hidden = true; paused = false; showPick(); gra
 function graceAfterPause(){ for (const o of [ocean, hub, race]) if (o) o.idle = -2; }
 function renderPanel(){
   document.querySelectorAll('[data-shark]').forEach(b => b.classList.toggle('on', b.dataset.shark === sharkMode()));
-  $('placeBtn').textContent = mode === 'ocean' ? 'Back to pool' : 'Swim to the ocean';
   const stat = (lbl, v, extra='') => `<div class="stat"><div class="lbl">${lbl}</div><div class="v">${v}</div>${extra}</div>`;
   $('stats').innerHTML =
     stat('Rank', RANKS[rankOf()].n, xpBarHtml()) + stat('XP', xpNow().toLocaleString()) + stat('Top speed', speedMul().toFixed(2) + '×') + stat('Meters swum', Math.round(save.dist).toLocaleString()) +
@@ -3451,7 +3449,7 @@ function renderPanel(){
     b.innerHTML = `<canvas width="180" height="180"></canvas><div class="n">${c.name}</div>
       <div class="spd">Speed <div class="xpbar"><i style="width:${clamp(mul/2.2,0,1)*100}%"></i></div> ${mul.toFixed(2)}×</div>
       ${locked ? `<div class="lock">Unlocks at ${c.need.toLocaleString()} XP (you have ${xpNow().toLocaleString()})</div>` : `<div class="p">${c.perk}</div>`}`;
-    b.onclick = () => { if (locked){ sfx(200,.15,'square',.04); return; } save.char = c.id; persist(); renderPanel(); sfx(700,.08,'triangle'); };
+    b.onclick = () => { if (locked){ sfx(200,.15,'square',.04); return; } save.char = c.id; if (c.id !== 'swimmer') leaveHumanThings(); persist(); renderPanel(); sfx(700,.08,'triangle'); };
     box.appendChild(b);
     try { b.querySelector('canvas').getContext('2d').drawImage(charThumb(c.id), 0, 0); } catch(e){}
   }
@@ -3496,14 +3494,13 @@ $('moveCopy').onclick = async () => { const inp = $('moveLink'); inp.select();
   let ok = false; try { await navigator.clipboard.writeText(inp.value); ok = true; } catch(e){ try { ok = document.execCommand('copy'); } catch(_){} }
   $('moveNote').textContent = ok ? 'Copied! Send it to yourself (Messages, email or AirDrop) and open it on the other device.' : 'Select the link above and copy it.'; };
 function titleNote(text, warn){ const n = $('titleNote'); n.textContent = text; n.className = 'note' + (warn ? ' warn' : ''); }
-function enterGame(){ setMode('choose'); }
+function enterGame(){ taken.clear(); buildMinimap(); startOcean(); }   // no pool any more: straight into the ocean
 function goPool(){ if (!save.tutorialDone) startRace(true, true); else startPool(); }
 function goOcean(){ taken.clear(); buildMinimap(); startOcean(); }
 $('goPool').onclick = () => { initAudio(); goPool(); };
 $('goOcean').onclick = () => { initAudio(); goOcean(); };
 $('chooseBack').onclick = () => { persist(); flushCloud(); setMode('title'); resetPick(); };
-// one button that takes you to the other place: from the ocean back to the pool, or from the pool out to the ocean
-$('placeBtn').onclick = () => { persist(); flushCloud(); $('panel').hidden = true; if (mode === 'ocean') startPool('ocean'); else goOcean(); };
+
 $('startBtn').onclick = () => {
   initAudio();
   const had = readLocal();
@@ -3644,6 +3641,13 @@ function drawOthers(t){
     if (o.l && u.kind === 'swimmer') poseWalk(m, moving ? t*8 : 0, moving); else poseModel(m, moving ? null : RIDE_POSE, t*1.2);
     o.tag.position.set(o.sx*U, o.sw + (o.l ? 1.2 : .9), o.sy*U); }
 }
+// only people ride dolphins, climb ships and sit in boats: switching to an animal drops you back in the water
+function leaveHumanThings(){
+  const o = ocean; if (!o) return;
+  if (o.ride){ const r = o.ride; o.rideAway = { x:r.x, y:r.y, ang:r.ang, depth:r.depth, t:4 }; o.ride = null; o.vx = Math.cos(r.ang)*60; o.vy = Math.sin(r.ang)*60; }
+  if (o.onShip){ const was = paused; paused = false; jumpOffShip(); paused = was; }
+  if (o.onBoat){ const was = paused; paused = false; jumpOffBoat(); paused = was; }
+}
 function logOut(){ mpLeave(); persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
 function openGate(){ paused = true; ptr.down = false; for (const id of ['panel','shopPanel','mapPanel']) $(id).hidden = true; $('gateNote').textContent = ''; $('gatePanel').hidden = false; resetPick(); }
 $('gateLogin').onclick = async () => {
@@ -3698,7 +3702,6 @@ function frame(now){
     else if (mode === 'pool') updPool(dt);
     else if (mode === 'ocean') updOcean(dt);
   }
-  if ((mode === 'title' || mode === 'choose') && race && race.idle){ race.x = 200 + Math.sin(time*.4)*10; }
   render3D(dt); if (playing() && !paused && document.visibilityState === 'visible') adaptQuality(dt);
   ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0, 0, W, H);
   if (underNow && (mode === 'pool' || mode === 'ocean')){   // under water: soft blue edges and light shafts
