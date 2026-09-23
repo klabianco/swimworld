@@ -1267,9 +1267,12 @@ function drawSeaMap(){
     g.restore();
     g.strokeStyle = 'rgba(70,50,20,.5)'; g.lineWidth = 2; g.strokeRect(px + 2, py + 2, pw - 4, ph - 4);
   }
-  // compass rose
-  g.fillStyle = '#3a2810'; g.font = "bold 16px Nunito, sans-serif"; g.textAlign = 'center'; g.fillText('N', W - 28, 26);
-  g.beginPath(); g.moveTo(W - 28, 32); g.lineTo(W - 34, 50); g.lineTo(W - 22, 50); g.closePath(); g.fill();
+  // N, E, S, W at the middle of each edge (north is up)
+  g.font = "900 24px Nunito, sans-serif"; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const [t, x, y] of [['N', W/2, 22], ['S', W/2, H - 22], ['W', 22, H/2], ['E', W - 22, H/2]]){
+    g.fillStyle = 'rgba(255,248,230,.92)'; g.beginPath(); g.arc(x, y, 17, 0, TAU); g.fill();
+    g.fillStyle = '#3a2810'; g.fillText(t, x, y + 1); }
+  g.textBaseline = 'alphabetic';
   // you are here
   if (ocean && ocean.x > L.x0 && ocean.x < L.x1 && ocean.y > L.y0 && ocean.y < L.y1){
     g.fillStyle = '#fff'; g.beginPath(); g.arc(sx(ocean.x), sy(ocean.y), 7, 0, TAU); g.fill(); g.fillStyle = '#ff6f59'; g.beginPath(); g.arc(sx(ocean.x), sy(ocean.y), 5, 0, TAU); g.fill(); }
@@ -1606,6 +1609,8 @@ buildMinimap();
 function drawMinimap(){
   const size = Math.min(130, Math.min(W,H)*.28), x = W - size - 16, y = H - size - 120;
   mmHit.x = x + size/2; mmHit.y = y + size/2; mmHit.r = size/2 + 6;
+  const drawNSEW = () => { ctx.font = "900 12px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.fillStyle = '#fff';
+    for (const [t, dx, dy] of [['N', 0, -1], ['S', 0, 1], ['W', -1, 0], ['E', 1, 0]]){ const tx = x + size/2 + dx*(size/2 - 8), ty = y + size/2 + dy*(size/2 - 8); ctx.strokeText(t, tx, ty); ctx.fillText(t, tx, ty); } };
   ctx.fillStyle = 'rgba(247,251,255,.9)'; circ(ctx,x+size/2,y+size/2,size/2+4);
   ctx.drawImage(mmCanvas,x,y,size,size);
   for (const L of LANDMARKS) if (save.landmarks.includes(L.name)){ ctx.fillStyle = '#ffc53d';
@@ -1613,6 +1618,7 @@ function drawMinimap(){
   // the ocean has no edge: past the map, the dot rides the rim pointing your way
   const d = Math.hypot(ocean.x, ocean.y), k = Math.min(1, WORLD_R/Math.max(d, 1)) * .96;
   const px = x + size/2 + ocean.x/WORLD_R*k*size/2, py = y + size/2 + ocean.y/WORLD_R*k*size/2;
+  drawNSEW();
   for (const f of others.values()){ const fd = Math.hypot(f.x, f.y), fk = Math.min(1, WORLD_R/Math.max(fd, 1))*.96;
     ctx.fillStyle = '#fff'; circ(ctx, x + size/2 + f.x/WORLD_R*fk*size/2, y + size/2 + f.y/WORLD_R*fk*size/2, 4.5);
     ctx.fillStyle = '#2f7fe8'; circ(ctx, x + size/2 + f.x/WORLD_R*fk*size/2, y + size/2 + f.y/WORLD_R*fk*size/2, 3); }
