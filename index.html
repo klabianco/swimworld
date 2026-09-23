@@ -1497,7 +1497,8 @@ function updOcean(dt){
   } else if (coachTimer > 0){ coachTimer -= dt; if (coachTimer <= 0) coach(''); }
   let d = Math.hypot(o.x,o.y);
   // animals are solid: you bump off whales, sharks, dolphins and the rest instead of swimming through them
-  if (!o.onLand && !o.ride) bumpAnimals(o);
+  const air = o.jumpY || 0;   // a leaping dolphin sails over things lower than the jump
+  if (!o.onLand && !o.ride && air < .3) bumpAnimals(o);
   // the island's underwater slope is solid: you glide up it instead of through it
   if (!o.onLand && !o.ride){ const gh = groundAt(o.x, o.y); if (gh > -3.3 && (o.depth || 0) > -gh - .35){ o.depth = Math.max(0, -gh - .35); if ((o.vd || 0) > 0) o.vd = 0; } }
   // swim up a beach and you climb out onto the island
@@ -1509,19 +1510,19 @@ function updOcean(dt){
   { const ccx = Math.floor(o.x/CH), ccy = Math.floor(o.y/CH); let inKelp = false;
     for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++){ const c = getChunk(ccx+a, ccy+b);
       for (const it of c.canopy){
-        if (it.type === 'ice' && (o.depth || 0) < .9){ const R = (1.5 + it.r*3.5)*.85*40; if (Math.abs(o.x - it.x) < R + 60 && Math.abs(o.y - it.y) < R + 60) keepOutCircle(o, it.x, it.y, R); }
+        if (it.type === 'ice' && (o.depth || 0) < .9 && air < 1){ const R = (1.5 + it.r*3.5)*.85*40; if (Math.abs(o.x - it.x) < R + 60 && Math.abs(o.y - it.y) < R + 60) keepOutCircle(o, it.x, it.y, R); }
         else if (it.type === 'kelp' && Math.hypot(o.x - it.x, o.y - it.y) < 70) inKelp = true; }
       for (const it of c.items){
         if (it.type === 'rock'){ const sz = .5 + it.r*1.2, tall = it.r > .94 ? 1.7 : .7; solidBump(o, it.x, it.y, sz*1.1*40, floorY(it.x, it.y) + sz*.35*tall + sz*tall); }
         else if (it.type === 'coral') solidBump(o, it.x, it.y, 40, floorY(it.x, it.y) + 1.5); } }
     if (inKelp && !o.ride){ const k = Math.exp(-1.6*dt); o.vx *= k; o.vy *= k; } }
   if (o.ride){ o.ride.x = o.x; o.ride.y = o.y; }
-  if (!o.onLand && !o.ride) wreckCollide(o);
-  if (afloatShip && !o.onShip && (o.depth || 0) < 2.4){ const [lx, lz] = shipLocal(o.x, o.y), ex = (lx + .7)/12.9, ez = lz/3.1, q = ex*ex + ez*ez;
+  if (!o.onLand && !o.ride && air < .1) wreckCollide(o);
+  if (afloatShip && !o.onShip && (o.depth || 0) < 2.4 && air < 1.4){ const [lx, lz] = shipLocal(o.x, o.y), ex = (lx + .7)/12.9, ez = lz/3.1, q = ex*ex + ez*ez;
     if (q < 1){ const k = 1/Math.sqrt(Math.max(q, 1e-4)), [nx, ny] = shipWorld((lx + .7)*k - .7, lz*k); o.x = nx; o.y = ny; } }
   { const ccx = Math.floor(o.x/CH), ccy = Math.floor(o.y/CH), dep = o.depth || 0;
     for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const j of getChunk(ccx+a, ccy+b).jellies){
-      if (o.onLand) break;
+      if (o.onLand || air > .3) break;
       const [jx, jy, jd] = jellyPos(j);
       if (Math.abs(jx - o.x) > 400 || Math.abs(jy - o.y) > 400) continue;
       if (j.deadly && !o.jellyWarned && Math.hypot(jx - o.x, jy - o.y) < 360){ o.jellyWarned = true;
@@ -1582,7 +1583,7 @@ function updOcean(dt){
       if (Math.hypot(it.x - o.x, it.y - o.y) < 40 && dep > depthAt(it.x, it.y) - 1.4){ taken.add(it); addCoins(3); addXP(2); lastChunkKey = ''; } } }
   // boats: solid hulls you swim around
   { const bcx = Math.floor(o.x/CH), bcy = Math.floor(o.y/CH);
-    for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bt of getChunk(bcx+a, bcy+b).boats) if (!o.onLand && (o.depth || 0) < 1.3) keepOutCircle(o, bt.x, bt.y, 90); }
+    for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const bt of getChunk(bcx+a, bcy+b).boats) if (!o.onLand && (o.depth || 0) < 1.3 && air < 1.2) keepOutCircle(o, bt.x, bt.y, 90); }
   if (LIGHTHOUSE.x || LIGHTHOUSE.y) keepOutCircle(o, LIGHTHOUSE.x, LIGHTHOUSE.y, 210);
   // the Dive Shop is in the hut on Pool Island: walk in to shop
   if (o.onLand){ const nearHut = Math.hypot(o.x + 24, o.y + 32) < 72; if (nearHut && !o.shopNear){ o.shopNear = true; openShop(); return; } if (!nearHut) o.shopNear = false; }
