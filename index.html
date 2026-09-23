@@ -59,16 +59,20 @@
 
   .limbs{position:fixed;left:0;right:0;bottom:0;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 14px);
     display:flex;justify-content:space-between;gap:10px;pointer-events:none}
-  .limbs .side{display:flex;gap:10px}
+  .limbs .rightbtns{display:flex;gap:10px;align-items:flex-end;margin-left:auto}
+  .stickpad{pointer-events:auto;touch-action:none;width:132px;height:132px;border-radius:50%;background:rgba(247,251,255,.28);border:3px solid rgba(247,251,255,.65);position:relative;box-shadow:0 4px 18px rgba(8,43,69,.25)}
+  .stickpad .knob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:rgba(247,251,255,.95);box-shadow:0 3px 0 rgba(8,43,69,.3)}
+  @media (hover:hover) and (pointer:fine){.stickpad{display:none}}
+  .limb.stroke{background:#ffd7cf;width:96px;height:96px;font-size:26px}
+  .limb.stroke.on{background:var(--coral);color:#fff}
   .limb{pointer-events:auto;touch-action:none;width:78px;height:78px;border:0;border-radius:22px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:2px;font-family:var(--display);font-size:28px;line-height:1;color:var(--ink);
     box-shadow:0 5px 0 rgba(8,43,69,.35);transition:transform .06s}
   .limb small{font-family:var(--body);font-weight:900;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
-  .limb.arm{background:#ffd7cf} .limb.leg{background:#fff0c7} .limb.dive{background:#cfe6ff;font-size:22px}
+  .limb.dive{background:#cfe6ff;font-size:22px}
   .limb.dive.on{background:var(--deep);color:#fff}
   #airFill{background:linear-gradient(90deg,#ff5a5f,#ffc53d 35%,#3fd0e6 60%)}
   .limb.on{transform:translateY(4px);box-shadow:0 1px 0 rgba(8,43,69,.35)}
-  .limb.arm.on{background:var(--coral);color:#fff} .limb.leg.on{background:var(--gold)}
   @media (max-width:380px){.limb{width:68px;height:68px;font-size:24px}}
   .homechip{display:flex;align-items:center;gap:10px}
   .homechip b{display:block;font-family:var(--display);font-size:22px;font-weight:400;line-height:1}
@@ -222,9 +226,8 @@
 </div>
 
 <div id="limbs" class="limbs" hidden>
-  <div class="side"><button class="limb arm" data-limb="la" type="button">A<small>Left arm</small></button><button class="limb leg" data-limb="ll" type="button">S<small>Left leg</small></button></div>
-  <button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button>
-  <div class="side"><button class="limb leg" data-limb="rl" type="button">K<small>Right leg</small></button><button class="limb arm" data-limb="ra" type="button">L<small>Right arm</small></button></div>
+  <div id="stickPad" class="stickpad" aria-label="Joystick: drag to swim"><div id="stickKnob" class="knob"></div></div>
+  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
 </div>
 <button id="rideBtn" class="ridebtn" type="button" hidden>Ride the dolphin<small>E</small></button>
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
@@ -239,7 +242,7 @@
     </div>
     <p class="explain"><b>Find your way home.</b> Your house is on a secret island somewhere in the ocean. Explore, ask for directions and collect map pieces to find it.</p>
     <ul class="how">
-      <li><b>Swim</b><kbd>A</kbd> <kbd>S</kbd> <kbd>K</kbd> <kbd>L</kbd> move your arms and legs. Hold <kbd>Space</kbd> to dive. On a tablet, tap the buttons.</li>
+      <li><b>Swim</b>Use the joystick, or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrow keys, to swim. Hold <kbd>Space</kbd> or Dive to go under. Drag the screen to look around.</li>
       <li><b>Stay alive</b>Keep moving or you'll sink. Come up for air. Stay away from sharks and red jellyfish.</li>
       <li><b>Get clues</b>Press <kbd>T</kbd> to talk to fishermen, the lighthouse keeper, or animals like you. Press <kbd>M</kbd> for your map.</li>
       <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, race in the pool and find new places. Coins buy fins, snorkels and scuba gear at the Dive Shop. XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
@@ -484,7 +487,8 @@ const keys = {};
 const playing = () => mode === 'pool' || mode === 'race' || mode === 'ocean';
 addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' && e.key !== 'Escape') return; const k = e.key.toLowerCase(); keys[k] = true;
   if (!$('gatePanel').hidden) return;   // the login ask can't be skipped with hotkeys
-  if (LIMB_KEYS[k] && !e.repeat && !e.metaKey && !e.ctrlKey){ pressLimb(LIMB_KEYS[k]); if (playing()) e.preventDefault(); }
+  if (k === ' ' && !e.repeat && mode === 'race' && race && race.state === 'go'){ raceStroke(race); e.preventDefault(); }
+  if (['w','a','s','d'].includes(k) && playing()) e.preventDefault();
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k) && playing()) e.preventDefault();
   if (k === 'e' && !e.repeat) toggleRide();
   if (k === 't' && !e.repeat) talkToFriend();
@@ -506,7 +510,8 @@ const ptr = { x:0, y:0, down:false };
 const mmHit = { x:-1e4, y:-1e4, r:0 };   // where the minimap is on screen: tapping it opens the full map
 const onMinimap = e => mode === 'ocean' && Math.hypot(e.clientX - mmHit.x, e.clientY - mmHit.y) < mmHit.r;
 cv.addEventListener('pointerdown', e => { if (onMinimap(e) && !paused){ initAudio(); openMap(); return; } initAudio(); ptr.down = true; ptr.x = e.clientX; ptr.y = e.clientY; try{cv.setPointerCapture(e.pointerId);}catch(_){} });
-cv.addEventListener('pointermove', e => { ptr.x = e.clientX; ptr.y = e.clientY; cv.style.cursor = onMinimap(e) ? 'pointer' : ''; });
+cv.addEventListener('pointermove', e => { if (ptr.down && playing() && !paused && camMode !== 'first'){ camHead += (e.clientX - ptr.x)*.007; camHoldT = time + 1.5; }   // drag to look around
+  ptr.x = e.clientX; ptr.y = e.clientY; cv.style.cursor = onMinimap(e) ? 'pointer' : ''; });
 const ptrUp = () => { ptr.down = false; };
 cv.addEventListener('pointerup', ptrUp); cv.addEventListener('pointercancel', ptrUp);
 const left  = () => keys.arrowleft || keys.a, right = () => keys.arrowright || keys.d;
@@ -542,50 +547,53 @@ function coach(text, secs = 0){
   $('coach').hidden = false; coachTimer = secs;
 }
 
-/* ---------- Four-limb swimming (pool, races and ocean) ----------
-   A = left arm, S = left leg, K = right leg, L = right arm.
-   Arms are big pulls that also turn you (left arm turns you right).
-   Legs are small kicks. Taking turns left/right is the most efficient. */
-const LIMB_KEYS = { a:'la', s:'ll', k:'rl', l:'ra' };
-const LIMBS = {
-  la: { arm:true,  side:-1 }, ll: { arm:false, side:-1 },
-  rl: { arm:false, side: 1 }, ra: { arm:true,  side: 1 },
-};
-const newLimbs = () => ({ la:{t:-1,b:1}, ll:{t:-1,b:1}, rl:{t:-1,b:1}, ra:{t:-1,b:1}, lastArm:null, lastLeg:null, strokes:0, kicks:0 });
-let limbQueue = [];
-function pressLimb(id){ if (playing() && !paused) limbQueue.push(id); }
-function takePresses(o){
-  for (const id of limbQueue){
-    const L = o.limbs[id], info = LIMBS[id]; if (L.t >= 0) continue;   // that limb is still mid-stroke
-    const lastKey = info.arm ? 'lastArm' : 'lastLeg', last = o.limbs[lastKey];
-    L.t = 0; L.b = !last ? 1 : last !== id ? 1.25 : .75; o.limbs[lastKey] = id; o.idle = 0;
-    if (info.arm) o.limbs.strokes++; else o.limbs.kicks++;
-    sfx(info.arm ? 180 : 260, .09, 'sine', .03, 0, -60); strokeSplash(o, id);
-  }
-  limbQueue.length = 0;
+/* ---------- Controls: a joystick, like Roblox ----------
+   Touch: drag the thumbstick (bottom left). Keyboard: W A S D or the arrow keys. Directions follow the camera, so up swims
+   the way the camera looks. Drag the screen (or the mouse) to look around. In races, tap Stroke (or Space) on the beat. */
+const stick = { x:0, y:0, active:false };
+const newLimbs = () => ({ la:{t:-1}, ll:{t:-1}, rl:{t:-1}, ra:{t:-1} });   // every limb resting (the pose for holding still)
+let limbQueue = [];                               // (old four-limb presses; nothing adds to it any more)
+let camFollowOK = true, camHoldT = 0;
+function moveInput(){
+  let x = stick.x, y = stick.y;
+  if (!stick.active){ x = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0); y = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0); }
+  const m = Math.hypot(x, y); if (m > 1){ x /= m; y /= m; }
+  return { x, y, m: Math.min(1, m) };
 }
+// where the stick points, turned into a direction in the world (relative to the camera)
+function wantHeading(){ const s = moveInput(); camFollowOK = s.m < .15 || Math.abs(Math.atan2(s.x, s.y)) < .9;
+  return s.m < .15 ? null : { ang: camHead + Math.atan2(s.x, s.y), m: s.m }; }
+const angDiff = (a, b) => ((a - b + Math.PI)%TAU + TAU)%TAU - Math.PI;
 const METERS = 40; // world units per meter
-function limbStep(o, dt){
-  const fx0 = Math.cos(o.ang), fy0 = Math.sin(o.ang);
-  for (const id in LIMBS){ const L = o.limbs[id]; if (L.t < 0) continue; const info = LIMBS[id];
-    const p0 = L.t; L.t = Math.min(1, L.t + dt/(info.arm ? .55 : .3));
-    const f = L.t - p0;
-    const imp = (info.arm ? 40 : hasGear('fins') ? 21 : 8) * speedMul() * L.b * f, pc = o.pitch || 0;
-    o.vx += fx0*imp*Math.cos(pc); o.vy += fy0*imp*Math.cos(pc);
-    if (pc) o.vd = (o.vd || 0) - Math.sin(pc)*imp*U;     // head down: strokes take you deeper
-    o.ang += -info.side * (info.arm ? .45 : .08) * f;
-    if (L.t >= 1) L.t = -1; }
+// Swim toward where the stick points. `base` is cruising speed in units per second (100 = 2.5 m/s) before speed boosts.
+function swimMove(o, dt, base = 100){
+  const w = wantHeading(), pc = o.pitch || 0;
+  if (w){ const err = angDiff(w.ang, o.ang); o.ang += clamp(err, -3.2*dt, 3.2*dt); o.idle = 0;
+    const a = 1.4*base*speedMul()*(hasGear('fins') ? 1.15 : 1)*w.m*Math.max(.25, Math.cos(err));
+    o.vx += Math.cos(o.ang)*a*Math.cos(pc)*dt; o.vy += Math.sin(o.ang)*a*Math.cos(pc)*dt;
+    if (pc) o.vd = (o.vd || 0) - Math.sin(pc)*a*dt*U; }                 // head down: swimming takes you deeper
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang);
   let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
   fwd *= Math.exp(-1.4*dt); lat *= Math.exp(-5*dt);
   o.vx = fx*fwd - fy*lat; o.vy = fy*fwd + fx*lat;
   o.x += o.vx*dt; o.y += o.vy*dt;
   const sp = Math.hypot(o.vx,o.vy);
+  o.swimPh = (o.swimPh || 0) + dt*(.5 + sp/80);                         // arms and legs keep time with your speed
   if (sp > 25){ swam(dt); const dm = sp*dt/METERS; save.dist += dm; xpFrac += dm; if (xpFrac >= 1){ const k = xpFrac|0; xpFrac -= k; addXP(k, true); } }   // 1 XP per meter
   if (sp > 25 && Math.random() < dt*10){ const bx = o.x - fx*32, by = o.y - fy*32;
     bubble(bx+(Math.random()-.5)*12, by+(Math.random()-.5)*12, -o.vx*.1+(Math.random()-.5)*20, -o.vy*.1+(Math.random()-.5)*20); }
   return sp;
 }
+// the swimmer's arms and legs: a steady stroke while moving, resting when still
+const swimPose = o => Math.hypot(o.vx, o.vy) > 20 ? null : RIDE_POSE;
+{ const pad = $('stickPad'), knob = $('stickKnob'); let pid = null;
+  const set = e => { const r = pad.getBoundingClientRect(), R = r.width/2; let dx = e.clientX - r.left - R, dy = e.clientY - r.top - R;
+    const d = Math.hypot(dx, dy), k = d > R*.8 ? R*.8/d : 1; dx *= k; dy *= k;
+    knob.style.transform = `translate(${dx}px, ${dy}px)`; stick.x = dx/(R*.8); stick.y = -dy/(R*.8); stick.active = true; };
+  pad.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); pid = e.pointerId; try { pad.setPointerCapture(pid); } catch(_){} set(e); });
+  pad.addEventListener('pointermove', e => { if (e.pointerId === pid) set(e); });
+  const end = e => { if (e.pointerId !== pid) return; pid = null; stick.x = stick.y = 0; stick.active = false; knob.style.transform = ''; };
+  pad.addEventListener('pointerup', end); pad.addEventListener('pointercancel', end); }
 const POOL_W = 400;
 
 /* ---------- Money and gear ----------
@@ -636,7 +644,7 @@ const diveHeld = () => !!keys[' '] || diveBtnHeld;
 const airMax = () => (hasGear('scuba') ? 300 : 20) + 40*swimBonus();
 function diveStep(o, dt, maxDepth){
   if (o.depth == null){ o.depth = 0; o.vd = 0; o.pitch = 0; o.air = airMax(); }
-  const want = diveHeld() && !o.gasp;
+  const want = !o.noDive && diveHeld() && !o.gasp;
   if (want && !o.wasDive && o.depth < .25){ o.vd += 1.1; sfx(320, .25, 'sine', .05, 0, -180); }   // duck dive
   o.wasDive = want;
   // Stay afloat by swimming: a stroke or kick in the last moment, or still gliding along.
@@ -705,11 +713,11 @@ function startPool(from = 'start'){
 }
 function hubCoach(force){
   if (!force && coachTimer > 0) return;
-  coach('Swim onto the RACE square for a timed 50 m race, or LESSON to practice. Hold Space to dive to the bottom. The channel at the far end of the pool leads out to the ocean.');
+  coach('Swim onto the RACE square for a timed 50 m race (tap Stroke on the beat!), or LESSON to practice. Hold Space to dive to the bottom. The channel at the far end of the pool leads out to the ocean.');
 }
 function updPool(dt){
   const o = hub;
-  takePresses(o); limbStep(o, dt); diveStep(o, dt, DEPTH - .3); if (mode === 'dead') return;
+  swimMove(o, dt); diveStep(o, dt, DEPTH - .3); if (mode === 'dead') return;
   const open = oceanOpen();
   // pool walls, plus the channel out to sea once the gate is open
   const mid = (GATE_X0 + GATE_X1)/2;
@@ -750,7 +758,7 @@ function makeOp(good, d){
 }
 const RACE_LEN = 2000, LESSON_LEN = 1000;   // 50 m race, 25 m lesson (40 units per meter)
 function prepRace(lesson){
-  race = { lesson, x:200, y:120, vx:0, vy:0, ang:-Math.PI/2, limbs:newLimbs(), rows:[], popups:[], t:0,
+  race = { lesson, x:200, y:120, vx:0, vy:0, ang:-Math.PI/2, limbs:newLimbs(), rows:[], popups:[], t:0, combo:0, perfect:0, good:0, missed:0, lastBeat:-1, noDive:true,
     state: lesson ? 'go' : 'count', timer: lesson ? 0 : 2.7, v:null, startXp: xpNow() };
   race.finishY = 120 - (lesson ? LESSON_LEN : RACE_LEN);
 }
@@ -760,7 +768,36 @@ function startRace(lesson, keep){
   if (!(keep && race && race.lesson && race.idle)) prepRace(lesson);
   race.idle = false; race.x = clamp(race.x, 26, POOL_W-26);
   parts = []; setMode('race');
-  coach(lesson ? 'Welcome to your first swim lesson! You control each arm and leg yourself. Press A for your left arm to start.' : 'Race! Swim to the far wall as fast as you can. Alternate your arms (A, L) and kick (S, K). The clock starts at GO.');
+  coach(lesson ? 'Welcome to your first swim lesson! Push the joystick up (or W / ↑) to swim toward the far wall.' : 'Race! Steer with the joystick, and tap Stroke (or Space) each time the ring lands on the circle. Perfect taps in a row make you fastest.');
+}
+/* Races: the joystick steers, and speed comes from tapping Stroke (or Space) on the beat. A ring closes in on the circle every
+   0.6 s; tap as it lands. Perfect taps give a big push and build a combo, good taps a smaller push, and taps off the beat
+   (or two in one beat) cost you speed and break the combo. Without strokes you just cruise slowly. */
+const BEAT = .6;
+function raceStroke(r){
+  if (r.state !== 'go') return;
+  const k = Math.round(r.t/BEAT), off = Math.abs(r.t - k*BEAT), again = k === r.lastBeat;
+  const q = again ? 'miss' : off < .085 ? 'perfect' : off < .17 ? 'good' : 'miss';
+  if (q === 'miss'){ r.combo = 0; r.missed++; r.vx *= .85; r.vy *= .85; sfx(150, .12, 'sawtooth', .03); }
+  else { r.lastBeat = k; r.combo = Math.min(8, r.combo + 1); q === 'perfect' ? r.perfect++ : r.good++;
+    const push = (q === 'perfect' ? 45 : 27)*(1 + .05*r.combo)*speedMul()*(hasGear('fins') ? 1.08 : 1);
+    r.vx += Math.cos(r.ang)*push; r.vy += Math.sin(r.ang)*push; r.idle = 0;
+    sfx(q === 'perfect' ? 660 + r.combo*40 : 440, .1, 'triangle', .05); strokeSplash(r, r.lastBeat % 2 ? 'la' : 'ra'); }
+  r.beatFx = { q, t: time }; const b = $('strokeBtn'); b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 90);
+}
+$('strokeBtn').addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); if (mode === 'race' && race) raceStroke(race); });
+// the beat ring, drawn over the game during a race
+function drawBeat(){
+  const r = race; if (!r || mode !== 'race' || r.state !== 'go') return;
+  const cx = W/2, cy = H - 200, ph = ((r.t % BEAT) + BEAT) % BEAT/BEAT, R0 = 30;
+  ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(247,251,255,.95)'; ctx.beginPath(); ctx.arc(cx, cy, R0, 0, TAU); ctx.stroke();
+  ctx.lineWidth = 4; ctx.strokeStyle = `rgba(255,111,89,${.35 + .65*ph})`; ctx.beginPath(); ctx.arc(cx, cy, R0 + 70*(1 - ph), 0, TAU); ctx.stroke();
+  const f = r.beatFx, age = f ? time - f.t : 9;
+  if (age < .6){ ctx.font = "900 26px 'Lilita One', sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(8,43,69,.7)'; const txt = f.q === 'perfect' ? 'Perfect!' : f.q === 'good' ? 'Good' : 'Miss';
+    ctx.globalAlpha = 1 - age/.6; ctx.strokeText(txt, cx, cy - 58 - age*30); ctx.fillStyle = f.q === 'perfect' ? '#ffd23f' : f.q === 'good' ? '#fff' : '#ff8a80'; ctx.fillText(txt, cx, cy - 58 - age*30); ctx.globalAlpha = 1; }
+  if (r.combo > 1){ ctx.font = "900 18px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(8,43,69,.7)'; ctx.lineWidth = 4;
+    ctx.strokeText(`${r.combo} in a row`, cx, cy + 50); ctx.fillText(`${r.combo} in a row`, cx, cy + 50); }
 }
 function applyGate(g){
   const r = race; let p = r.pts;
@@ -782,17 +819,17 @@ function updRace(dt){
     limbQueue.length = 0; updateRaceHUD(); return;
   }
   if (r.state === 'go' || r.state === 'finish'){
-    if (r.state === 'go'){ takePresses(r); r.t += dt; } else limbQueue.length = 0;
-    limbStep(r, dt); diveStep(r, dt, DEPTH - .3); if (mode === 'dead') return;
+    if (r.state === 'go') r.t += dt;
+    swimMove(r, dt, r.state === 'go' ? 45 : 0); diveStep(r, dt, DEPTH - .3); if (mode === 'dead') return;
     r.ang = clamp(r.ang, -Math.PI/2 - 1.1, -Math.PI/2 + 1.1);
     r.touchWall = keepInBox(r, 0, POOL_W, r.finishY, 200).y0;
   }
   if (r.state === 'go'){
-    if (r.lesson){ const Lm = r.limbs;
-      if (Lm.strokes < 4) coach('Pull with your arms: A is your left arm, L is your right arm (or tap the arm buttons). Take turns: A, L, A, L!');
-      else if (Lm.kicks < 4) coach('Great pulls! Now kick with your legs: S and K. Kicks are smaller, but they keep you gliding.');
-      else if (r.y > 120 - LESSON_LEN*.5) coach('To steer, pull with just one arm: your left arm (A) turns you right, your right arm (L) turns you left. Stay in the middle of the lane.');
-      else coach("Keep moving or you'll sink! Swim all the way and touch the wall to finish."); }
+    if (r.lesson){
+      if (r.y > 120 - 160) coach('Push the joystick up (or W / ↑) to swim. Push left or right to steer and stay in your lane.');
+      else if (r.perfect + r.good < 4) coach('Now the race move: tap Stroke (or Space) right when the ring lands on the circle. Each good stroke gives you a push!');
+      else if (r.perfect < 3) coach('Nice! Try for "Perfect!": tap exactly as the ring touches the circle. Perfect taps in a row make you even faster.');
+      else coach("Keep the rhythm all the way to the wall to finish!"); }
     if (r.touchWall){ r.state = 'finish'; r.timer = 1.4; r.final = r.t;
       [523,659,784,1047].forEach((f,i) => sfx(f,.18,'triangle',.07,i*.1)); }
   } else if (r.state === 'finish'){ r.timer -= dt; if (r.timer <= 0) endRace(); }
@@ -815,9 +852,9 @@ function endRace(){
     const first = !save.tutorialDone; save.tutorialDone = true; if (first){ save.coins = (save.coins || 0) + 20; addXP(25); } persist(); flushCloud();
     showResults('Lesson complete!',
       `<div class="res-score">${fmtT(r.final)}</div><p class="res-line">for 25 meters${first ? ' · +20 coins' : ''}</p>
-       <ul class="res-list"><li>Races are 50 m sprints: swim to the far wall as fast as you can. Your best time is saved.</li>
+       <ul class="res-list"><li>Races are 50 m sprints: steer with the joystick and tap Stroke on the beat. Perfect strokes in a row are fastest. Your best time is saved.</li>
        <li>Every second you swim makes you a little faster. Watch your top speed in the Menu.</li>
-       <li>Keep moving: stop stroking and kicking and you'll slowly sink. Hold Space (or the Dive button) to dive on purpose.</li>
+       <li>Keep moving: stop swimming and you'll slowly sink. Hold Space (or the Dive button) to dive on purpose.</li>
        <li>Everything you do earns XP: every meter you swim, races, pearls, chests, map pieces and new places. XP makes you faster and unlocks new swimmers: the Sea Turtle at 200 XP, the Otter at 700 XP, the Dolphin at 1,800 XP.</li>
        <li>Earn coins from races, pearls, shells and treasure chests, and spend them at the Dive Shop on Pool Island (or in the Menu).</li>
        <li>The pool is calm, so it's the place to practice. The ocean is open any time. Out there, waves and currents push you around.</li></ul>` + unlockHtml,
@@ -829,6 +866,7 @@ function endRace(){
   showResults(best ? 'New best time!' : 'Finished!',
     (best && save.races > 1 ? '<div class="newbest">Personal best</div>' : '') +
     `<div class="res-score">${fmtT(r.final)}</div><p class="res-line">50 meters · best ${fmtT(save.bestTime)} · race ${save.races}</p>` +
+    `<p class="res-line">${r.perfect} perfect · ${r.good} good · ${r.missed} missed strokes</p>` +
     `<p class="res-line">+${prize} coins · +${xpWon} XP · top speed now ${speedMul().toFixed(2)}×</p>` + unlockHtml,
     'Race again', () => startRace(false), 'Back to pool', () => startPool());
   if (best || unlocked.length) [659,784,988,1319].forEach((f,i) => sfx(f,.2,'triangle',.07,i*.12));
@@ -992,7 +1030,7 @@ function climbShip(side){
   o.onLand = true; o.onShip = true; o.ladderSide = 0;
   const c = Math.cos(SHIP.rot), s = Math.sin(SHIP.rot); o.ang = Math.atan2(-side*c, -side*s);   // face the middle of the deck
   [392, 523, 659].forEach((f, i) => sfx(f, .12, 'triangle', .06, i*.12));
-  banner('You climbed aboard!', 'S and K walk · A and L turn · Space or E jumps into the sea');
+  banner('You climbed aboard!', 'Walk with the joystick · Space or E jumps into the sea');
   say('Pirate captain', (save.chests || []).includes('shipdeck') ? "Arr, you again! Ye already took me treasure, ye scallywag!" : "Arr! A stowaway on me ship! Don't ye dare go near me treasure chest on the high deck!", 7);
 }
 function jumpOffShip(){
@@ -1095,7 +1133,7 @@ function startOcean(){
   syncHouse(); placeLighthouse(); parts = []; setMode('ocean'); $('airChip').hidden = true;
   banner('Find your way home!', 'Your house is far out in the ocean. Look for its tall yellow flag.');
   ocean.tripT = 0;
-  ocean.teach = ocean.limbs.strokes < 4 && !save.tutorialDone;
+  ocean.teach = !save.tutorialDone;
   if (!ocean.teach) coach(OCEAN_HELLO, 10);
 }
 const OCEAN_HELLO = 'Find your way home! Your house is on an island somewhere out here, with a tall yellow flag. Waves and currents push you around, so keep stroking, and watch out for sharks.';
@@ -1261,16 +1299,15 @@ function toggleRide(){
   const b = o.rideTarget; if (!b) return;
   const [x, y, ang] = buddyPos(b);
   o.ride = { x, y, ang, depth:0, turn:0, boost:0, leapT:0, leapIn:2.5 }; o.rideFrom = b; o.rideAway = null;
-  banner('Riding a dolphin!', 'A and L steer · S or K for speed · Space dives · E lets go');
+  banner('Riding a dolphin!', 'Steer with the joystick · push forward for speed · Space dives · E lets go');
   [523, 784, 1047].forEach((f, i) => sfx(f, .12, 'triangle', .06, i*.08));
 }
 $('rideBtn').onclick = () => { initAudio(); toggleRide(); };
 const LEAP = 1.1;
 function updRide(o, dt){
   const r = o.ride;
-  for (const id of limbQueue){ if (id === 'la') r.turn += .5; else if (id === 'ra') r.turn -= .5; else r.boost = 1; }
-  limbQueue.length = 0;
-  const turn = clamp(r.turn, -2, 2)*Math.min(1, dt*3); r.ang += turn; r.turn -= turn;
+  const w = wantHeading();
+  if (w){ const err = angDiff(w.ang, r.ang); r.ang += clamp(err, -2.4*dt, 2.4*dt); r.boost = Math.max(r.boost, w.m*Math.max(0, Math.cos(err))); }
   r.boost = Math.max(0, r.boost - dt*.6);
   const sp = 240 + 130*r.boost;                               // about 6-9 m/s, far faster than you swim
   r.x += Math.cos(r.ang)*sp*dt; r.y += Math.sin(r.ang)*sp*dt;
@@ -1387,13 +1424,10 @@ const islandPlants = () => plantsCache || (plantsCache = (() => { const R = mulb
     if (ok(x, z, kind === 'palm' ? 2.2 : 1.3)) out.push({ kind, x, z, s: .8 + R()*.6, a: R()*TAU }); }
   return out; })());
 function walkStep(o, dt){
-  for (const id of limbQueue){ if (id === 'la') o.turnWant = (o.turnWant || 0) - .45; else if (id === 'ra') o.turnWant = (o.turnWant || 0) + .45;
-    else { o.stepT = .5; sfx(150 + Math.random()*40, .06, 'triangle', .03); } }
-  limbQueue.length = 0;
-  if (keys.arrowleft) o.ang -= 2.2*dt; if (keys.arrowright) o.ang += 2.2*dt;
-  const tw = clamp(o.turnWant || 0, -1.6, 1.6)*Math.min(1, dt*6); o.ang += tw; o.turnWant = (o.turnWant || 0) - tw;
-  o.stepT = Math.max(0, (o.stepT || 0) - dt);
-  const walking = o.stepT > 0 || !!keys.arrowup, sp = walking ? 58 : 0;      // about 1.5 m/s
+  const w = wantHeading(), walking = !!w;
+  if (w) o.ang += clamp(angDiff(w.ang, o.ang), -6*dt, 6*dt);
+  const sp = walking ? 62*w.m : 0;                                             // about 1.5 m/s
+  if (walking && (o.stepSfx = (o.stepSfx || 0) - dt) <= 0){ o.stepSfx = .38; sfx(150 + Math.random()*40, .06, 'triangle', .03); }
   o.vx += (Math.cos(o.ang)*sp - o.vx)*Math.min(1, dt*8); o.vy += (Math.sin(o.ang)*sp - o.vy)*Math.min(1, dt*8);
   o.x += o.vx*dt; o.y += o.vy*dt;
   o.walkPh = (o.walkPh || 0) + dt*(walking ? 8 : 0); o.walking = walking;
@@ -1428,15 +1462,14 @@ function updOcean(dt){
   }
   else if (o.ride){ updRide(o, dt); if (mode === 'dead') return; }
   else {
-    takePresses(o); limbStep(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return;
+    swimMove(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return;
     const cur = currentAt(o.x, o.y, time);
     o.x += cur[0]*.3*dt; o.y += cur[1]*.3*dt; o.cur = cur;
   }
   const cur = o.cur || [0, 0];
   o.dx = (o.dx || 0) + cur[0]*dt*1.6; o.dy = (o.dy || 0) + cur[1]*dt*1.6;
   if (o.teach && !o.onLand && time > sayUntil){
-    if (o.limbs.strokes < 4) coach('Swim with your arms: A is your left arm, L is your right arm (or tap the arm buttons). Take turns: A, L, A, L!');
-    else if (o.limbs.kicks < 3) coach('Now kick with S and K. To turn, pull with just one arm: A turns you right, L turns you left.');
+    if ((o.swimPh || 0) < 3) coach('Swim with the joystick (or W A S D / arrow keys). Push the way you want to go. Drag the screen to look around.');
     else { o.teach = false; coach(OCEAN_HELLO, 10); }
   } else if (coachTimer > 0){ coachTimer -= dt; if (coachTimer <= 0) coach(''); }
   let d = Math.hypot(o.x,o.y);
@@ -1447,7 +1480,7 @@ function updOcean(dt){
   // swim up a beach and you climb out onto the island
   if (!o.onLand && !o.ride && groundAt(o.x, o.y) > -.35 && (o.depth || 0) < .6){
     o.onLand = true; o.depth = 0; o.vx *= .3; o.vy *= .3;
-    if (!o.landHint){ o.landHint = true; coach('You climbed onto the island! S and K walk, A and L turn (arrow keys work too). Walk back into the water to swim.', 8); } }
+    if (!o.landHint){ o.landHint = true; coach('You climbed onto the island! Use the joystick to walk around. Walk back into the water to swim.', 8); } }
   if (o.ride && groundAt(o.x, o.y) > -1.2){ const d0 = Math.hypot(o.x, o.y) < Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) ? [0, 0, islR(Math.atan2(o.y, o.x))/U + 60] : [HOUSE.x, HOUSE.y, HOUSE.r + 80]; keepOutCircle(o, ...d0); }
   for (const L of LANDMARKS){ const R = LANDMARK_R[L.kind]; if (R && Math.abs(o.x - L.x) < R + 200 && Math.abs(o.y - L.y) < R + 200) keepOutCircle(o, L.x, L.y, R); }
   { const ccx = Math.floor(o.x/CH), ccy = Math.floor(o.y/CH); let inKelp = false;
@@ -1579,22 +1612,50 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .5;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const camera = new THREE.PerspectiveCamera(55, 1, .05, 4000);
-let composer = null, renderPass = null, quality = 3, slowT = 0, maxPR = 1.5;
+let composer = null, renderPass = null, maxPR = 1.5, shadowWipe = false; const SUNS = [];
+function wipeShadows(){ const cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+  for (const sun of SUNS) if (sun.shadow.map){ renderer.setRenderTarget(sun.shadow.map); renderer.setClearColor(0xffffff, 1); renderer.clear(); }
+  renderer.setRenderTarget(null); renderer.setClearColor(cc, ca); }
+/* Automatic graphics: aim for a smooth 60 frames a second on any device. If frames get slow, step down a level (fewer pixels,
+   then no glow, then no shadows, then less of the far-away world and fewer fish); if there's room to spare, step back up.
+   Tablets and phones start a few levels lower. */
+const GFX = [   // lowest to highest
+  { pr:.6,  bloom:false, shadow:false, view:3, near:2, fish:18 },
+  { pr:.75, bloom:false, shadow:false, view:4, near:2, fish:22 },
+  { pr:.9,  bloom:false, shadow:false, view:5, near:3, fish:26 },
+  { pr:1,   bloom:false, shadow:true,  view:6, near:3, fish:32 },
+  { pr:1,   bloom:true,  shadow:true,  view:6, near:3, fish:32 },
+  { pr:1.25,bloom:true,  shadow:true,  view:6, near:3, fish:32 },
+  { pr:1.5, bloom:true,  shadow:true,  view:6, near:3, fish:32 } ];
+const TOUCH_DEVICE = navigator.maxTouchPoints > 1 || matchMedia('(pointer: coarse)').matches;
+let gfx = TOUCH_DEVICE ? 2 : 5, gfxCap = GFX.length - 1, gfxT = 0, gfxUpAt = -99, frameMs = 16, VIEW_R = 6, NEAR_R = 3, FISH_R = 32;
+function applyGfx(first){
+  const g = GFX[gfx]; maxPR = g.pr; VIEW_R = g.view; NEAR_R = g.near; FISH_R = g.fish;
+  // Shadows switch off by no longer redrawing the shadow map and wiping it blank, which is instant. (Turning shadows fully off
+  // would make every material rebuild its shader at once, which freezes the game for seconds.)
+  renderer.shadowMap.autoUpdate = g.shadow; if (!g.shadow) shadowWipe = true;
+  if (window.__r3d) resize3D(); if (!first) lastChunkKey = '';
+}
 function resize3D(){ renderer.setPixelRatio(Math.min(DPR, maxPR)); renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix();
   if (composer){ composer.setPixelRatio(Math.min(DPR, 1.25)); composer.setSize(W, H); } }
 try { composer = new EffectComposer(renderer); renderPass = new RenderPass(new THREE.Scene(), camera); composer.addPass(renderPass);
   composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), .2, .45, .95)); composer.addPass(new OutputPass()); } catch(e){ composer = null; }
-// If frames run slow for a few seconds, step quality down: sharpness, then glow, then shadows.
 function adaptQuality(dt){
-  if (quality === 0) return;
-  slowT = dt > .036 ? slowT + dt : Math.max(0, slowT - dt*.5);
-  if (slowT < 2.5) return; slowT = 0; quality--;
-  if (quality === 2){ maxPR = 1; resize3D(); }
-  else if (quality === 1) composer = null;
-  else renderer.shadowMap.enabled = false;
+  frameMs += (dt*1000 - frameMs)*.05; gfxT += dt;
+  if (frameMs > 24 && gfxT > 1.5 && gfx > 0){                  // slower than about 40 frames a second: step down
+    if (time - gfxUpAt < 12) gfxCap = gfx - 1;                   // we just stepped up and it didn't hold: stay below that level
+    gfx--; gfxT = 0; frameMs = 16; applyGfx(); }
+  else if (frameMs < 17.5 && gfxT > 8 && gfx < gfxCap){ gfx++; gfxT = 0; gfxUpAt = time; applyGfx(); }   // smooth for a while: try a notch higher
 }
-function draw(scene){ if (composer){ renderPass.scene = scene; try { composer.render(); return; } catch(e){ composer = null; } } renderer.render(scene, camera); }
-window.__r3d = true; resize3D();
+function draw(scene){
+  // with shadows off, a scene's shadow map still has to exist: draw it once, then wipe it blank
+  const fresh = !renderer.shadowMap.autoUpdate && SUNS.some(sn => !sn.shadow.map && sn.parent === scene);
+  if (fresh) renderer.shadowMap.needsUpdate = true;
+  let done = false;
+  if (composer && GFX[gfx].bloom){ renderPass.scene = scene; try { composer.render(); done = true; } catch(e){ composer = null; } }
+  if (!done) renderer.render(scene, camera);
+  if (fresh || shadowWipe){ shadowWipe = false; wipeShadows(); } }
+applyGfx(true); window.__r3d = true; resize3D();
 const EXPO = .52;
 const SUN = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(52), THREE.MathUtils.degToRad(150));
 const SKY_TOP = new THREE.Color(0x2f74cc), SKY_HOR = new THREE.Color(0x9ccbe8);
@@ -1611,7 +1672,7 @@ const envMap = pmrem.fromScene(envScene, 0, .1, 4000).texture;
 function addLights(scene){
   scene.add(new THREE.HemisphereLight(0xdff3ff, 0x5f7f86, .35));
   const sun = new THREE.DirectionalLight(0xfff0dc, 2.2);
-  sun.castShadow = true; sun.shadow.mapSize.set(2048,2048);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048,2048); SUNS.push(sun);
   const c = sun.shadow.camera; c.left = -18; c.right = 18; c.top = 18; c.bottom = -18; c.near = 1; c.far = 160;
   sun.shadow.bias = -.0004; sun.shadow.normalBias = .02;
   scene.add(sun, sun.target); return sun;
@@ -2025,7 +2086,7 @@ function updSpray(dt, waterY = 0){
 }
 // splash for a stroke: arms splash ahead of the shoulders, kicks splash at the feet
 function strokeSplash(o, id){
-  const info = LIMBS[id], fx = Math.cos(o.ang), fz = Math.sin(o.ang), rx = -fz, rz = fx;
+  const info = { arm: true, side: id === 'la' ? -1 : 1 }, fx = Math.cos(o.ang), fz = Math.sin(o.ang), rx = -fz, rz = fx;
   const along = info.arm ? .75 : -1.0, side = info.side*(info.arm ? .25 : .1);
   const x = o.x*U + fx*along + rx*side, z = o.y*U + fz*along + rz*side;
   const n = info.arm ? 14 : 8;
@@ -2584,8 +2645,9 @@ function refreshChunks(px, pz){
   visibleChunks = [];
   const R = 6;
   for (const [a, b] of CHUNK_ORDER){
+    if (Math.abs(a) > VIEW_R || Math.abs(b) > VIEW_R) continue;
     const c = getChunk(cx+a, cy+b); visibleChunks.push(c);
-    const near = Math.abs(a) <= 3 && Math.abs(b) <= 3;
+    const near = Math.abs(a) <= NEAR_R && Math.abs(b) <= NEAR_R;
     for (const it of c.items.concat(c.canopy)){
       const x = it.x*U, z = it.y*U, r = it.r, rot = it.rot, rr = mulberry(Math.floor(it.ph*1e6)), FY = floorY(it.x, it.y);
       switch (it.type){
@@ -2881,7 +2943,7 @@ function updOceanWorld(o){
   const nf = {}; for (const kk in FISH) nf[kk] = 0;
   const pY = -(o.depth || 0);
   for (const c of visibleChunks) for (const f of c.fish){
-    if (Math.abs(f.bx*U - px) > 32 || Math.abs(f.by*U - pz) > 32) continue;
+    if (Math.abs(f.bx*U - px) > FISH_R || Math.abs(f.by*U - pz) > FISH_R) continue;
     const mesh = FISH[f.sp], sp = SPECIES[f.sp], scl = sp.L/2.55;
     for (let i=0;i<f.n;i++){ if (nf[f.sp] >= FISH_MAX[f.sp]) break;
       let fx, fy, fz, ang;
@@ -3110,7 +3172,7 @@ function underwaterLook(scene, mats, under, uwCol, uwD, col, d){
 }
 let fpPitch = 0, fpEye = .1;
 function placeCamera(px, py, pz, heading, dt, kind, sub = 0, floorY = -99){
-  camHead = camMode === 'first' ? heading : camInit ? lerpAngle(camHead, heading, Math.min(1, dt*2.2)) : heading;
+  camHead = camMode === 'first' ? heading : !camInit ? heading : camFollowOK && time > camHoldT ? lerpAngle(camHead, heading, Math.min(1, dt*2.2)) : camHead;
   const fx = Math.cos(camHead), fz = Math.sin(camHead);
   if (kind !== 'title' && camMode === 'first'){   // through your own eyes
     const p = fpPitch, eye = _tp.set(px + fx*.62, py + fpEye, pz + fz*.62);
@@ -3140,7 +3202,7 @@ function render3D(dt){
     const m = playerModel(poolScene), r = race;
     const still = mode === 'title' || mode === 'choose', dep = still ? 0 : (r.depth || 0), sub = clamp(dep/.4, 0, 1); curDepth = dep;
     let y = (m.userData.float + Math.sin(t*1.7)*.02)*(1 - sub) - dep; if (r.state === 'sink') y -= (1.5 - r.timer)*.8;
-    m.position.set(r.x*U, y, r.y*U); m.rotation.set(0, -r.ang, still ? 0 : (r.pitch || 0)); poseModel(m, r.idle ? null : r.limbs, r.idle ? t*.5 : t);
+    m.position.set(r.x*U, y, r.y*U); m.rotation.set(0, -r.ang, still ? 0 : (r.pitch || 0)); poseModel(m, r.idle ? null : swimPose(r), r.idle ? t*.5 : (r.swimPh || 0));
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(r.x*U + Math.cos(r.ang)*.6, -dep + .05, r.y*U + Math.sin(r.ang)*.6, 0, .3, 0, 1);
     followSun(poolSun, r.x*U, r.y*U); updSpray(dt); moveClouds(poolClouds, r.x*U, r.y*U);
     fpPitch = r.pitch || 0; fpEye = .1; m.visible = still || camMode !== 'first'; updateGearLook(m);
@@ -3156,7 +3218,7 @@ function render3D(dt){
       gateSign.material.map = labelTex(open ? 'TO THE OCEAN' : `OCEAN ${pct}%`, open ? '#2fbf71' : '#0b4f7c', '#fff', 768, 256, 120); gateSign.material.needsUpdate = true; if (old) old.dispose(); }
     const m = playerModel(poolScene);
     const dep = hub.depth || 0, sub = clamp(dep/.4, 0, 1); curDepth = dep;
-    m.position.set(hub.x*U, (m.userData.float + Math.sin(t*1.7)*.02)*(1 - sub) - dep, hub.y*U); m.rotation.set(0, -hub.ang, hub.pitch || 0); poseModel(m, hub.limbs, t);
+    m.position.set(hub.x*U, (m.userData.float + Math.sin(t*1.7)*.02)*(1 - sub) - dep, hub.y*U); m.rotation.set(0, -hub.ang, hub.pitch || 0); poseModel(m, swimPose(hub), hub.swimPh || 0);
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(hub.x*U + Math.cos(hub.ang)*.6, -dep + .05, hub.y*U + Math.sin(hub.ang)*.6, 0, .3, 0, 1);
     followSun(poolSun, hub.x*U, hub.y*U); updSpray(dt); moveClouds(poolClouds, hub.x*U, hub.y*U);
     fpPitch = hub.pitch || 0; fpEye = .1; m.visible = camMode !== 'first'; updateGearLook(m);
@@ -3177,7 +3239,7 @@ function render3D(dt){
       m.rotation.set(0, -ocean.ang, rideModel.rotation.z); poseModel(m, RIDE_POSE, t);
     } else {
       m.position.set(px, (wy + m.userData.float)*(1 - sub) - dep, pz);
-      m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, ocean.pitch || 0); poseModel(m, ocean.limbs, t); }
+      m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, ocean.pitch || 0); poseModel(m, swimPose(ocean), ocean.swimPh || 0); }
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
@@ -3215,7 +3277,7 @@ function setMode(m){
   mode = m; paused = false;
   if (m === 'title' && startArmed){ startArmed = false; $('startBtn').textContent = 'Start Game'; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
-  $('hud').hidden = !playing(); $('limbs').hidden = !playing(); diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
+  $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
   if (m === 'title'){ prepRace(true); race.idle = true; }
   ptr.down = false; refreshLevelChip(); resetPick();
@@ -3299,8 +3361,6 @@ document.querySelectorAll('[data-shark]').forEach(b => b.onclick = () => { save.
 $('resumeBtn').onclick = closePanel;
 $('exitBtn').onclick = () => { persist(); flushCloud(); setMode('title'); titleNote(account ? 'Saved to your account.' : 'Saved on this device.'); };
 
-document.querySelectorAll('.limb').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); pressLimb(b.dataset.limb); }));
-const limbBtns = [...document.querySelectorAll('.limb[data-limb]')];
 { const d = $('diveBtn'), on = v => { diveBtnHeld = v; d.classList.toggle('on', v); };
   d.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); on(true); try { d.setPointerCapture(e.pointerId); } catch(_){} });
   for (const ev of ['pointerup','pointercancel','lostpointercapture']) d.addEventListener(ev, () => on(false)); }
@@ -3550,11 +3610,10 @@ function frame(now){
     ctx.save(); ctx.fillStyle = 'rgba(10,16,24,.92)'; ctx.beginPath(); ctx.rect(0, 0, W, H);
     const mw = W*.9, mh = H*.8, r = Math.min(W, H)*.18; ctx.roundRect ? ctx.roundRect((W - mw)/2, (H - mh)/2, mw, mh, r) : ctx.rect((W - mw)/2, (H - mh)/2, mw, mh);
     ctx.fill('evenodd'); ctx.restore(); }
-  if ((mode === 'race' || mode === 'results') && race) drawRaceOverlay();
+  if ((mode === 'race' || mode === 'results') && race){ drawRaceOverlay(); drawBeat(); }
   else if (mode === 'ocean' && ocean) drawMinimap();
   if (!account && playing() && !paused && (guestT += dt) > GUEST_SECS){ if (STANDALONE) openLogin(true); else openGate(); }
   chipT -= dt; if (chipT <= 0){ chipT = .5; refreshLevelChip(); $('coinVal').textContent = save.coins || 0; }
-  const Lnow = limbsNow(); if (Lnow) for (const b of limbBtns) b.classList.toggle('on', Lnow[b.dataset.limb].t >= 0);
   requestAnimationFrame(frame);
 }
 function initTitleNotes(){
