@@ -1043,7 +1043,7 @@ function getChunk(cx,cy){
 
 /* ---------- Dreamed places: the ocean past the map is invented by an AI the first time anyone swims there ----------
    The sea is cut into patches (5x5 chunks, about 50 m across). The first logged-in swimmer to reach a patch nobody has seen
-   asks the dreamer (a small Cloudflare Worker that calls Claude) to design it: a name, a legend, and where every rock, reef,
+   asks the dreamer (a small Cloudflare Worker that calls GPT-6) to design it: a name, a legend, and where every rock, reef,
    creature and treasure goes. The design is saved forever, so everyone who swims there later finds the same place,
    with the finder's name on it. The usual random scenery stays; the dreamed design is laid on top. */
 const DREAM_URL = 'https://swimworld-dreamer.klabianco.workers.dev', RG = 5, RGW = RG*CH;
