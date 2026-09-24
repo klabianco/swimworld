@@ -1165,7 +1165,7 @@ function dreamTick(o, dt){   // every frame in the ocean
 /* ---------- Islands: everyone who logs in gets their own island, a short swim from a friend's ----------
    The dreamer hands out the spots (the world's first island by default, or the friend in an invite link: ?near=name),
    so the map grows like a network of friends. You can visit other people's islands; only your own has your blocks. */
-let islands = [], islandMine = false, islandAsking = false, islandT = 0;
+let islands = [], islandMine = false, islandAsking = false, islandT = 0, islandWait = 0;
 const islandGroups = new Map();
 const NEAR_FRIEND = (() => { try { return new URLSearchParams(location.search).get('near') || ''; } catch(e){ return ''; } })();
 const nearIsland = (x, y, r = HOUSE.r + 200) => { for (const I of islands) if (Math.abs(x - I.x) < r && Math.abs(y - I.y) < r && Math.hypot(x - I.x, y - I.y) < r) return I; return null; };
@@ -1174,7 +1174,7 @@ async function claimIsland(){
   try {
     const r = await fetch(`${DREAM_URL}/island`, { method: 'POST', headers: { Authorization: 'Bearer ' + await fbToken(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: fbAuth?.name || '', near: NEAR_FRIEND }) });
-    const j = await r.json(); if (!r.ok || !j.island) return;
+    const j = await r.json(); if (!r.ok || !j.island){ islandWait = time + 30; return; }
     islandMine = true;
     const { x, y } = j.island;
     if (save.house?.x !== x || save.house?.y !== y || !save.houseServer){
@@ -1183,7 +1183,7 @@ async function claimIsland(){
       const o = ocean; if (o && mode === 'ocean'){ o.x = HOUSE.x; o.y = HOUSE.y + HOUSE.r - 110; o.vx = o.vy = 0; o.depth = 0; o.onLand = true; }
       banner('Your island is ready!', j.fresh ? 'It was just made for you, near your friends' : 'Right where you left it');
       islandT = 0; }
-  } catch(e){} finally { islandAsking = false; }
+  } catch(e){ islandWait = time + 30; } finally { islandAsking = false; }
 }
 async function loadIslands(){
   try {
@@ -1197,7 +1197,7 @@ async function loadIslands(){
   } catch(e){}
 }
 function islandTick(o, dt){
-  if (fbAuth && account && !islandMine && !islandAsking) claimIsland();
+  if (fbAuth && account && !islandMine && !islandAsking && time > islandWait) claimIsland();
   islandT -= dt; if (islandT <= 0){ islandT = 30; loadIslands(); }
 }
 
