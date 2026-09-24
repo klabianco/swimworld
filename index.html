@@ -256,7 +256,7 @@
       <p class="kicker">A swimming simulator</p>
       <h1>Swim<em>world</em></h1>
     </div>
-    <p class="explain"><b>Your own island in a real ocean.</b> Build your dream house, then swim out to explore real places on Earth, find treasure, go on quests and make friends.</p>
+    <p class="explain"><b>Your own island in an ocean nobody has seen.</b> Build your dream house, then swim out and discover places that are invented as you find them, find treasure, go on quests and make friends.</p>
     <ul class="how">
       <li><b>Swim</b>Use the joystick, or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrow keys, to swim. Hold <kbd>Space</kbd> or Dive to go under. Drag the screen to look around.</li>
       <li><b>Stay alive</b>Keep moving or you'll sink. Come up for air. Stay away from sharks and red jellyfish.</li>
@@ -343,7 +343,7 @@
   <div class="panel small">
     <h2>Your sea map</h2>
     <canvas id="mapCanvas" width="600" height="420" aria-label="Pieces of the map to your house"></canvas>
-    <h2>Where these places are on Earth</h2>
+    <h2>The explored world</h2>
     <canvas id="worldCanvas" width="720" height="360" aria-label="World map of the places you have found"></canvas>
     <p id="worldNote" class="explain"></p>
     <p class="res-line" id="mapNote"></p>
@@ -627,7 +627,7 @@ const POOL_W = 400;
 const SHOP = [
   { id:'fins',     who:'swimmer', name:'Fins',            price:60,  desc:'You swim faster.' },
   { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',  price:40,  desc:'Breathe with your face in the water, and see farther under water.' },
-  { id:'light',    who:'swimmer', name:'Dive light',      price:120, desc:'Lights up dark, deep water like the Mariana Trench.' },
+  { id:'light',    who:'swimmer', name:'Dive light',      price:120, desc:'Lights up dark, deep water like The Deep.' },
   { id:'scuba',    who:'swimmer', name:'Scuba gear',      price:400, desc:'A tank with about 5 minutes of air. Dive to the deep sea floor and explore the shipwreck.' },
   { id:'goldcap',  who:'swimmer', name:'Golden swim cap', price:25,  desc:'Just because it looks amazing.' },
   { id:'rocketfin',who:'dolphin', name:'Rocket Fin',      price:150, desc:'Jump twice as high.' },
@@ -925,41 +925,47 @@ function drawRaceOverlay(){
 /* =================================================================
    OPEN OCEAN
    ================================================================= */
-const ZONES = [
-  { name:'Laguna Beach',          where:'California, USA',   lon:-117.78, lat:33.54, water:[57,198,214],  fish:['#ffd23f','#ff9f1c'],
-    facts:['Laguna Beach has tide pools full of sea stars, anemones and little crabs.', 'Bottlenose dolphins often swim along the Southern California coast.', 'The Pacific is the biggest and deepest ocean on Earth.'] },
-  { name:'Catalina Kelp Forest',  where:'California, USA',   lon:-118.42, lat:33.39, water:[31,128,112],  fish:['#ff8c1a'],
-    facts:['Giant kelp can grow about 60 cm (2 feet) in a single day.', 'Sea otters wrap themselves in kelp so they don\'t drift away while they sleep.', 'The bright orange garibaldi is California\'s official state marine fish.'] },
-  { name:'Antarctica',            where:'Southern Ocean',    lon:-64,     lat:-65,   water:[118,190,224], fish:['#dfe8ef','#b9d3e6'],
-    facts:['Emperor penguins can dive more than 500 meters deep.', 'About 70 percent of Earth\'s fresh water is frozen in Antarctica\'s ice.', 'Seals rest on floating ice between dives for fish.'] },
-  { name:'Great Barrier Reef',    where:'Australia',         lon:146.5,   lat:-18.3, water:[30,170,205],  fish:['#ff6f59','#ffd23f','#7b61ff','#00d2d3'],
-    facts:['The Great Barrier Reef is the largest coral reef system on Earth. You can see it from space.', 'It is made of about 2,900 separate reefs.', 'Manta rays can have wings about 5 meters across.'] },
-  { name:'The Caribbean',         where:'Caribbean Sea',     lon:-79.9,   lat:19.3,  water:[28,86,112],   fish:['#9aa7b0','#c7d0d6'],
-    facts:['Many Spanish treasure galleons sank in the Caribbean hundreds of years ago, often in hurricanes.', 'Parrotfish crunch on coral, and what comes out the other end becomes white sand.', 'Old shipwrecks turn into reefs where corals and fish make new homes.'] },
-  { name:'Hawaii',                where:'Pacific Ocean, USA', lon:-155.5, lat:19.9,  water:[48,170,140],  fish:['#b9e769','#ffd23f'],
-    facts:['In Hawaiian, the green sea turtle is called honu.', 'A resting green sea turtle can hold its breath for hours.', 'Humpback whales swim all the way from Alaska to Hawaii every winter.'] },
-  { name:'Mariana Trench',        where:'Pacific Ocean',     lon:142.2,   lat:11.35, water:[8,22,52],     fish:['#7afcff','#ff7ae0'],
-    facts:['The Mariana Trench is the deepest place in the ocean, almost 11,000 meters deep.', 'Mount Everest would fit inside it with room to spare.', 'Many deep-sea animals make their own light. It\'s called bioluminescence.'] },
+const ZONES = [   // the kinds of water (the AI picks one for every patch it dreams up)
+  { name:'Sunny Shallows',  where:'Warm sandy shallows',            lon:0, lat:0, water:[57,198,214],  fish:['#ffd23f','#ff9f1c'],
+    facts:['Sea stars can grow back a lost arm.', 'Tide pools fill up and empty twice a day as the tide comes and goes.', 'Dolphins sleep with half of their brain at a time.'] },
+  { name:'Kelp Forest',     where:'Tall swaying kelp',              lon:0, lat:0, water:[31,128,112],  fish:['#ff8c1a'],
+    facts:['Giant kelp can grow about 60 cm (2 feet) in a single day.', 'Sea otters wrap themselves in kelp so they don\'t drift away while they sleep.', 'Sea otters have the thickest fur of any animal.'] },
+  { name:'Frozen Sea',      where:'Ice floes and cold blue water',  lon:0, lat:0, water:[118,190,224], fish:['#dfe8ef','#b9d3e6'],
+    facts:['Emperor penguins can dive more than 500 meters deep.', 'Seals rest on floating ice between dives for fish.', 'Some fish in icy seas have a kind of antifreeze in their blood.'] },
+  { name:'Coral Reef',      where:'Bright coral and busy fish',     lon:0, lat:0, water:[30,170,205],  fish:['#ff6f59','#ffd23f','#7b61ff','#00d2d3'],
+    facts:['Corals are animals, not plants!', 'Clownfish live safely inside stinging anemones.', 'Manta rays can have wings about 5 meters across.'] },
+  { name:'Shipwreck Sea',   where:'Old wrecks and hidden treasure', lon:0, lat:0, water:[28,86,112],   fish:['#9aa7b0','#c7d0d6'],
+    facts:['Old shipwrecks turn into reefs where corals and fish make new homes.', 'Parrotfish crunch on coral, and what comes out the other end becomes white sand.', 'Some groupers grow bigger than a grown-up person.'] },
+  { name:'Turtle Lagoon',   where:'Warm, clear water full of turtles', lon:0, lat:0, water:[48,170,140], fish:['#b9e769','#ffd23f'],
+    facts:['A resting sea turtle can hold its breath for hours.', 'Humpback whales sing songs that can last for hours.', 'Sea turtles have been around since the time of the dinosaurs.'] },
+  { name:'The Deep',        where:'Dark water where animals glow',  lon:0, lat:0, water:[8,22,52],     fish:['#7afcff','#ff7ae0'],
+    facts:['Many deep-sea animals make their own light. It\'s called bioluminescence.', 'The deepest parts of the ocean are deeper than the tallest mountains are tall.', 'Some deep-sea fish have see-through heads!'] },
 ];
 const DARK = [0, .12, 0, 0, .38, 0, .9];
 const ISL = 400, WORLD_R = 9500, CH = 420;   // Pool Island is about 20 m across (its coast wiggles in and out)
 const HOUSE = { x:0, y:0, r:360 };   // your house's island; where it is comes from the save
 function syncHouse(){
-  if (!save.house || Math.hypot(save.house.x, save.house.y) < 20000){ save.house = randomHouse(); save.houseFound = false; save.mapPieces = []; persist(); }   // houses are much farther out now
+  if (!save.house || (!save.houseServer && Math.hypot(save.house.x, save.house.y) < 20000)){ save.house = randomHouse(); save.houseFound = false; save.mapPieces = []; persist(); }   // houses are much farther out now
   if (HOUSE.x === save.house.x && HOUSE.y === save.house.y) return;
   HOUSE.x = save.house.x; HOUSE.y = save.house.y; chunks.clear(); lastChunkKey = '';
   if (houseGroup) houseGroup.position.set(HOUSE.x*U, 0, HOUSE.y*U);
 }
 const LANDMARK_R = { kelptower:150, iceberg:460, coralcastle:300, turtletown:150 };   // solid parts, in units
 const LANDMARKS = [
-  { name:'Catalina\'s Kelp Tower',   x:0,     y:-2050, kind:'kelptower' },
-  { name:'The Antarctic Ice Shelf',  x:0,     y:-4000, kind:'iceberg' },
-  { name:'Heron Reef',               x:2550,  y:0,     kind:'coralcastle' },
-  { name:'The Spanish Galleon',      x:-2550, y:0,     kind:'galleon' },
-  { name:'Honu Bay',                 x:0,     y:2050,  kind:'turtletown' },
-  { name:'Challenger Deep',          x:0,     y:4000,  kind:'abyss' },
+  { name:'The Kelp Tower',          x:0,     y:-2050, kind:'kelptower' },
+  { name:'The Great Ice Shelf',     x:0,     y:-4000, kind:'iceberg' },
+  { name:'Coral Castle',            x:2550,  y:0,     kind:'coralcastle' },
+  { name:'The Sunken Galleon',      x:-2550, y:0,     kind:'galleon' },
+  { name:'Turtle Town',             x:0,     y:2050,  kind:'turtletown' },
+  { name:'The Bottomless Deep',     x:0,     y:4000,  kind:'abyss' },
 ];
-function zoneAt(x,y){
+const CORE_R = 4700;   // the Old Seas around Pool Island: hand-built, with the six landmarks
+function zoneAt(x, y){
+  if (x*x + y*y < CORE_R*CORE_R) return coreZoneAt(x, y);
+  const z = dreamZone.get(Math.floor(x/RGW)*100003 + Math.floor(y/RGW));
+  return z == null ? coreZoneAt(x, y) : z;
+}
+function coreZoneAt(x,y){
   let d = Math.hypot(x,y); let a = Math.atan2(y,x);
   d += 110*Math.sin(a*5 + 1); a += .16*Math.sin(d/340);
   if (d < 1050) return 0;
@@ -1002,7 +1008,7 @@ function getChunk(cx,cy){
   const n = 5 + (R()*5|0);
   for (let i=0;i<n;i++){
     const x = X0 + R()*CH, y = Y0 + R()*CH;
-    if (Math.hypot(x,y) < ISL*1.9 || Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 200) continue;
+    if (Math.hypot(x,y) < ISL*1.9 || Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 200 || nearIsland(x, y)) continue;
     const z = zoneAt(x,y), p = R(), it = { x, y, r: R(), rot: R()*TAU, ph: R()*TAU };
     const put = (type, layer='items') => { it.type = type; c[layer].push(it); };
     if (z === 0) put(p<.2?'star':p<.42?'rock':p<.52?'shell':p<.74?'grass':'coral');
@@ -1041,16 +1047,18 @@ function getChunk(cx,cy){
   chunks.set(key, c); return c;
 }
 
-/* ---------- Dreamed places: the ocean past the map is invented by an AI the first time anyone swims there ----------
-   The sea is cut into patches (5x5 chunks, about 50 m across). The first logged-in swimmer to reach a patch nobody has seen
-   asks the dreamer (a small Cloudflare Worker that calls GPT-6) to design it: a name, a legend, and where every rock, reef,
-   creature and treasure goes. The design is saved forever, so everyone who swims there later finds the same place,
-   with the finder's name on it. The usual random scenery stays; the dreamed design is laid on top. */
+/* ---------- Dreamed places: the world isn't Earth, it's invented by an AI (GPT-6) as people explore it ----------
+   The sea is cut into patches (5x5 chunks, about 50 m across). The first logged-in swimmer to near a patch nobody has seen
+   asks the dreamer (a small Cloudflare Worker that calls GPT-6) to design it: what kind of water it is, a name, a legend,
+   and where every rock, reef, creature and treasure goes. The design is saved forever, so everyone who swims there later
+   finds the same place, with the finder's name on it. The Old Seas around Pool Island keep their hand-built layout. */
 const DREAM_URL = 'https://swimworld-dreamer.klabianco.workers.dev', RG = 5, RGW = RG*CH;
 const dreams = new Map();          // "rx,ry" -> design | 'pending' | null (nobody's been) ; missing = not asked yet
+const dreamZone = new Map();       // rx*100003 + ry -> the patch's kind of water (zone number), for zoneAt
 const dreamAsking = new Set();
 let dreamHere = '', dreamPollT = 0, dreamWait = 0, dreamBusy = false, dreamTired = false, dreamLoginNag = false;
 const regionOf = (x, y) => [Math.floor(x/RGW), Math.floor(y/RGW)];
+const hereDream = o => { const [rx, ry] = regionOf(o.x, o.y), d = dreams.get(rx + ',' + ry); return d && typeof d === 'object' ? d : null; };
 function dreamLayout(k, d){   // turn the design (0-100 coordinates) into things in the world, once
   if (d.pts) return d;
   const [rx, ry] = k.split(',').map(Number), X0 = rx*RGW, Y0 = ry*RGW, W = v => v/100*RGW, R = mulberry(hash(rx*31 + 7, ry*17 + 3));
@@ -1078,7 +1086,7 @@ function dreamInto(c){   // called as each chunk is built: add the parts of a dr
   const X0 = c.cx*CH, Y0 = c.cy*CH, [rx, ry] = regionOf(X0 + 1, Y0 + 1), d = dreams.get(rx + ',' + ry);
   if (!d || typeof d !== 'object') return;
   const inside = p => p.x >= X0 && p.x < X0 + CH && p.y >= Y0 && p.y < Y0 + CH;
-  const clear = p => Math.hypot(p.x, p.y) > ISL*1.9 && Math.hypot(p.x - HOUSE.x, p.y - HOUSE.y) > HOUSE.r + 200;
+  const clear = p => Math.hypot(p.x, p.y) > ISL*1.9 && Math.hypot(p.x - HOUSE.x, p.y - HOUSE.y) > HOUSE.r + 200 && !nearIsland(p.x, p.y);
   for (const p of d.pts) if (inside(p) && clear(p)){
     const it = { x: p.x, y: p.y, r: p.type === 'bigrock' ? .95 + p.r*.05 : p.r, rot: p.rot, ph: p.ph, type: p.type === 'bigrock' ? 'rock' : p.type };
     (it.type === 'kelp' || it.type === 'ice' ? c.canopy : c.items).push(it);
@@ -1086,59 +1094,119 @@ function dreamInto(c){   // called as each chunk is built: add the parts of a dr
     else if (it.type === 'anemone') c.fish.push({ sp: 'clown', reef: true, bx: p.x, by: p.y, rad: 16, ph: p.ph, n: 2 }); }
   for (const b of d.bud) if (inside({ x: b.bx, y: b.by })) c.buddies.push(b);
   for (const f of d.fsh) if (inside({ x: f.bx, y: f.by })) c.fish.push(f);
-  for (const j of d.jel) if (inside(j)) c.jellies.push(j);
+  for (const j of d.jel) if (inside(j) && clear(j)) c.jellies.push(j);
   for (const t of d.chs) if (inside(t) && clear(t)) c.chests.push(t);
   for (const t of d.prl) if (inside(t)) c.pearls.push(t);
 }
+function dropChunksNear(x0, y0, x1, y1){   // forget built chunks in an area so they're rebuilt with what's new there
+  for (let a = Math.floor(x0/CH) - 1; a <= Math.floor(x1/CH) + 1; a++) for (let b = Math.floor(y0/CH) - 1; b <= Math.floor(y1/CH) + 1; b++) chunks.delete(a + ',' + b);
+  lastChunkKey = '';
+}
 function dreamSet(k, v){
-  if (v && typeof v === 'object') dreamLayout(k, v);
   const old = dreams.get(k); dreams.set(k, v);
-  if (typeof v === 'object' && v && old !== v){   // rebuild that patch's chunks so the new place appears
-    const [rx, ry] = k.split(',').map(Number);
-    for (let a = 0; a < RG; a++) for (let b = 0; b < RG; b++) chunks.delete((rx*RG + a) + ',' + (ry*RG + b));
-    lastChunkKey = ''; }
+  if (v && typeof v === 'object' && old !== v){   // rebuild that patch (and its edges, where the water blends) so the new place appears
+    dreamLayout(k, v); const [rx, ry] = k.split(',').map(Number);
+    if (v.zone != null) dreamZone.set(rx*100003 + ry, v.zone);
+    dropChunksNear(rx*RGW, ry*RGW, (rx + 1)*RGW, (ry + 1)*RGW); }
 }
 async function dreamFetch(keys){
   keys = keys.filter(k => !dreamAsking.has(k)); if (!keys.length) return;
   keys.forEach(k => dreamAsking.add(k));
   try { const r = await fetch(`${DREAM_URL}/regions?k=${keys.join(';')}`); const j = await r.json();
-    for (const [k, v] of Object.entries(j.regions || {})) dreamSet(k, v); }
+    for (const [k, v] of Object.entries(j.regions || {})) if (!(dreams.get(k) === 'pending' && v === null && dreamBusy)) dreamSet(k, v); }
   catch(e){} finally { keys.forEach(k => dreamAsking.delete(k)); }
 }
-async function dreamDiscover(k, zone){
-  if (dreamBusy) return; dreamBusy = true; dreams.set(k, 'pending');
-  say('The ocean is dreaming', 'Nobody has ever swum here before... A brand new place is forming around you!', 8); sfx(523,.3,'sine',.05); sfx(659,.3,'sine',.05,.15);
+async function dreamDiscover(k, ahead){
+  dreamBusy = true; dreams.set(k, 'pending');
+  if (!ahead){ say('The ocean is dreaming', 'Nobody has ever swum here before... A brand new place is forming around you!', 8); sfx(523,.3,'sine',.05); sfx(659,.3,'sine',.05,.15); }
   try {
     const [rx, ry] = k.split(',').map(Number);
     const r = await fetch(`${DREAM_URL}/discover`, { method: 'POST', headers: { Authorization: 'Bearer ' + await fbToken(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rx, ry, zone, name: fbAuth?.name || '' }) });
+      body: JSON.stringify({ rx, ry, name: fbAuth?.name || '' }) });
     const j = await r.json();
     if (r.status === 429){ dreamTired = true; dreams.set(k, null); say('The ocean is sleepy', "It has dreamed up lots of places today. Come back tomorrow for more!", 6); return; }
-    if (!r.ok){ dreams.set(k, null); dreamWait = time + 60; coach(''); return; }
+    if (!r.ok){ dreams.set(k, null); dreamWait = time + 60; if (!ahead) coach(''); return; }
+    if (j.mine && typeof j.region === 'object') j.region.fresh = true;   // yours: the reward comes when you swim in
     dreamSet(k, j.region);
-    if (j.mine && typeof j.region === 'object'){
-      (save.dreamsFound || (save.dreamsFound = [])).push(j.region.name); addCoins(30); addXP(60, true); persist();
-      banner(`You discovered ${j.region.name}!`, `It's yours forever · everyone will see you found it · +30 coins · +60 XP`);
-      [523,659,784,1046].forEach((f,i) => sfx(f,.25,'triangle',.07,i*.12));
-      say(j.region.name, j.region.story, 10); dreamHere = k;
-    }
-  } catch(e){ dreams.set(k, null); dreamWait = time + 60; coach(''); }
+    if (!ahead) dreamHere = '';
+  } catch(e){ dreams.set(k, null); dreamWait = time + 60; if (!ahead) coach(''); }
   finally { dreamBusy = false; }
 }
 function dreamTick(o, dt){   // every frame in the ocean
   const [rx, ry] = regionOf(o.x, o.y), k = rx + ',' + ry;
   dreamPollT -= dt;
   const want = []; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++){ const kk = (rx + a) + ',' + (ry + b), v = dreams.get(kk);
-    if (!dreams.has(kk) || (dreamPollT <= 0 && !(v && typeof v === 'object') && !(kk === k && dreamBusy))) want.push(kk); }
+    if (!dreams.has(kk) || (dreamPollT <= 0 && !(v && typeof v === 'object') && v !== 'pending')) want.push(kk); }
   if (dreamPollT <= 0) dreamPollT = 15;   // look again now and then, in case someone else found a neighbour
   if (want.length) dreamFetch(want);
-  const d = dreams.get(k);
-  if (d === null && !dreamBusy && !dreamTired && time > dreamWait && Math.hypot(o.x, o.y) > ISL*3){
-    if (fbAuth) dreamDiscover(k, zoneAt(o.x, o.y));
-    else if (!dreamLoginNag){ dreamLoginNag = true; say('Unexplored ocean', 'Nobody has ever been here! Log in (Menu) and the ocean will dream up a brand new place for you to discover.', 7); } }
+  islandTick(o, dt);
+  const d = dreams.get(k), far = Math.hypot(o.x, o.y) > ISL*3;
+  if (fbAuth && !dreamBusy && !dreamTired && time > dreamWait){
+    let target = null, ahead = false;
+    if (d === null && far) target = k;
+    else if (d && typeof d === 'object'){   // look ahead: dream up the nearest unexplored neighbour before you get there
+      let best = 900;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++){ if (!a && !b) continue;
+        const kk = (rx + a) + ',' + (ry + b); if (dreams.get(kk) !== null) continue;
+        const X0 = (rx + a)*RGW, Y0 = (ry + b)*RGW, dd = Math.hypot(Math.max(X0 - o.x, 0, o.x - X0 - RGW), Math.max(Y0 - o.y, 0, o.y - Y0 - RGW));
+        if (dd < best){ best = dd; target = kk; ahead = true; } } }
+    if (target) dreamDiscover(target, ahead);
+  } else if (!fbAuth && d === null && far && !dreamLoginNag){ dreamLoginNag = true;
+    say('Unexplored ocean', 'Nobody has ever been here! Log in (Menu) and the ocean will dream up a brand new place for you to discover.', 7); }
   if (d && typeof d === 'object' && dreamHere !== k){ dreamHere = k;
-    banner(d.name, `Discovered by ${d.finder}`); say(d.name, d.story, 8); }
+    if (d.fresh){ d.fresh = false;
+      (save.dreamsFound || (save.dreamsFound = [])).push(d.name); addCoins(30); addXP(60, true); persist();
+      banner(`You discovered ${d.name}!`, `It's yours forever · everyone will see you found it · +30 coins · +60 XP`);
+      [523,659,784,1046].forEach((f,i) => sfx(f,.25,'triangle',.07,i*.12)); say(d.name, d.story, 10); }
+    else { banner(d.name, `Discovered by ${d.finder}`); say(d.name, d.story, 8); } }
   else if (d === null) dreamHere = k;
+}
+
+/* ---------- Islands: everyone who logs in gets their own island, a short swim from a friend's ----------
+   The dreamer hands out the spots (the world's first island by default, or the friend in an invite link: ?near=name),
+   so the map grows like a network of friends. You can visit other people's islands; only your own has your blocks. */
+let islands = [], islandMine = false, islandAsking = false, islandT = 0;
+const islandGroups = new Map();
+const NEAR_FRIEND = (() => { try { return new URLSearchParams(location.search).get('near') || ''; } catch(e){ return ''; } })();
+const nearIsland = (x, y, r = HOUSE.r + 200) => { for (const I of islands) if (Math.abs(x - I.x) < r && Math.abs(y - I.y) < r && Math.hypot(x - I.x, y - I.y) < r) return I; return null; };
+async function claimIsland(){
+  islandAsking = true;
+  try {
+    const r = await fetch(`${DREAM_URL}/island`, { method: 'POST', headers: { Authorization: 'Bearer ' + await fbToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: fbAuth?.name || '', near: NEAR_FRIEND }) });
+    const j = await r.json(); if (!r.ok || !j.island) return;
+    islandMine = true;
+    const { x, y } = j.island;
+    if (save.house?.x !== x || save.house?.y !== y || !save.houseServer){
+      save.house = { x, y }; save.houseServer = true; save.houseFound = true; persist(); flushCloud();
+      syncHouse(); placeLighthouse(); buildMinimap();
+      const o = ocean; if (o && mode === 'ocean'){ o.x = HOUSE.x; o.y = HOUSE.y + HOUSE.r - 110; o.vx = o.vy = 0; o.depth = 0; o.onLand = true; }
+      banner('Your island is ready!', j.fresh ? 'It was just made for you, near your friends' : 'Right where you left it');
+      islandT = 0; }
+  } catch(e){} finally { islandAsking = false; }
+}
+async function loadIslands(){
+  try {
+    const r = await fetch(`${DREAM_URL}/islands?x=${Math.round(HOUSE.x)}&y=${Math.round(HOUSE.y)}`); const j = await r.json();
+    const list = (j.islands || []).filter(I => Math.hypot(I.x - HOUSE.x, I.y - HOUSE.y) > 50);   // everyone else's
+    const had = new Set(islands.map(I => I.x + ',' + I.y));
+    islands = list;
+    for (const I of list){ const key = I.x + ',' + I.y;
+      if (!had.has(key)) dropChunksNear(I.x - HOUSE.r, I.y - HOUSE.r, I.x + HOUSE.r, I.y + HOUSE.r);
+      if (!islandGroups.has(key) && oceanBuilt) islandGroups.set(key, buildHouse(`${I.name.toUpperCase()}'S ISLAND`, I, false)); }
+  } catch(e){}
+}
+function islandTick(o, dt){
+  if (fbAuth && account && !islandMine && !islandAsking) claimIsland();
+  islandT -= dt; if (islandT <= 0){ islandT = 30; loadIslands(); }
+}
+
+/* The explored world, for the map: every discovered patch nearby, colored by its water, and everyone's islands. */
+let atlas = { patches: [], islands: [] };
+async function loadAtlas(){
+  const o = ocean; if (!o) return; const [rx, ry] = regionOf(o.x, o.y);
+  try { const [a, b] = await Promise.all([fetch(`${DREAM_URL}/atlas?rx=${rx}&ry=${ry}`).then(r => r.json()), fetch(`${DREAM_URL}/islands?x=${Math.round(o.x)}&y=${Math.round(o.y)}`).then(r => r.json())]);
+    atlas = { patches: a.patches || [], islands: b.islands || [] }; } catch(e){}
 }
 
 
@@ -1629,21 +1697,27 @@ function drawSeaMap(){
     : `${have.length} of ${MAP_N} pieces. North is up. The red dot is you.`;
 }
 const WORLD_RINGS = [[-119,-160,-120,-161,-125,-162,-129,-162,-131,-161,-133,-161,-128,-161,-124,-161,-122,-160,-121,-159,-119,-160],[-318,-159,-322,-159,-325,-159,-326,-158,-327,-157,-326,-156,-322,-157,-320,-157,-319,-158,-318,-159],[-90,-156,-88,-157,-87,-158,-87,-160,-90,-161,-93,-161,-97,-162,-101,-162,-106,-162,-108,-161,-104,-160,-102,-159,-101,-158,-99,-157,-97,-156,-93,-156,-90,-156],[-242,-147,-240,-147,-237,-147,-239,-148,-243,-148,-245,-147,-242,-147],[-198,-144,-196,-144,-194,-144,-192,-145,-194,-145,-196,-145,-199,-145,-202,-145,-204,-145,-205,-144,-203,-143,-201,-144,-198,-144],[-137,-142,-137,-144,-140,-145,-142,-145,-145,-145,-144,-144,-146,-144,-148,-145,-150,-144,-148,-143,-146,-142,-144,-142,-143,-141,-143,-139,-142,-138,-139,-139,-138,-140,-137,-141],[-360,-169,-358,-168,-355,-169,-353,-168,-349,-169,-346,-168,-340,-168,-338,-168,-334,-169,-328,-170,-324,-170,-316,-171,-310,-170,-302,-171,-297,-171,-292,-171,-286,-170,-294,-169,-300,-169,-302,-168,-307,-167,-306,-166,-305,-165,-306,-164,-309,-164,-311,-163,-314,-162,-309,-162,-304,-162,-301,-163,-298,-162,-294,-161,-296,-159,-299,-159,-303,-159,-307,-158,-311,-158,-312,-157,-315,-157,-316,-156,-317,-154,-314,-155,-311,-154,-307,-154,-306,-155,-303,-155,-300,-154,-297,-154,-295,-153,-292,-153,-293,-151,-290,-150,-289,-151,-286,-151,-283,-150,-280,-150,-278,-150,-275,-149,-273,-149,-270,-149,-267,-149,-265,-149,-262,-149,-259,-149,-256,-149,-254,-149,-251,-149,-248,-149,-245,-149,-242,-149,-239,-149,-237,-148,-235,-148,-232,-148,-230,-148,-228,-147,-227,-148,-226,-149,-223,-149,-220,-150,-217,-150,-215,-150,-212,-150,-210,-150,-207,-150,-204,-150,-201,-151,-200,-150,-202,-149,-203,-148,-205,-148,-206,-147,-207,-145,-206,-146,-203,-146,-201,-146,-198,-146,-196,-146,-195,-147,-193,-147,-190,-147,-187,-147,-185,-146,-183,-147,-180,-147,-178,-145,-177,-146,-175,-146,-172,-146,-170,-147,-168,-147,-165,-147,-163,-148,-161,-147,-159,-147,-156,-147,-154,-147,-152,-148,-150,-148,-148,-147,-146,-147,-143,-147,-140,-146,-138,-146,-136,-146,-135,-145,-134,-144,-135,-143,-136,-142,-137,-140,-136,-138,-135,-137,-135,-135,-133,-133,-132,-132,-129,-131,-128,-130,-126,-129,-124,-129,-121,-128,-118,-127,-116,-127,-114,-127,-115,-128,-117,-128,-118,-129,-120,-128,-121,-129,-123,-129,-124,-130,-125,-131,-124,-132,-126,-133,-129,-134,-131,-135,-131,-137,-128,-138,-126,-138,-125,-140,-124,-141,-123,-142,-123,-144,-122,-145,-121,-146,-122,-147,-123,-148,-124,-149,-127,-149,-129,-151,-132,-151,-134,-152,-137,-152,-140,-152,-141,-153,-144,-153,-148,-153,-151,-153,-154,-153,-151,-155,-149,-155,-147,-156,-150,-156,-153,-156,-156,-157,-154,-159,-153,-160,-151,-161,-146,-161,-143,-161,-140,-162,-136,-163,-131,-163,-127,-163,-123,-164,-119,-165,-117,-166,-114,-166,-111,-165,-107,-165,-103,-164,-100,-163,-95,-163,-90,-164,-86,-164,-84,-163,-82,-163,-76,-163,-73,-162,-69,-162,-65,-162,-60,-161,-57,-161,-59,-160,-63,-159,-67,-159,-71,-159,-72,-158,-71,-156,-68,-156,-64,-155,-62,-155,-60,-154,-58,-153,-55,-153,-52,-153,-48,-152,-45,-152,-42,-152,-40,-151,-38,-151,-35,-150,-33,-150,-31,-149,-33,-148,-32,-147,-31,-146,-29,-146,-27,-145,-25,-145,-23,-144,-22,-143,-18,-143,-15,-143,-14,-142,-12,-142,-11,-143,-9,-143,-6,-143,-4,-142,-1,-142,0,-143,2,-143,4,-142,6,-142,8,-142,10,-141,13,-141,14,-140,17,-140,19,-140,21,-141,22,-142,24,-141,25,-140,27,-140,29,-140,30,-141,32,-140,34,-140,36,-140,39,-140,41,-140,43,-140,44,-141,47,-141,50,-141,52,-141,54,-141,56,-141,58,-140,60,-140,62,-140,64,-139,66,-139,67,-138,68,-137,70,-137,71,-138,74,-138,76,-139,77,-140,79,-139,80,-138,82,-138,84,-137,86,-137,88,-137,90,-136,93,-135,95,-135,97,-135,98,-134,100,-134,102,-134,104,-132,107,-132,109,-132,111,-132,113,-132,115,-133,116,-134,117,-135,120,-135,123,-136,125,-136,128,-135,130,-135,132,-135,134,-136,136,-136,138,-136,139,-138,137,-140,136,-141,138,-141,137,-143,136,-144,140,-145,142,-144,143,-143,145,-142,146,-141,148,-140,151,-139,153,-139,155,-139,156,-138,157,-137,160,-136,162,-136,163,-135,166,-134,168,-135,169,-134,171,-134,174,-134,176,-132,177,-133,178,-134,181,-134,183,-134,185,-134,187,-134,190,-134,192,-135,193,-134,196,-134,199,-134,201,-134,202,-133,206,-131,208,-132,210,-133,212,-134,214,-134,216,-134,218,-134,220,-133,222,-133,223,-132,226,-132,229,-132,230,-133,233,-133,235,-134,237,-134,240,-135,242,-134,245,-133,248,-133,250,-133,252,-133,254,-133,256,-133,258,-134,259,-133,262,-133,264,-133,266,-133,268,-133,270,-132,271,-131,272,-132,273,-134,275,-134,277,-134,280,-134,282,-134,284,-134,286,-134,289,-134,291,-134,292,-135,293,-136,295,-136,298,-137,300,-137,303,-137,305,-138,307,-138,309,-137,310,-138,312,-138,314,-139,316,-139,318,-139,319,-140,322,-140,323,-141,325,-141,328,-141,330,-142,332,-142,335,-142,337,-142,339,-142,341,-143,342,-144,341,-145,340,-146,339,-147,336,-148,332,-149,331,-150,328,-151,327,-152,327,-154,328,-155,329,-156,333,-157,334,-158,330,-158,327,-158,324,-158,322,-159,321,-160,320,-162,322,-163,325,-164,327,-165,330,-165,333,-166,338,-167,339,-168,345,-168,346,-169,352,-168,357,-169,-360,-169],[-136,-108,-133,-109,-130,-109,-131,-110,-133,-110,-135,-111,-138,-111,-140,-110,-142,-110,-145,-109,-147,-108,-149,-106,-145,-107,-142,-108,-141,-107,-139,-105,-137,-105,-136,-108],[-117,-102,-115,-103,-116,-104,-119,-104,-121,-105,-122,-104,-120,-103,-118,-103,-117,-102],[141,-99,137,-100,137,-98,138,-97,139,-98,141,-98],[291,-82,293,-82,295,-82,297,-82,297,-84,296,-85,295,-86,294,-87,292,-87,291,-85,289,-82,291,-82],[346,-82,348,-82,348,-84,346,-86,345,-87,346,-88,343,-88,342,-90,341,-92,340,-93,337,-93,333,-92,334,-90,337,-88,339,-87,341,-86,342,-85,343,-84,344,-83,346,-81],[349,-72,351,-74,352,-75,354,-76,356,-75,357,-77,356,-78,354,-78,354,-80,353,-81,352,-83,350,-83,350,-81,348,-79,349,-78,349,-76,349,-73,348,-72,346,-70,345,-69,347,-70,349,-71],[334,-44,333,-45,332,-44,331,-43,330,-42,328,-41,329,-40,330,-41,331,-42,333,-43,334,-44],[100,-27,100,-30,101,-31,100,-32,99,-31,100,-33,99,-34,99,-36,98,-38,97,-41,96,-45,95,-48,94,-50,91,-51,88,-50,87,-47,87,-44,88,-42,89,-40,88,-38,88,-35,89,-34,89,-32,91,-32,93,-32,94,-30,95,-29,96,-28,98,-26,98,-24,99,-25,100,-26],[287,-28,288,-29,289,-28,290,-29,291,-30,291,-33,292,-34,292,-36,293,-38,295,-39,296,-40,298,-41,299,-43,299,-45,300,-44,301,-45,302,-47,303,-48,304,-49,306,-51,306,-53,306,-55,307,-56,307,-58,306,-61,306,-63,305,-65,303,-66,303,-68,302,-69,301,-70,300,-73,300,-75,299,-76,297,-76,295,-76,294,-77,293,-78,291,-77,290,-76,287,-78,285,-77,283,-77,281,-76,280,-75,280,-73,279,-72,278,-71,276,-71,277,-70,276,-69,275,-70,274,-71,275,-69,276,-67,274,-68,272,-70,270,-69,269,-66,266,-64,263,-63,259,-63,256,-64,254,-65,252,-64,250,-65,248,-66,247,-68,244,-68,241,-68,239,-69,237,-69,236,-70,233,-70,231,-69,230,-68,231,-67,232,-64,231,-63,230,-61,230,-59,229,-58,228,-56,227,-53,227,-51,228,-52,227,-50,227,-48,228,-46,227,-45,228,-44,231,-43,232,-42,233,-41,235,-41,238,-41,239,-40,242,-39,243,-38,244,-36,245,-35,246,-33,247,-35,248,-34,247,-33,248,-32,249,-33,249,-31,250,-30,251,-29,252,-28,254,-28,256,-29,257,-30,259,-30,260,-27,261,-25,262,-24,263,-25,265,-24,264,-23,265,-22,266,-23,267,-24,269,-24,271,-24,273,-24,274,-25,273,-26,272,-27,271,-29,273,-31,274,-32,277,-34,279,-35,282,-35,283,-33,283,-30,283,-27,284,-25,284,-23,285,-21,286,-22,286,-24,287,-26,287,-28],[249,-20,247,-21,248,-19,250,-18,252,-17,254,-17,252,-18,250,-19,249,-20],[236,-16,237,-17,236,-18,233,-18,234,-17,236,-16],[246,-16,243,-18,240,-18,241,-16,243,-17,246,-16],[320,-17,318,-16,316,-15,318,-15,319,-16,320,-17],[217,-14,221,-14,222,-13,225,-14,226,-15,229,-16,231,-17,229,-18,227,-17,225,-17,223,-17,221,-16,219,-15,217,-15,213,-15,211,-14,212,-12,215,-12,216,-13,217,-14],[312,-14,310,-13,309,-12,309,-10,310,-11,311,-12,312,-13],[304,-11,303,-12,300,-13,298,-12,297,-11,299,-11,300,-10,302,-11,303,-10,303,-8,305,-9,304,-11],[261,-6,262,-8,260,-7,258,-7,256,-7,259,-6,261,-6],[306,-9,305,-8,304,-7,303,-6,301,-5,303,-6,305,-7,306,-8],[268,-2,269,-6,271,-7,273,-5,275,-3,277,-3,278,-4,280,-5,282,-5,285,-7,289,-8,291,-9,292,-10,295,-12,296,-13,294,-13,294,-15,296,-16,297,-18,299,-18,300,-19,299,-20,302,-21,300,-21,298,-21,296,-20,294,-19,293,-18,292,-16,289,-15,288,-16,287,-18,285,-19,284,-18,282,-18,280,-17,278,-16,275,-17,276,-15,277,-12,276,-11,272,-9,270,-9,267,-7,266,-8,264,-6,266,-5,268,-5,267,-4,264,-4,262,-3,261,-2,264,-1,268,-2],[250,3,249,1,247,0,245,1,242,1,240,0,242,-3,243,-2,247,-1,246,-2,245,-3,243,-4,245,-6,246,-9,246,-11,244,-11,245,-9,243,-10,243,-8,242,-7,242,-5,241,-6,241,-8,241,-11,239,-11,239,-9,239,-7,238,-6,238,-4,239,-3,240,0,242,3,243,2,246,2,248,2,250,3],[257,2,256,1,256,-1,257,-2,255,-1,255,2,255,4,256,3,257,2],[212,-12,209,-12,208,-10,205,-8,204,-7,203,-6,202,-4,200,-1,199,0,198,2,197,4,195,5,194,7,193,8,191,10,192,11,195,10,197,9,198,7,199,6,201,4,203,4,205,3,206,1,208,0,207,-1,208,-2,209,-4,210,-5,212,-6,212,-9,212,-12],[236,4,238,2,236,2,235,0,235,-2,233,-3,233,-5,232,-8,230,-8,229,-7,227,-6,224,-7,223,-6,220,-6,220,-3,218,-1,218,1,218,3,219,4,221,3,222,4,223,5,224,6,226,6,227,8,228,9,229,10,231,11,232,12,233,14,235,13,237,11,238,10,237,9,236,8,235,6,236,5],[253,17,253,14,252,13,252,15,251,14,251,12,248,12,248,14,247,16,246,15,244,14,245,16,246,17,248,16,249,17,250,18,251,20,252,19,253,18],[162,12,160,14,159,16,160,20,162,19,163,17,164,15,163,13,162,12],[248,21,247,20,246,18,245,19,246,21,247,22,248,21],[237,19,234,17,235,18,237,19,238,21,239,23,239,21,238,20,237,19],[244,24,245,23,246,22,245,21,244,22,244,24],[251,24,252,22,250,23,251,21,250,20,250,22,249,23,250,24,249,25,251,24],[243,37,244,36,245,34,243,32,243,30,245,28,248,28,248,26,246,27,245,26,244,28,242,27,241,28,242,29,241,30,240,31,240,33,241,32,241,35,241,37,243,37],[-145,40,-143,39,-142,40,-140,39,-138,39,-139,38,-137,37,-139,37,-140,36,-141,37,-143,35,-145,36,-147,36,-149,37,-147,37,-145,37,-146,38,-147,39,-146,40],[221,37,219,36,217,37,217,39,218,40,220,40,222,40,221,39,221,37],[-311,38,-312,39,-312,41,-311,40,-310,39,-311,38],[-159,46,-157,45,-154,43,-153,42,-151,42,-150,41,-148,41,-149,40,-151,40,-153,40,-156,40,-154,41,-156,41,-157,42,-159,43,-160,44,-164,44,-166,45,-167,44,-169,44,-168,45,-167,46,-165,46,-163,46,-161,46,-159,46],[242,46,241,44,240,46,241,49,243,51,244,50,242,46],[269,68,268,66,267,67,266,65,265,66,266,68,268,69,269,68],[69,71,68,70,66,69,65,70,66,71,69,71],[47,71,50,71,52,71,51,70,53,71,52,70,49,70,47,71],[31,76,30,75,31,74,30,73,29,74,25,75,27,76,30,76],[18,82,20,81,19,78,17,78,17,81,16,82,18,82],[282,74,281,73,282,72,281,70,278,69,274,69,272,67,270,68,267,69,264,68,262,68,264,66,263,63,261,62,260,63,261,65,259,67,261,67,262,68,264,70,265,71,269,71,271,71,273,75,275,74,278,76,280,79,280,81,281,82,283,83,284,80,284,78,282,76,282,74],[288,88,291,89,291,87,288,86,286,84,283,85,282,83,280,83,280,85,281,87,283,87,283,90,284,91,286,89,288,88],[-247,97,-251,98,-254,99,-256,100,-257,101,-255,101,-253,101,-251,100,-250,99,-248,98,-247,97],[-112,101,-114,100,-112,100,-110,99,-107,98,-108,97,-106,97,-105,95,-106,93,-108,94,-108,96,-111,94,-113,95,-115,95,-119,95,-118,97,-117,98,-115,101,-113,103,-111,103,-112,101],[-265,108,-263,108,-264,106,-262,104,-264,105,-265,106,-266,107,-265,108],[287,101,289,98,286,99,285,96,287,94,287,92,285,93,284,92,284,94,284,96,284,98,284,102,283,104,283,107,285,108,286,107,287,105,286,104,287,101],[-14,105,-17,103,-20,104,-18,106,-19,108,-17,109,-15,110,-13,110,-11,109,-12,108,-12,106,-14,105],[-306,114,-308,113,-309,114,-308,116,-306,116,-304,115,-306,114],[-6,117,-8,115,-6,115,-4,115,-6,112,-4,112,-2,109,0,107,1,106,3,105,2,104,3,103,1,102,-2,102,-5,101,-7,100,-9,101,-10,100,-12,100,-9,102,-7,103,-10,103,-11,104,-8,105,-10,106,-9,107,-6,107,-7,109,-10,110,-9,111,-10,112,-11,111,-11,113,-12,114,-12,116,-10,117,-8,117,-6,117],[-343,128,-342,127,-339,127,-337,127,-338,126,-341,126,-343,127],[-170,131,-168,130,-166,130,-163,129,-162,128,-160,127,-162,127,-165,127,-166,128,-168,127,-171,126,-172,127,-174,127,-173,128,-172,130,-170,131],[-29,133,-27,130,-30,129,-36,127,-40,127,-46,128,-44,129,-48,130,-44,130,-49,131,-47,133,-44,133,-41,131,-38,133,-36,132,-32,133,-29,133],[-152,134,-154,134,-154,136,-152,137,-150,136,-152,134],[-360,138,-355,136,-350,134,-349,133,-344,134,-340,132,-342,131,-345,131,-345,129,-348,129,-352,130,-354,131,-357,131,-360,132,-359,131,-360,130,360,130,357,129,355,129,357,128,358,127,359,126,358,125,355,125,349,124,347,123,344,122,341,121,338,121,333,120,330,119,327,120,326,118,324,116,326,115,326,112,324,112,323,111,324,110,321,109,320,106,317,106,316,104,314,102,313,103,312,106,311,111,312,114,314,115,317,116,320,119,324,121,327,122,329,125,327,125,325,123,320,121,319,124,313,123,308,120,310,118,306,118,303,118,300,119,297,118,291,119,284,118,278,114,270,109,273,109,274,108,276,108,278,109,280,108,283,106,283,104,281,102,281,100,280,97,277,94,276,93,274,90,271,88,270,87,267,86,265,87,262,85,260,84,259,83,258,81,257,80,255,80,255,78,257,77,258,75,259,74,259,71,258,70,256,70,255,69,253,69,253,71,252,73,254,74,252,75,251,76,249,76,250,77,251,79,249,79,246,79,244,78,242,78,243,79,244,81,243,82,242,81,239,80,238,79,236,78,235,77,236,76,238,76,239,74,242,76,243,75,245,75,242,73,241,72,239,71,238,70,240,69,241,67,242,65,244,63,243,61,244,60,244,58,243,56,241,54,239,51,237,49,235,47,232,46,230,45,228,44,226,44,224,43,222,43,221,41,219,42,220,43,217,43,213,41,212,40,211,38,213,36,215,33,217,32,218,31,219,27,218,23,217,22,214,21,213,19,210,17,210,20,209,21,207,21,206,22,205,24,203,25,202,27,200,27,200,25,199,22,198,20,198,18,200,18,201,17,201,15,202,14,203,13,204,12,206,11,207,10,207,8,207,6,208,5,208,3,207,2,205,4,203,6,201,8,201,10,200,11,201,12,200,13,199,14,198,16,197,17,197,20,198,23,197,24,197,26,196,27,196,30,195,32,194,34,193,33,191,31,190,32,188,32,189,35,187,39,186,40,185,41,184,42,184,44,183,46,181,46,181,44,179,44,178,43,176,43,174,43,174,41,173,40,170,39,168,37,166,35,164,34,163,33,162,32,160,30,160,28,161,26,160,24,160,21,158,19,157,18,156,17,155,16,153,18,152,21,151,23,150,25,149,28,147,32,146,36,146,38,146,41,145,43,142,42,138,44,139,45,136,47,135,48,134,49,133,51,129,50,126,50,123,50,119,51,117,51,115,51,114,54,111,54,109,53,107,54,105,55,103,56,102,58,100,60,98,61,97,60,96,59,97,57,98,55,99,54,100,53,100,51,101,50,102,52,103,50,103,48,104,49,105,48,107,48,109,50,111,51,112,52,113,53,113,51,114,48,116,47,118,46,119,45,119,43,118,42,117,41,116,40,115,39,116,38,114,38,113,37,111,36,111,34,108,34,107,33,105,33,104,32,102,30,99,29,97,28,95,27,93,27,91,27,90,26,89,25,87,25,86,26,87,28,86,30,85,31,86,32,85,34,84,36,82,37,82,39,80,40,78,43,78,45,77,47,76,48,75,49,74,50,73,52,71,55,70,56,70,58,69,57,68,56,66,57,65,60,65,57,67,55,68,52,69,51,70,50,71,48,71,46,73,44,74,42,74,40,75,37,77,36,78,34,79,32,80,31,82,29,83,28,85,27,86,25,87,24,85,23,87,23,88,21,91,21,93,22,95,22,97,23,99,23,101,23,102,24,102,22,101,18,100,16,99,14,97,11,95,8,93,6,91,4,88,2,86,1,84,-2,83,-3,82,-4,81,-5,80,-7,79,-9,77,-12,78,-13,79,-14,78,-15,79,-16,78,-17,79,-18,80,-20,81,-21,81,-24,81,-28,82,-29,81,-31,80,-32,79,-33,77,-34,75,-35,73,-37,72,-38,70,-39,69,-41,70,-43,71,-44,71,-46,71,-48,70,-49,68,-50,66,-51,65,-52,66,-53,65,-55,65,-57,64,-58,63,-59,62,-60,61,-61,60,-62,58,-64,56,-66,53,-67,52,-68,50,-68,47,-68,45,-68,43,-69,41,-69,40,-70,38,-69,37,-68,36,-65,36,-63,35,-61,34,-60,33,-57,31,-56,30,-54,30,-52,29,-51,29,-48,29,-45,28,-43,27,-42,26,-39,25,-38,24,-36,23,-35,23,-33,24,-32,24,-30,25,-27,27,-25,27,-23,27,-21,26,-20,26,-18,26,-15,25,-14,24,-13,25,-12,24,-10,22,-8,20,-6,19,-4,18,-2,19,1,19,5,20,6,19,7,18,8,17,9,15,9,13,8,12,9,11,10,10,11,9,13,7,13,5,13,4,12,2,12,-1,11,-2,10,-4,9,-6,10,-8,10,-12,10,-13,9,-15,9,-18,10,-20,11,-22,12,-23,14,-25,15,-26,16,-26,18,-27,19,-28,20,-29,21,-30,22,-31,23,-33,24,-34,26,-33,27,-34,29,-33,31,-33,33,-32,36,-33,38,-33,40,-34,42,-34,44,-33,45,-32,47,-31,49,-30,50,-29,53,-26,55,-25,56,-23,56,-22,58,-19,60,-20,62,-19,64,-17,66,-15,67,-14,68,-12,70,-12,72,-10,72,-9,71,-7,71,-5,70,-2,71,0,72,1,73,3,73,6,74,10,74,11,73,13,74,15,74,17,74,19,75,20,74,22,74,21,73,22,71,20,69,21,68,22,67,23,66,25,66,28,65,30,65,31,63,33,62,36,62,38,61,40,62,40,64,42,65,43,66,46,65,47,64,50,64,53,63,55,63,57,62,59,62,60,63,62,63,64,62,66,62,68,62,69,63,70,64,70,66,71,68,72,69,72,71,72,73,69,74,68,72,65,72,63,73,61,73,59,72,57,73,55,73,54,75,53,76,54,78,52,79,55,81,58,81,62,82,65,83,67,84,70,84,74,83,77,82,79,82,81,82,83,83,83,85,82,86,80,87,77,89,75,89,73,90,75,91,76,92,75,93,78,94,76,94,74,93,72,93,70,93,70,91,73,91,70,90,68,89,67,90,65,91,67,92,63,93,61,93,59,91,58,90,57,87,55,85,56,84,58,83,55,82,54,81,53,80,52,81,51,82,47,81,49,80,47,80,46,81,46,79,47,78,48,76,46,76,47,75,46,73,43,74,42,77,41,78,40,79,39,81,39,83,38,84,37,85,35,86,32,87,30,88,31,89,30,90,28,90,27,91,25,91,25,89,27,87,28,86,30,84,32,84,34,82,37,81,35,81,33,80,34,79,33,78,32,76,32,78,31,79,30,80,29,81,28,82,26,83,24,83,22,85,21,86,20,88,18,89,17,88,15,87,13,86,9,87,6,86,6,84,4,82,2,82,1,81,0,80,-1,79,0,77,-1,75,-3,75,-4,73,-7,73,-9,73,-11,72,-12,73,-13,74,-15,74,-17,74,-18,77,-19,79,-18,80,-18,82,-18,84,-19,86,-16,87,-14,87,-11,87,-9,87,-7,87,-4,87,-3,88,-2,92,-4,94,-6,95,-9,96,-7,98,-3,97,-4,100,-2,99,3,100,3,102,5,102,7,103,9,106,12,107,14,107,16,107,18,108,17,109,16,111,16,113,17,114,19,114,20,115,21,114,22,113,21,112,19,111,20,110,22,109,24,108,25,109,27,108,30,108,33,109,35,110,37,109,39,109,40,110,43,110,42,112,42,114,43,115,45,116,47,114,49,116,48,117,47,118,49,119,52,119,54,119,56,119,58,120,56,121,53,121,49,120,46,120,45,121,43,121,43,123,42,125,43,126,45,128,49,130,51,130,48,132,44,131,42,130,43,129,40,127,36,125,34,123,36,121,38,120,36,118,34,117,33,114,32,112,29,112,28,111,26,111,25,113,24,115,22,118,21,119,17,117,14,116,11,117,11,119,10,124,12,125,17,127,21,129,25,132,30,136,33,137,38,140,43,141,46,140,49,142,53,142,56,142,63,141,60,140,62,139,64,140,68,139,73,138,81,136,82,135,80,133,77,132,68,134,66,133,70,132,70,129,72,128,74,128,73,130,79,129,81,130,80,131,84,133,86,133,88,132,89,134,87,135,88,136,87,137,93,136,94,135,91,135,93,133,96,134,100,136,107,138,109,138,107,136,109,136,111,137,115,137,118,138,120,137,122,138,120,139,121,140,127,139,130,138,137,136,138,137,136,138,134,139,135,140,133,141,137,144,138,146,140,146,145,146,146,144,144,143,145,142,146,141,145,138,147,137,146,135,143,133,145,132,146,133,148,134,150,136,149,137,150,138,148,138,147,139,149,141,146,143,150,144,149,146,151,145,151,143,153,142,152,144,155,145,159,145,163,143,161,145,161,147,165,148,169,148,174,148,172,149,174,150,177,150,181,151,186,152,192,152,198,153,202,153,204,155,209,155,212,155,209,154,214,154,216,153,222,153,227,152,228,151,226,150,220,149,219,148,221,148,224,148,226,148,227,147,231,148,238,147,246,146,247,147,251,147,254,147,257,146,258,145,257,144,259,142,263,142,265,144,268,143,271,143,275,143,280,143,278,145,281,146,299,144,301,143,306,142,314,142,318,142,320,141,319,139,322,139,325,139,328,139,332,139,336,139,339,137,342,138,340,139,341,140,347,140,351,140,357,139,-360,138],[-191,138,-193,138,-195,138,-197,138,-200,139,-198,139,-196,140,-194,140,-193,139,-191,138],[-181,139,-181,137,-178,139,-176,137,-177,136,-175,134,-173,136,-171,138,-171,140,-168,140,-165,139,-163,138,-162,137,-164,136,-163,135,-167,133,-169,133,-172,133,-174,130,-177,128,-180,128,-181,127,-182,126,-184,126,-186,124,-188,122,-189,120,-189,118,-186,118,-186,116,-185,114,-182,115,-178,114,-176,113,-175,112,-172,111,-170,111,-167,110,-165,110,-164,107,-163,104,-160,102,-158,103,-157,105,-158,108,-160,109,-156,110,-154,112,-153,113,-155,116,-157,118,-155,120,-156,122,-156,125,-151,125,-149,124,-148,125,-146,124,-143,123,-139,122,-139,120,-139,118,-137,118,-135,116,-132,118,-130,120,-129,121,-128,119,-125,116,-123,114,-124,113,-121,112,-119,110,-116,110,-115,109,-114,108,-112,107,-111,104,-113,104,-114,103,-118,102,-120,100,-123,100,-128,101,-131,101,-133,100,-134,99,-137,98,-140,95,-142,94,-137,97,-133,98,-130,98,-128,97,-130,96,-130,94,-129,92,-126,91,-123,92,-121,94,-120,92,-122,91,-127,89,-131,87,-132,89,-129,91,-132,91,-134,90,-136,89,-138,88,-140,87,-141,86,-142,85,-141,84,-140,83,-142,83,-144,83,-146,82,-144,82,-147,81,-148,82,-149,81,-148,79,-150,78,-151,79,-150,78,-151,76,-152,74,-151,76,-152,77,-153,78,-153,76,-153,74,-152,73,-151,71,-153,70,-155,69,-156,68,-158,67,-161,65,-162,64,-163,63,-163,61,-162,58,-161,57,-160,54,-160,52,-161,50,-163,51,-164,53,-165,55,-166,56,-165,57,-166,58,-167,60,-170,59,-172,60,-173,61,-175,61,-177,61,-179,60,-178,59,-179,58,-180,59,-182,58,-183,59,-185,59,-186,60,-188,59,-191,57,-193,57,-194,56,-195,55,-195,53,-194,52,-195,50,-196,46,-195,44,-194,41,-193,40,-192,38,-190,37,-189,36,-187,37,-184,37,-183,38,-182,39,-181,40,-181,42,-179,43,-177,43,-175,43,-174,42,-175,41,-175,39,-176,37,-177,35,-176,34,-177,33,-178,32,-177,31,-176,32,-174,32,-172,32,-170,32,-168,31,-166,30,-167,29,-167,27,-167,25,-167,23,-168,22,-167,21,-166,20,-165,19,-164,18,-162,18,-160,19,-158,19,-156,18,-155,17,-152,19,-151,20,-150,22,-148,23,-147,22,-145,23,-144,24,-143,25,-142,24,-143,23,-143,21,-144,20,-143,18,-142,20,-143,22,-140,23,-141,24,-139,23,-136,22,-135,21,-132,21,-131,20,-129,21,-126,21,-124,21,-125,20,-123,20,-122,19,-121,17,-118,16,-117,15,-116,14,-115,13,-114,12,-112,12,-110,12,-108,12,-107,11,-104,9,-103,8,-102,7,-101,4,-100,3,-101,0,-97,0,-97,-2,-96,-1,-93,-2,-90,-3,-89,-4,-87,-5,-83,-6,-80,-6,-77,-7,-74,-10,-71,-10,-70,-11,-70,-13,-69,-15,-70,-18,-71,-19,-74,-22,-75,-24,-77,-26,-78,-28,-78,-31,-78,-34,-79,-36,-80,-39,-82,-42,-82,-44,-84,-45,-86,-46,-89,-47,-91,-48,-93,-48,-95,-50,-97,-52,-97,-54,-97,-56,-98,-57,-99,-58,-101,-62,-103,-64,-105,-64,-105,-66,-107,-68,-108,-69,-110,-70,-112,-70,-114,-69,-116,-69,-117,-68,-114,-71,-115,-72,-113,-73,-114,-74,-115,-76,-118,-77,-122,-78,-125,-78,-124,-79,-125,-80,-124,-81,-125,-82,-128,-82,-130,-82,-130,-84,-129,-85,-128,-84,-127,-85,-129,-86,-130,-87,-131,-89,-133,-90,-135,-91,-135,-93,-133,-94,-131,-94,-132,-96,-134,-97,-136,-100,-137,-101,-138,-104,-136,-105,-139,-105,-142,-106,-142,-108,-145,-107,-147,-106,-150,-105,-151,-103,-150,-102,-151,-101,-151,-97,-150,-95,-148,-94,-151,-93,-149,-92,-149,-88,-146,-89,-145,-85,-147,-84,-147,-87,-149,-86,-148,-84,-147,-80,-146,-79,-147,-77,-147,-74,-145,-71,-144,-68,-143,-65,-143,-62,-143,-60,-143,-58,-142,-55,-141,-51,-141,-47,-140,-43,-140,-40,-141,-37,-143,-36,-147,-33,-150,-31,-152,-29,-153,-28,-154,-24,-156,-21,-158,-17,-159,-16,-160,-14,-161,-13,-163,-12,-162,-11,-163,-9,-162,-8,-161,-7,-160,-5,-162,-4,-162,-2,-161,-1,-160,1,-159,2,-158,3,-157,4,-156,5,-155,7,-154,8,-155,9,-155,11,-155,13,-156,14,-157,16,-156,17,-158,18,-160,17,-161,16,-160,15,-162,14,-162,16,-163,15,-164,16,-165,17,-166,16,-167,17,-168,19,-169,20,-170,19,-171,20,-172,21,-171,22,-172,23,-173,24,-174,25,-175,26,-176,27,-177,26,-178,27,-180,27,-181,28,-183,28,-184,29,-187,31,-188,32,-191,32,-193,31,-195,32,-198,33,-202,34,-203,35,-204,36,-207,37,-210,39,-211,40,-211,42,-211,44,-212,46,-214,48,-216,49,-217,50,-219,51,-219,53,-221,54,-221,56,-224,57,-225,59,-226,60,-226,62,-228,63,-230,64,-230,62,-229,60,-227,58,-226,57,-225,55,-224,54,-223,53,-223,51,-221,50,-220,49,-219,47,-220,46,-221,47,-222,48,-223,49,-224,51,-225,52,-226,53,-227,54,-229,54,-230,55,-228,56,-230,59,-232,60,-233,62,-234,65,-235,66,-236,67,-237,68,-239,69,-241,69,-243,72,-245,75,-246,76,-247,78,-248,80,-249,81,-248,82,-248,84,-249,86,-248,87,-248,91,-248,94,-249,95,-249,97,-246,96,-245,94,-245,96,-246,98,-250,100,-251,101,-255,102,-256,103,-256,105,-258,106,-259,107,-261,109,-262,110,-264,111,-264,113,-267,114,-268,116,-270,116,-273,116,-276,117,-280,119,-282,119,-285,120,-288,120,-292,121,-294,122,-296,121,-297,120,-299,119,-301,119,-303,118,-304,119,-303,121,-301,122,-304,121,-305,120,-308,119,-307,118,-308,116,-311,115,-313,115,-316,113,-317,112,-319,111,-321,111,-324,110,-326,109,-330,109,-328,110,-326,111,-324,112,-321,112,-320,113,-317,114,-315,115,-315,117,-314,118,-316,117,-317,118,-318,117,-319,118,-320,117,-321,118,-323,117,-324,119,-325,120,-328,120,-329,121,-331,121,-332,123,-331,124,-330,125,-329,126,-326,126,-325,127,-323,127,-322,128,-323,129,-322,130,-325,129,-327,129,-330,129,-333,129,-334,130,-336,131,-333,132,-329,133,-327,133,-328,132,-323,132,-325,133,-327,134,-329,135,-331,136,-334,137,-332,138,-329,138,-326,139,-324,141,-322,141,-318,142,-316,142,-313,143,-310,142,-309,141,-308,142,-304,142,-305,141,-301,141,-299,141,-295,140,-291,140,-287,140,-284,140,-282,139,-278,139,-275,138,-273,138,-271,139,-269,139,-266,139,-263,140,-260,140,-258,140,-256,141,-252,139,-249,140,-246,139,-245,140,-243,140,-240,139,-235,138,-232,138,-230,138,-228,137,-231,136,-227,135,-222,136,-220,136,-218,135,-216,136,-218,137,-216,137,-214,137,-212,138,-211,137,-209,136,-206,136,-203,135,-200,136,-197,136,-195,137,-192,136,-189,136,-188,138,-191,139,-193,140,-193,142,-190,144,-188,144,-186,143,-183,140,-185,139,-181,139],[-228,146,-229,145,-225,146,-222,145,-220,146,-218,145,-216,143,-215,144,-217,146,-215,146,-213,146,-211,145,-210,143,-209,142,-206,141,-202,140,-205,139,-204,138,-208,138,-212,138,-214,138,-218,138,-224,137,-227,137,-228,138,-230,139,-232,138,-235,140,-233,140,-230,140,-227,140,-225,141,-229,141,-233,141,-236,141,-237,142,-232,143,-235,143,-239,143,-237,145,-230,147,-228,146],[-153,146,-155,146,-157,146,-159,145,-160,146,-162,147,-161,148,-156,147,-153,146],[-173,146,-172,145,-170,147,-165,148,-161,145,-162,144,-158,145,-156,146,-151,144,-148,144,-144,143,-142,142,-138,141,-136,140,-134,138,-138,137,-133,136,-130,136,-127,134,-124,134,-124,132,-128,130,-130,131,-133,133,-136,133,-136,131,-134,130,-131,129,-129,127,-130,125,-133,126,-138,127,-135,126,-133,125,-132,124,-138,125,-142,126,-144,127,-147,128,-150,129,-155,128,-157,129,-156,131,-152,131,-148,131,-149,132,-148,133,-145,135,-147,136,-150,137,-154,138,-152,138,-155,140,-158,140,-163,139,-170,140,-174,141,-177,141,-179,142,-177,142,-180,142,-180,144,-179,146,-177,147,-172,148,-173,146],[-201,148,-198,147,-195,148,-194,147,-196,146,-193,145,-193,143,-197,143,-199,143,-205,145,-201,145,-203,147,-201,148],[287,146,284,146,280,147,282,148,284,148,287,147],[-186,146,-189,144,-191,144,-192,146,-191,148,-189,148,-185,148,-181,148,-184,146,-186,146],[-241,143,-246,142,-247,143,-252,144,-250,146,-248,147,-250,149,-243,149,-240,148,-235,148,-233,148,-231,147,-234,146,-238,145,-241,144],[-187,150,-188,149,-191,149,-194,150,-193,151,-190,151,-188,151,-187,150],[290,151,289,150,281,150,278,149,274,151,275,152,278,152,283,152,290,151],[-197,153,-195,153,-195,151,-196,150,-200,150,-202,150,-205,151,-205,153,-203,153,-200,153,-197,153],[-216,152,-214,152,-212,152,-211,151,-213,150,-219,150,-224,149,-227,149,-224,150,-233,150,-235,150,-233,152,-231,153,-225,152,-222,151,-218,151,-221,153,-219,154,-217,153,-216,152],[115,141,107,142,103,143,105,144,105,146,109,147,107,148,112,149,111,150,116,151,122,153,129,153,132,154,136,154,138,153,136,152,129,151,123,151,117,149,114,147,111,145,111,143,115,141],[-189,154,-187,154,-183,154,-181,153,-182,152,-180,152,-178,151,-176,151,-173,151,-170,151,-166,152,-162,151,-160,151,-161,149,-164,149,-166,149,-172,149,-176,149,-180,149,-185,150,-186,151,-188,153,-192,153,-194,154,-189,154],[-232,155,-233,154,-234,153,-236,153,-240,152,-243,152,-246,152,-242,154,-238,155,-235,155,-232,155],[49,156,45,155,41,155,43,156,42,157,46,157,47,156,49,156],[-192,156,-195,156,-197,157,-195,158,-191,157,-192,156],[-200,157,-199,156,-203,156,-206,157,-210,157,-208,157,-211,158,-207,158,-202,158,-200,157],[37,159,43,158,38,157,37,156,35,155,34,154,32,154,28,155,26,156,22,158,21,159,26,160,27,159,30,159,31,160,34,160,37,159],[51,161,55,160,52,159,46,159,40,159,37,160,35,161,41,161,44,161,46,161,51,161],[102,161,100,161,98,161,95,160,93,160,94,161,90,161,94,162,97,162,100,162,103,161],[200,158,196,158,190,158,187,159,185,160,182,161,188,162,192,163,196,161,200,160,200,158],[-174,159,-172,159,-174,158,-178,157,-182,156,-186,157,-188,158,-186,159,-190,159,-192,159,-193,160,-192,161,-191,162,-189,162,-185,163,-182,161,-179,161,-176,161,-174,159],[-137,166,-132,166,-127,166,-124,165,-129,164,-134,163,-131,163,-136,162,-139,161,-142,160,-146,159,-148,159,-154,159,-151,158,-153,156,-156,156,-157,155,-160,154,-156,154,-161,152,-166,153,-172,153,-175,153,-179,153,-176,154,-177,156,-175,156,-170,155,-173,156,-176,157,-174,158,-171,158,-170,159,-173,159,-174,161,-168,160,-164,161,-168,161,-175,161,-179,162,-180,163,-183,163,-180,164,-178,164,-174,165,-171,165,-169,165,-166,165,-165,166,-162,166,-159,166,-153,166,-151,166,-146,166,-141,166,-137,166],[-54,167,-42,165,-45,165,-53,165,-64,164,-56,164,-50,164,-46,164,-44,163,-46,162,-41,163,-32,164,-26,163,-24,163,-33,161,-40,160,-35,160,-38,159,-39,158,-39,155,-37,154,-40,154,-43,153,-40,152,-39,150,-41,150,-39,149,-43,148,-41,148,-42,147,-44,147,-47,147,-45,145,-49,145,-47,144,-44,143,-44,141,-47,141,-49,142,-51,143,-50,142,-53,140,-47,140,-45,140,-50,139,-55,137,-61,136,-64,136,-66,135,-68,133,-73,132,-77,131,-80,131,-81,130,-81,128,-82,127,-86,125,-85,124,-86,122,-87,120,-90,120,-93,122,-97,122,-98,123,-100,125,-103,127,-104,129,-105,130,-107,132,-107,134,-106,137,-103,137,-102,138,-102,140,-104,139,-107,139,-109,139,-110,141,-109,142,-107,142,-103,141,-106,142,-108,143,-110,143,-112,143,-109,145,-111,146,-112,147,-115,149,-117,150,-123,152,-127,152,-132,152,-137,152,-139,153,-143,154,-138,155,-134,155,-142,155,-147,156,-146,157,-139,158,-131,159,-136,160,-134,161,-127,162,-124,163,-125,164,-121,164,-114,164,-108,164,-106,164,-101,165,-96,164,-93,164,-89,163,-94,164,-87,166,-80,166,-77,167,-70,167,-54,167]];
-function drawWorldMap(){
-  const cv = $('worldCanvas'), g = cv.getContext('2d'), W = cv.width, H = cv.height;
-  const X = lon => (lon + 180)/360*W, Y = lat => (90 - lat)/180*H;
-  g.fillStyle = '#bfe0ee'; g.fillRect(0, 0, W, H);
-  g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; for (let lat = -60; lat <= 60; lat += 30){ g.beginPath(); g.moveTo(0, Y(lat)); g.lineTo(W, Y(lat)); g.stroke(); }
-  g.fillStyle = '#e6d6a8'; g.strokeStyle = '#a89868';
-  for (const r of WORLD_RINGS){ g.beginPath(); for (let i=0;i<r.length;i+=2) (i ? g.lineTo : g.moveTo).call(g, X(r[i]/2), Y(r[i+1]/2)); g.closePath(); g.fill(); g.stroke(); }
-  g.font = "900 20px Nunito, sans-serif"; g.textBaseline = 'middle';
-  ZONES.forEach((z, i) => { const found = save.worlds.includes(i), x = X(z.lon), y = Y(z.lat), right = i !== 1;
-    g.fillStyle = found ? '#ff6f59' : 'rgba(8,43,69,.35)'; g.beginPath(); g.arc(x, y, found ? 9 : 6, 0, TAU); g.fill();
-    if (found){ g.lineWidth = 3; g.strokeStyle = 'rgba(255,255,255,.9)'; g.textAlign = right ? 'left' : 'right';
-      const tx = x + (right ? 13 : -13), ty = y + (i === 0 ? -12 : i === 1 ? 12 : 0); g.lineWidth = 5; g.strokeText(z.name, tx, ty); g.fillStyle = '#082b45'; g.fillText(z.name, tx, ty); } });
-  $('worldNote').textContent = `${save.worlds.length} of 7 places found. In Swimworld they're squeezed close together so you can swim from one to the next.`;
+function drawWorldMap(){   // discovered patches colored by their water; dark = nobody has been there yet
+  const cv = $('worldCanvas'), g = cv.getContext('2d'), W = cv.width, H = cv.height, o = ocean;
+  g.fillStyle = '#0b2233'; g.fillRect(0, 0, W, H); if (!o) return;
+  const P = atlas.patches, IS = atlas.islands;
+  let x0 = o.x - 3*RGW, x1 = o.x + 3*RGW, y0 = o.y - 2*RGW, y1 = o.y + 2*RGW;
+  for (const [rx, ry] of P){ x0 = Math.min(x0, rx*RGW); x1 = Math.max(x1, (rx + 1)*RGW); y0 = Math.min(y0, ry*RGW); y1 = Math.max(y1, (ry + 1)*RGW); }
+  for (const I of IS){ x0 = Math.min(x0, I.x - 600); x1 = Math.max(x1, I.x + 600); y0 = Math.min(y0, I.y - 600); y1 = Math.max(y1, I.y + 600); }
+  const sc = Math.min(W/(x1 - x0), H/(y1 - y0)), ox = (W - (x1 - x0)*sc)/2 - x0*sc, oy = (H - (y1 - y0)*sc)/2 - y0*sc, X = x => ox + x*sc, Y = y => oy + y*sc;
+  g.fillStyle = 'rgba(191,224,238,.18)'; g.beginPath(); g.arc(X(0), Y(0), CORE_R*sc, 0, TAU); g.fill();   // the Old Seas
+  for (const [rx, ry, z] of P){ const c = ZONES[z || 0].water; g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; g.fillRect(X(rx*RGW), Y(ry*RGW), RGW*sc + .5, RGW*sc + .5); }
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  const label = (t, x, y, px, col) => { g.font = `900 ${px}px Nunito, sans-serif`; g.lineWidth = 4; g.strokeStyle = 'rgba(8,43,69,.85)'; g.strokeText(t, x, y); g.fillStyle = col; g.fillText(t, x, y); };
+  if (RGW*sc > 70) for (const [rx, ry, , n] of P) if (n) label(n, X((rx + .5)*RGW), Y((ry + .5)*RGW), Math.max(9, Math.min(13, RGW*sc/9)), '#fff');
+  label('Pool Island', X(0), Y(0), 13, '#ffe7a8');
+  for (const I of IS){ const mine = Math.hypot(I.x - HOUSE.x, I.y - HOUSE.y) < 50; g.fillStyle = mine ? '#ff6f59' : '#ffc53d'; g.beginPath(); g.arc(X(I.x), Y(I.y), 6, 0, TAU); g.fill();
+    label(mine ? 'Your island' : I.name, X(I.x), Y(I.y) - 14, 13, mine ? '#ffb3a6' : '#ffe7a8'); }
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(X(o.x), Y(o.y), 5, 0, TAU); g.fill(); g.strokeStyle = '#ff6f59'; g.lineWidth = 2; g.stroke();
+  $('worldNote').textContent = P.length ? `${P.length} ${P.length === 1 ? 'place' : 'places'} discovered around here so far. Dark water is still unexplored: swim into it and the ocean will dream up something new.`
+    : 'Nothing out here has been discovered yet. Swim into the dark water and the ocean will dream up something new.';
 }
-function openMap(){ if (mode !== 'ocean') return; paused = true; drawSeaMap(); drawWorldMap(); $('mapPanel').hidden = false; resetPick(); }
+function openMap(){ if (mode !== 'ocean') return; paused = true; drawSeaMap(); drawWorldMap(); loadAtlas().then(drawWorldMap); $('mapPanel').hidden = false; resetPick(); }
 function closeMap(){ $('mapPanel').hidden = true; paused = false; graceAfterPause(); }
 $('mapClose').onclick = closeMap;
 
@@ -1698,7 +1772,7 @@ function updRide(o, dt){
 /* ---------- Sharks: they patrol, chase you if you come close, and bite ----------
    They never enter the Sunny Lagoon around Home, and they won't bite someone riding a dolphin. */
 const DANGER = [0, .5, .35, .55, 1, .3, 1];
-/* Every ocean has its own predator, and it depends on what you are. (Laguna Beach, by Pool Island, is always safe.) */
+/* Every ocean has its own predator, and it depends on what you are. (The Sunny Shallows by Pool Island are always safe.) */
 const PRED = {
   white:     { name:'Great white shark', spd:1,    turn:1,   body:[1.5, .45, 0, .45] },
   tiger:     { name:'Tiger shark',       spd:.95,  turn:1.1, body:[1.5, .45, 0, .45] },
@@ -1709,12 +1783,12 @@ const PRED = {
 };
 function predFor(zone, me){
   switch (zone){
-    case 1: return me === 'dolphin' || me === 'otter' ? 'orca' : 'white';          // Catalina: orcas hunt otters and dolphins
-    case 2: return me === 'dolphin' || me === 'turtle' ? 'orca' : 'seal';          // Antarctica: leopard seals, and orcas
-    case 3: return 'tiger';                                                        // Great Barrier Reef
-    case 4: return me === 'turtle' ? 'tiger' : 'barracuda';                        // Caribbean
-    case 5: return 'tiger';                                                        // Hawaii: tiger sharks love turtles
-    case 6: return 'squid';                                                        // Mariana Trench
+    case 1: return me === 'dolphin' || me === 'otter' ? 'orca' : 'white';          // kelp: orcas hunt otters and dolphins
+    case 2: return me === 'dolphin' || me === 'turtle' ? 'orca' : 'seal';          // ice: leopard seals, and orcas
+    case 3: return 'tiger';                                                        // reef
+    case 4: return me === 'turtle' ? 'tiger' : 'barracuda';                        // wrecks
+    case 5: return 'tiger';                                                        // lagoon: tiger sharks love turtles
+    case 6: return 'squid';                                                        // the deep
     default: return 'white'; }
 }
 const predName = s => PRED[s.k || 'white'].name;
@@ -1800,13 +1874,15 @@ function groundAt(x, y){
   if (d0 < ISL*U*1.9) g = islandH(x*U, y*U);
   const d1 = Math.hypot(x - HOUSE.x, y - HOUSE.y)*U, R1 = HOUSE.r*U + 1.5;
   if (d1 < R1) g = Math.max(g, -1 + 1.6*Math.sqrt(1 - (d1/R1)**2), d1 < HOUSE.r*U - 2 ? .65 : -99);
+  const I = nearIsland(x, y, HOUSE.r + 60);   // a friend's island
+  if (I){ const d2 = Math.hypot(x - I.x, y - I.y)*U; if (d2 < R1) g = Math.max(g, -1 + 1.6*Math.sqrt(1 - (d2/R1)**2), d2 < HOUSE.r*U - 2 ? .65 : -99); }
   return g;
 }
 // trees, the hut and the house are solid on land (x, y, radius in units)
 function landObstacles(){
   const hx = HOUSE.x, hy = HOUSE.y;
   return [[-24, -32, 46], ...islandPlants().map(p => [p.x/U, p.z/U, p.kind === 'palm' ? 12 : 22]),
-    [hx, hy, 118], [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
+    ...islands.map(I => [I.x, I.y, 118]), [hx, hy, 118], [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
 }
 // where the palms and bushes grow (meters), placed once so the 3D island and the collisions agree
 let plantsCache = null;
@@ -1965,9 +2041,9 @@ function updOcean(dt){
   // the Dive Shop is in the hut on Pool Island: walk in to shop
   if (o.onLand){ const nearHut = Math.hypot(o.x + 24, o.y + 32) < 72; if (nearHut && !o.shopNear){ o.shopNear = true; openShop(); return; } if (!nearHut) o.shopNear = false; }
   o.saveT += dt; if (o.saveT > 4){ o.saveT = 0; persist(); }
-  $('hudLbl').textContent = 'World'; $('hudVal').textContent = ZONES[o.zone].name; $('hudVal').className = 'big name';
+  $('hudLbl').textContent = 'World'; $('hudVal').textContent = hereDream(o)?.name || ZONES[o.zone].name; $('hudVal').className = 'big name';
   $('hudProg').hidden = true;
-  $('hudSub').textContent = `${ZONES[o.zone].where} · Places ${save.worlds.length}/7 · Map ${(save.mapPieces || []).length}/${MAP_N}`;
+  $('hudSub').textContent = `${hereDream(o) ? ZONES[o.zone].name : ZONES[o.zone].where} · Places ${save.worlds.length}/7 · Map ${(save.mapPieces || []).length}/${MAP_N}`;
 }
 
 /* minimap: zones you've found are colored in */
@@ -2916,7 +2992,7 @@ function buildOcean(){
   applyAssetsToOcean();
 }
 
-function buildHouse(){
+function buildHouse(label = 'YOUR HOUSE', at = HOUSE, own = true){
   const g = new THREE.Group(), R = HOUSE.r*U;
   const sand = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 20, 0, TAU, 0, Math.PI/2), new THREE.MeshStandardMaterial({ map: rep(sandTex, 8, 8), roughness: 1 }));
   sand.scale.set(R + 1.5, 1.6, R + 1.5); sand.position.y = -1; sand.receiveShadow = true; g.add(sand);
@@ -2940,8 +3016,8 @@ function buildHouse(){
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07, .09, 12, 8), std(0xeeeeee, .3, .6)); pole.position.set(-4.5, 6.6, -2); pole.castShadow = true; g.add(pole);
   const flag = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6, 10, 4), new THREE.MeshStandardMaterial({ color: 0xffc53d, side: THREE.DoubleSide, roughness: .7 }));
   flag.position.set(-3.2, 11.6, -2); g.add(flag); g.userData.flag = flag;
-  const sign = sprite(labelTex('YOUR HOUSE', '#ff6f59', '#fff', 768, 200, 120), 7, 1.8); sign.position.set(0, 15, 0); g.add(sign);
-  g.position.set(HOUSE.x*U, 0, HOUSE.y*U); oceanWorld.add(g); houseGroup = g;
+  const sign = sprite(labelTex(label, own ? '#ff6f59' : '#2f6bff', '#fff', 768, 200, 120), 7, 1.8); sign.position.set(0, 15, 0); g.add(sign);
+  g.position.set(at.x*U, 0, at.y*U); oceanWorld.add(g); if (own) houseGroup = g; return g;
 }
 let houseGroup = null;
 let islandGroup = null; const rocksIsl = [];
