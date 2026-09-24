@@ -1037,7 +1037,108 @@ function getChunk(cx,cy){
     if (R() < .5) c.pearls.push({ x:X0+30+R()*(CH-60), y:Y0+30+R()*(CH-60), id:key+'#0' });
     if (R() < .15) c.pearls.push({ x:X0+30+R()*(CH-60), y:Y0+30+R()*(CH-60), id:key+'#1' });
   }
+  dreamInto(c);
   chunks.set(key, c); return c;
+}
+
+/* ---------- Dreamed places: the ocean past the map is invented by an AI the first time anyone swims there ----------
+   The sea is cut into patches (5x5 chunks, about 50 m across). The first logged-in swimmer to reach a patch nobody has seen
+   asks the dreamer (a small Cloudflare Worker that calls Claude) to design it: a name, a legend, and where every rock, reef,
+   creature and treasure goes. The design is saved forever, so everyone who swims there later finds the same place,
+   with the finder's name on it. The usual random scenery stays; the dreamed design is laid on top. */
+const DREAM_URL = 'https://swimworld-dreamer.klabianco.workers.dev', RG = 5, RGW = RG*CH;
+const dreams = new Map();          // "rx,ry" -> design | 'pending' | null (nobody's been) ; missing = not asked yet
+const dreamAsking = new Set();
+let dreamHere = '', dreamPollT = 0, dreamWait = 0, dreamBusy = false, dreamTired = false, dreamLoginNag = false;
+const regionOf = (x, y) => [Math.floor(x/RGW), Math.floor(y/RGW)];
+function dreamLayout(k, d){   // turn the design (0-100 coordinates) into things in the world, once
+  if (d.pts) return d;
+  const [rx, ry] = k.split(',').map(Number), X0 = rx*RGW, Y0 = ry*RGW, W = v => v/100*RGW, R = mulberry(hash(rx*31 + 7, ry*17 + 3));
+  const pts = [];
+  for (const f of d.features || []){ const n = Math.max(1, f.count | 0);
+    for (let i = 0; i < n; i++){ let x = f.x, y = f.y;
+      if (f.shape === 'ring'){ const a = i/n*TAU; x += Math.cos(a)*f.spread; y += Math.sin(a)*f.spread; }
+      else if (f.shape === 'line'){ const t = n === 1 ? .5 : i/(n - 1); x += (f.x2 - f.x)*t; y += (f.y2 - f.y)*t; }
+      else if (f.shape === 'cluster'){ const a = R()*TAU, r = Math.sqrt(R())*f.spread; x += Math.cos(a)*r; y += Math.sin(a)*r; }
+      pts.push({ type: f.type, x: X0 + W(x), y: Y0 + W(y), r: R(), rot: R()*TAU, ph: R()*TAU }); } }
+  d.pts = pts; d.X0 = X0; d.Y0 = Y0;
+  const at = p => ({ x: X0 + W(p.x), y: Y0 + W(p.y) });
+  d.bud = (d.creatures || []).map(c => { const p = at(c); return { id: c.kind, bx: p.x, by: p.y, rad: (c.kind === 'whale' ? 300 : 90) + R()*100, w: (R() < .5 ? -1 : 1)*(c.kind === 'whale' ? .06 : .25 + R()*.2), ph: R()*TAU }; });
+  d.fsh = (d.fish || []).map(f => { const p = at(f), school = f.species === 'sardine' || f.species === 'lantern' || f.species === 'grouper';
+    return school ? { sp: f.species, bx: p.x, by: p.y, rad: 80 + R()*120, w: (R() < .5 ? -1 : 1)*(.16 + R()*.2), ph: R()*TAU, n: f.count, spread: f.species === 'sardine' ? 70 : 100,
+        depth: f.species === 'grouper' ? -4.3 : -1.4 - R()*2.8 }
+      : { sp: f.species, reef: true, bx: p.x, by: p.y, rad: 40 + R()*60, ph: R()*TAU, n: Math.min(f.count, 6) }; });
+  d.jel = (d.jellies || []).map(j => { const p = at(j), deadly = !!j.stinging;
+    return { x: p.x, y: p.y, ph: R()*TAU, wr: 40 + R()*80, d0: 1 + R()*3.2, deadly, size: .22 + R()*.25, tl: deadly ? 1.4 + R()*1.4 : .35 + R()*.4 }; });
+  d.chs = (d.treasure || []).map((t, i) => ({ ...at(t), id: 'd' + k + '#' + i, v: 60 + ((R()*5)|0)*10, rot: R()*TAU }));
+  d.prl = (d.pearls || []).map((t, i) => ({ ...at(t), id: 'd' + k + '@' + i }));
+  return d;
+}
+function dreamInto(c){   // called as each chunk is built: add the parts of a dreamed place that fall inside it
+  const X0 = c.cx*CH, Y0 = c.cy*CH, [rx, ry] = regionOf(X0 + 1, Y0 + 1), d = dreams.get(rx + ',' + ry);
+  if (!d || typeof d !== 'object') return;
+  const inside = p => p.x >= X0 && p.x < X0 + CH && p.y >= Y0 && p.y < Y0 + CH;
+  const clear = p => Math.hypot(p.x, p.y) > ISL*1.9 && Math.hypot(p.x - HOUSE.x, p.y - HOUSE.y) > HOUSE.r + 200;
+  for (const p of d.pts) if (inside(p) && clear(p)){
+    const it = { x: p.x, y: p.y, r: p.type === 'bigrock' ? .95 + p.r*.05 : p.r, rot: p.rot, ph: p.ph, type: p.type === 'bigrock' ? 'rock' : p.type };
+    (it.type === 'kelp' || it.type === 'ice' ? c.canopy : c.items).push(it);
+    if (it.type === 'coral'){ const sp = ['tang','yellow','angel','clown'][(p.r*4)|0]; c.fish.push({ sp, reef: true, bx: p.x, by: p.y, rad: 50 + p.r*60, ph: p.ph, n: 2 + ((p.r*7)|0)%3 }); }
+    else if (it.type === 'anemone') c.fish.push({ sp: 'clown', reef: true, bx: p.x, by: p.y, rad: 16, ph: p.ph, n: 2 }); }
+  for (const b of d.bud) if (inside({ x: b.bx, y: b.by })) c.buddies.push(b);
+  for (const f of d.fsh) if (inside({ x: f.bx, y: f.by })) c.fish.push(f);
+  for (const j of d.jel) if (inside(j)) c.jellies.push(j);
+  for (const t of d.chs) if (inside(t) && clear(t)) c.chests.push(t);
+  for (const t of d.prl) if (inside(t)) c.pearls.push(t);
+}
+function dreamSet(k, v){
+  if (v && typeof v === 'object') dreamLayout(k, v);
+  const old = dreams.get(k); dreams.set(k, v);
+  if (typeof v === 'object' && v && old !== v){   // rebuild that patch's chunks so the new place appears
+    const [rx, ry] = k.split(',').map(Number);
+    for (let a = 0; a < RG; a++) for (let b = 0; b < RG; b++) chunks.delete((rx*RG + a) + ',' + (ry*RG + b));
+    lastChunkKey = ''; }
+}
+async function dreamFetch(keys){
+  keys = keys.filter(k => !dreamAsking.has(k)); if (!keys.length) return;
+  keys.forEach(k => dreamAsking.add(k));
+  try { const r = await fetch(`${DREAM_URL}/regions?k=${keys.join(';')}`); const j = await r.json();
+    for (const [k, v] of Object.entries(j.regions || {})) dreamSet(k, v); }
+  catch(e){} finally { keys.forEach(k => dreamAsking.delete(k)); }
+}
+async function dreamDiscover(k, zone){
+  if (dreamBusy) return; dreamBusy = true; dreams.set(k, 'pending');
+  say('The ocean is dreaming', 'Nobody has ever swum here before... A brand new place is forming around you!', 8); sfx(523,.3,'sine',.05); sfx(659,.3,'sine',.05,.15);
+  try {
+    const [rx, ry] = k.split(',').map(Number);
+    const r = await fetch(`${DREAM_URL}/discover`, { method: 'POST', headers: { Authorization: 'Bearer ' + await fbToken(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rx, ry, zone, name: fbAuth?.name || '' }) });
+    const j = await r.json();
+    if (r.status === 429){ dreamTired = true; dreams.set(k, null); say('The ocean is sleepy', "It has dreamed up lots of places today. Come back tomorrow for more!", 6); return; }
+    if (!r.ok){ dreams.set(k, null); dreamWait = time + 60; coach(''); return; }
+    dreamSet(k, j.region);
+    if (j.mine && typeof j.region === 'object'){
+      (save.dreamsFound || (save.dreamsFound = [])).push(j.region.name); addCoins(30); addXP(60, true); persist();
+      banner(`You discovered ${j.region.name}!`, `It's yours forever · everyone will see you found it · +30 coins · +60 XP`);
+      [523,659,784,1046].forEach((f,i) => sfx(f,.25,'triangle',.07,i*.12));
+      say(j.region.name, j.region.story, 10); dreamHere = k;
+    }
+  } catch(e){ dreams.set(k, null); dreamWait = time + 60; coach(''); }
+  finally { dreamBusy = false; }
+}
+function dreamTick(o, dt){   // every frame in the ocean
+  const [rx, ry] = regionOf(o.x, o.y), k = rx + ',' + ry;
+  dreamPollT -= dt;
+  const want = []; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++){ const kk = (rx + a) + ',' + (ry + b), v = dreams.get(kk);
+    if (!dreams.has(kk) || (dreamPollT <= 0 && !(v && typeof v === 'object') && !(kk === k && dreamBusy))) want.push(kk); }
+  if (dreamPollT <= 0) dreamPollT = 15;   // look again now and then, in case someone else found a neighbour
+  if (want.length) dreamFetch(want);
+  const d = dreams.get(k);
+  if (d === null && !dreamBusy && !dreamTired && time > dreamWait && Math.hypot(o.x, o.y) > ISL*3){
+    if (fbAuth) dreamDiscover(k, zoneAt(o.x, o.y));
+    else if (!dreamLoginNag){ dreamLoginNag = true; say('Unexplored ocean', 'Nobody has ever been here! Log in (Menu) and the ocean will dream up a brand new place for you to discover.', 7); } }
+  if (d && typeof d === 'object' && dreamHere !== k){ dreamHere = k;
+    banner(d.name, `Discovered by ${d.finder}`); say(d.name, d.story, 8); }
+  else if (d === null) dreamHere = k;
 }
 
 
@@ -1501,6 +1602,8 @@ function drawSeaMap(){
     g.beginPath(); g.arc(sx(0), sy(0), 8, 0, TAU); g.fill(); g.stroke();
     g.fillStyle = '#3a2810'; g.font = "bold 13px Nunito, sans-serif"; g.textAlign = 'center'; g.fillText('Pool Island', sx(0), sy(0) - 14);
     for (const Lm of LANDMARKS){ g.fillStyle = '#5a4020'; g.beginPath(); g.arc(sx(Lm.x), sy(Lm.y), 4, 0, TAU); g.fill(); g.font = "12px Nunito, sans-serif"; g.fillText(Lm.name, sx(Lm.x), sy(Lm.y) - 9); }
+    for (const [dk, d] of dreams) if (d && typeof d === 'object'){ const mx = d.X0 + RGW/2, my = d.Y0 + RGW/2;   // places the ocean dreamed up
+      g.fillStyle = '#7b3fd0'; g.beginPath(); g.arc(sx(mx), sy(my), 4, 0, TAU); g.fill(); g.font = "italic 12px Nunito, sans-serif"; g.fillText('✦ ' + d.name, sx(mx), sy(my) - 9); }
     g.fillStyle = '#b3261e'; g.fillRect(sx(LIGHTHOUSE.x) - 3, sy(LIGHTHOUSE.y) - 10, 6, 12); g.fillStyle = '#3a2810'; g.fillText('Lighthouse', sx(LIGHTHOUSE.x), sy(LIGHTHOUSE.y) - 16);
     g.setLineDash([6, 6]); g.strokeStyle = '#8a2a1a'; g.lineWidth = 3; g.beginPath();   // the old route, wobbling a little
     for (let i = 0; i <= 40; i++){ const f = i/40, wob = Math.sin(f*9 + HOUSE.x*.001)*900*f*(1 - f);
@@ -1836,6 +1939,7 @@ function updOcean(dt){
   o.dark = lerp(o.dark, DARK[z], Math.min(1,dt*1.2));
   for (const L of LANDMARKS){ if (!save.landmarks.includes(L.name) && Math.hypot(o.x-L.x,o.y-L.y) < 380){
     save.landmarks.push(L.name); addCoins(15); addXP(40, true); banner(`Found: ${L.name}`, `${save.landmarks.length} of 6 special spots · +15 coins · +40 XP`); sfx(784,.3,'triangle',.07); } }
+  dreamTick(o, dt);
   const pcx = Math.floor(o.x/CH), pcy = Math.floor(o.y/CH);
   for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++){
     for (const p of getChunk(pcx+a,pcy+b).pearls){ if (taken.has(p.id)) continue;
