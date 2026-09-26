@@ -93,6 +93,11 @@
   .item p{margin:0;font-size:13px;font-weight:700;color:var(--muted);line-height:1.35}
   .item .btn{font-size:18px;padding:10px}
   .item.owned{border-color:var(--plus)}
+  .item .lvl{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:800;color:var(--muted)}
+  .item .lvl i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:#fff}
+  .item .lvl i.on{background:var(--plus);border-color:var(--plus)}
+  .item .lvl span{margin-left:4px}
+  .item p.next{color:var(--deep)}
   #mapCanvas,#worldCanvas{width:100%;max-width:100%;height:auto;border-radius:14px;background:#e9d8b0}
   #worldCanvas{background:#bfe0ee}
   .ridebtn small{font-family:var(--body);font-weight:900;font-size:12px;background:#fff;border-radius:8px;padding:2px 7px}
@@ -261,7 +266,7 @@
       <li><b>Swim</b>Use the joystick, or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrow keys, to swim. Hold <kbd>Space</kbd> or Dive to go under. Drag the screen to look around.</li>
       <li><b>Stay alive</b>Keep moving or you'll sink. Come up for air. Stay away from sharks and red jellyfish.</li>
       <li><b>Build &amp; explore</b>Press Build on your island to place blocks. Press <kbd>T</kbd> to talk to people and animals, and <kbd>M</kbd> for your map.</li>
-      <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, talk to people and find new places. Coins buy fins, snorkels and scuba gear at the Dive Shop. XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
+      <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, talk to people and find new places. Coins buy gear for every animal at the Dive Shop, and you can upgrade each piece, level by level, to swim faster and hold your breath longer. Every Turbo Booster doubles your speed again! XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
     </ul>
     <div class="actions">
       <button id="startBtn" class="btn primary" type="button">Start Game</button>
@@ -430,6 +435,7 @@ function mergeSaves(a, b){
   for (const k of ['gear','chests','worlds','landmarks','mapPieces']) m[k] = [...new Set([...(a[k] || []), ...(b[k] || [])])];
   for (const k of ['coins','xp','dist','swimSec','pearls','races','homeRuns','best','tunnels']) if (a[k] != null || b[k] != null) m[k] = Math.max(a[k] || 0, b[k] || 0);
   m.bestTime = Math.min(...[a.bestTime, b.bestTime].filter(t => t > 0), Infinity); if (!isFinite(m.bestTime)) m.bestTime = 0;
+  m.gearLv = { ...(a.gearLv || {}) }; for (const k in b.gearLv || {}) m.gearLv[k] = Math.max(m.gearLv[k] || 0, b.gearLv[k]);
   m.houseFound = !!(a.houseFound || b.houseFound); m.tutorialDone = !!(a.tutorialDone || b.tutorialDone);
   return m;
 }
@@ -593,7 +599,7 @@ const METERS = 40; // world units per meter
 function swimMove(o, dt, base = 100){
   const w = wantHeading(), pc = o.pitch || 0;
   if (w){ const err = angDiff(w.ang, o.ang); o.ang += clamp(err, -3.2*dt, 3.2*dt); o.idle = 0;
-    const a = 1.4*base*speedMul()*(hasGear('fins') ? 1.15 : 1)*w.m*Math.max(.25, Math.cos(err));
+    const a = 1.4*base*speedMul()*gearFast()*w.m*Math.max(.25, Math.cos(err));
     o.vx += Math.cos(o.ang)*a*Math.cos(pc)*dt; o.vy += Math.sin(o.ang)*a*Math.cos(pc)*dt;
     if (pc) o.vd = (o.vd || 0) - Math.sin(pc)*a*dt*U; }                 // head down: swimming takes you deeper
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang);
@@ -624,24 +630,45 @@ const POOL_W = 400;
    Earn coins from pearls, shells, treasure chests and races; spend them at the Dive Shop on Pool Island.
    Gear is for people: it only works (and only shows) when you're the Swimmer. */
 // Each animal has its own gear, and it only works while you're playing as that animal.
+// Most gear has levels: buy level 1, then spend more coins to upgrade it. `lv` is the price of each level,
+// `say(n)` tells what level n does. Every animal has something to go faster and something to hold its breath longer.
+const FAST = [1.15, 1.3, 1.5, 1.75, 2];                     // speed gear, level 1 to 5 (level 5 is twice as fast)
+const BREATH = [10, 20, 35, 55, 80];                         // breath gear: extra seconds under water
+const fastSay = n => n >= 5 ? 'You swim twice as fast!' : `You swim ${Math.round((FAST[n - 1] - 1)*100)}% faster.`;
+const breathSay = n => `Hold your breath ${BREATH[n - 1]} seconds longer.`;
 const SHOP = [
-  { id:'fins',     who:'swimmer', name:'Fins',            price:60,  desc:'You swim faster.' },
-  { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',  price:40,  desc:'Breathe with your face in the water, and see farther under water.' },
-  { id:'light',    who:'swimmer', name:'Dive light',      price:120, desc:'Lights up dark, deep water like the Mariana Trench.' },
-  { id:'scuba',    who:'swimmer', name:'Scuba gear',      price:400, desc:'A tank with about 5 minutes of air. Dive to the deep sea floor and explore the shipwreck.' },
-  { id:'goldcap',  who:'swimmer', name:'Golden swim cap', price:25,  desc:'Just because it looks amazing.' },
-  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',      price:150, desc:'Jump twice as high.' },
-  { id:'sonar',    who:'dolphin', name:'Sonar',           price:200, desc:'Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap.' },
-  { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes', price:60,  desc:'Just for looks. Very fancy.' },
-  { id:'armor',    who:'turtle',  name:'Armor Shell',     price:250, desc:'Shark bites and cannonballs bounce right off you.' },
-  { id:'lungs',    who:'turtle',  name:'Deep Lungs',      price:150, desc:'Stay underwater three times longer.' },
-  { id:'crown',    who:'turtle',  name:'Flower Crown',    price:40,  desc:'Just for looks. So pretty.' },
-  { id:'pouch',    who:'otter',   name:'Pearl Pouch',     price:200, desc:'Pearls are worth double.' },
-  { id:'whiskers', who:'otter',   name:'Sniffer Whiskers',price:150, desc:'An arrow points to the nearest treasure chest.' },
-  { id:'bowtie',   who:'otter',   name:'Bow Tie',         price:30,  desc:'Just for looks. Very dapper.' },
+  { id:'turbo',    who:'all',     name:'Turbo Booster',    lv: Array.from({ length: 30 }, (_, i) => 1000*2**i), many: true,   // buy it again and again: each one doubles your speed and costs twice as much
+    say: n => `Each booster makes you twice as fast, whoever you play as, on top of your other gear. ${n ? `You have ${n}: ${2**n}× as fast!` : ''}` },
+  { id:'fins',     who:'swimmer', name:'Fins',             lv:[60, 150, 300, 550, 900],    say: fastSay },
+  { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',   lv:[40, 100, 200, 350, 600],    say: n => `Breathe with your face in the water, see farther, and ${breathSay(n).toLowerCase()}` },
+  { id:'light',    who:'swimmer', name:'Dive light',       lv:[120, 250, 450],             say: n => ['Lights up dark, deep water like the Mariana Trench.', 'A brighter light that shines farther.', 'The brightest light in the sea.'][n - 1] },
+  { id:'scuba',    who:'swimmer', name:'Scuba gear',       lv:[400, 600, 900, 1300, 1800], say: n => `A tank with about ${SCUBA_MIN[n - 1]} minutes of air. Dive to the deep sea floor and explore the shipwreck.` },
+  { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[25],                        say: () => 'Just because it looks amazing.' },
+  { id:'turbotail',who:'dolphin', name:'Turbo Tail',       lv:[80, 200, 400, 700, 1100],   say: fastSay },
+  { id:'blowhole', who:'dolphin', name:'Big Blowhole',     lv:[60, 150, 300, 500, 800],    say: breathSay },
+  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv:[150, 300, 500],             say: n => ['Jump twice as high.', 'Jump even higher.', 'Jump sky high!'][n - 1] },
+  { id:'sonar',    who:'dolphin', name:'Sonar',            lv:[200, 350, 550],             say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} seconds.` },
+  { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[60],                        say: () => 'Just for looks. Very fancy.' },
+  { id:'flippers', who:'turtle',  name:'Speed Flippers',   lv:[60, 150, 300, 550, 900],    say: fastSay },
+  { id:'lungs',    who:'turtle',  name:'Deep Lungs',       lv:[150, 300, 500, 800, 1200],  say: n => `Stay under water ${LUNGS[n - 1]} times longer.` },
+  { id:'armor',    who:'turtle',  name:'Armor Shell',      lv:[250],                       say: () => 'Nothing can hurt you: sharks, jellyfish and cannonballs bounce right off. (You still need air!)' },
+  { id:'crown',    who:'turtle',  name:'Flower Crown',     lv:[40],                        say: () => 'Just for looks. So pretty.' },
+  { id:'paws',     who:'otter',   name:'Zoom Paws',        lv:[70, 170, 350, 600, 1000],   say: fastSay },
+  { id:'bubblefur',who:'otter',   name:'Bubble Fur',       lv:[50, 130, 260, 450, 700],    say: n => `Real otters trap air in their fur. ${breathSay(n)}` },
+  { id:'pouch',    who:'otter',   name:'Pearl Pouch',      lv:[200, 400, 700],             say: n => `Pearls are worth ${['double', 'triple', 'four times as much'][n - 1]}.` },
+  { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[150],                       say: () => 'An arrow points to the nearest treasure chest.' },
+  { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[30],                        say: () => 'Just for looks. Very dapper.' },
 ];
-const SHOP_WHO = [['swimmer','For the Swimmer'], ['dolphin','For the Dolphin'], ['turtle','For the Sea Turtle'], ['otter','For the Otter']];
-const hasGear = id => (save.gear || []).includes(id) && curChar().id === (SHOP.find(i => i.id === id)?.who || 'swimmer');
+const SCUBA_MIN = [5, 7.5, 10, 15, 20], SONAR_WAIT = [12, 7, 3], LUNGS = [3, 4, 5, 6, 8];
+const SPEED_GEAR = { swimmer:'fins', dolphin:'turbotail', turtle:'flippers', otter:'paws' };
+const BREATH_GEAR = { swimmer:'snorkel', dolphin:'blowhole', otter:'bubblefur' };   // the turtle has Deep Lungs instead
+const SHOP_WHO = [['all','For everyone'], ['swimmer','For the Swimmer'], ['dolphin','For the Dolphin'], ['turtle','For the Sea Turtle'], ['otter','For the Otter']];
+// the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
+const ownedLv = id => Math.max((save.gearLv || {})[id] || 0, (save.gear || []).includes(id) ? 1 : 0);
+const gearLv = id => { const who = SHOP.find(i => i.id === id)?.who || 'swimmer'; return who === 'all' || who === curChar().id ? ownedLv(id) : 0; };
+const hasGear = id => gearLv(id) > 0;
+const gearFast = () => { const n = gearLv(SPEED_GEAR[curChar().id]); return (n ? FAST[n - 1] : 1)*2**gearLv('turbo'); };
+const gearBreath = () => { const n = gearLv(BREATH_GEAR[curChar().id]); return n ? BREATH[n - 1] : 0; };
 function addCoins(n, why){
   save.coins = (save.coins || 0) + n; persist();
   const c = $('coinChip'); c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
@@ -651,20 +678,24 @@ function addCoins(n, why){
 function renderShop(){
   $('shopNote').textContent = `You have ${save.coins || 0} coins. Each animal's gear works when you play as that animal.`;
   const box = $('shopItems'); box.innerHTML = '';
-  const order = [...SHOP_WHO].sort((a, b) => (b[0] === curChar().id) - (a[0] === curChar().id));   // your current animal's gear first
+  const order = [...SHOP_WHO].sort((a, b) => (b[0] === curChar().id || b[0] === 'all') - (a[0] === curChar().id || a[0] === 'all'));   // your current animal's gear first
   for (const [who, title] of order){
-    const c = CHARS.find(ch => ch.id === who), locked = xpNow() < c.need;
+    const c = CHARS.find(ch => ch.id === who), locked = !!c && xpNow() < c.need;
     const h = document.createElement('h3'); h.className = 'shopgroup'; h.textContent = title + (locked ? ` (unlocks at ${c.need.toLocaleString()} XP)` : ''); box.appendChild(h);
   for (const it of SHOP.filter(i => i.who === who)){
-    const own = (save.gear || []).includes(it.id), d = document.createElement('div'); d.className = 'item' + (own ? ' owned' : '');
-    d.innerHTML = `<h3>${it.name}</h3><p>${it.desc}</p>`;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (own ? 'secondary' : 'primary');
-    b.textContent = own ? 'Owned' : `Buy for ${it.price}`; b.disabled = own;
-    b.onclick = () => { if ((save.gear || []).includes(it.id) || performance.now() < shopLock) return;   // already yours, or a double tap
-      if ((save.coins || 0) < it.price){ sfx(200, .2, 'square', .04); $('shopNote').textContent = `You need ${it.price - (save.coins || 0)} more coins for the ${it.name.toLowerCase()}.`; return; }
-      shopLock = performance.now() + 500; save.gear = [...(save.gear || []), it.id]; save.coins -= it.price; persist(); flushCloud();   // gear first, so coins are never taken without it
+    const n = ownedLv(it.id), max = it.lv.length, full = n >= max, price = it.lv[n], d = document.createElement('div'); d.className = 'item' + (n ? ' owned' : '');
+    d.innerHTML = `<h3>${it.name}</h3>` + (max > 1 && !it.many ? `<div class="lvl" aria-label="Level ${n} of ${max}">${it.lv.map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}<span>${n ? `Level ${n}` : 'Not yet'}</span></div>` : '') +
+      `<p>${it.say(it.many ? n : Math.max(1, n))}</p>` + (n && !full && !it.many ? `<p class="next">Level ${n + 1}: ${it.say(n + 1)}</p>` : '') +
+      (max > 1 && !it.many && n + 1 < max ? `<p class="next">Top level ${max}: ${it.say(max)}</p>` : '');   // so you can see what you're saving up for, like twice as fast
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (full ? 'secondary' : 'primary');
+    b.textContent = full ? (max > 1 ? 'Top level!' : 'Owned') : n ? `${it.many ? 'Buy another' : 'Upgrade'} for ${price.toLocaleString()}` : `Buy for ${price.toLocaleString()}`; b.disabled = full;
+    b.onclick = () => { const k = ownedLv(it.id); if (k >= max || k !== n || performance.now() < shopLock) return;   // already done, or a double tap
+      if ((save.coins || 0) < price){ sfx(200, .2, 'square', .04); $('shopNote').textContent = `You need ${price - (save.coins || 0)} more coins for ${n ? `level ${n + 1} ${it.name.toLowerCase()}` : `the ${it.name.toLowerCase()}`}.`; return; }
+      shopLock = performance.now() + 500;   // gear first, so coins are never taken without it
+      if (!(save.gear || []).includes(it.id)) save.gear = [...(save.gear || []), it.id];
+      save.gearLv = { ...(save.gearLv || {}), [it.id]: n + 1 }; save.coins -= price; persist(); flushCloud();
       [784, 988, 1319].forEach((f, i) => sfx(f, .15, 'triangle', .06, i*.08)); renderShop(); pickShopBack();
-      $('shopNote').textContent = `You bought the ${it.name.toLowerCase()}! You have ${save.coins} coins left.`; };
+      $('shopNote').textContent = `${it.many ? `Turbo! You're now ${2**(n + 1)}× as fast` : n ? `Level ${n + 1} ${it.name.toLowerCase()}` : `You bought the ${it.name.toLowerCase()}`}! You have ${save.coins} coins left.`; };
     d.appendChild(b); box.appendChild(d);
   } }
 }
@@ -680,7 +711,7 @@ $('shopBtn').onclick = openShop; $('shopClose').onclick = closeShop;
    under water; the more you've swum, the longer you can stay down. */
 let diveBtnHeld = false;
 const diveHeld = () => !!keys[' '] || diveBtnHeld;
-const airMax = () => ((hasGear('scuba') ? 300 : 20) + 40*swimBonus())*(hasGear('lungs') ? 3 : 1);
+const airMax = () => ((gearLv('scuba') ? SCUBA_MIN[gearLv('scuba') - 1]*60 : 20 + gearBreath()) + 40*swimBonus())*(gearLv('lungs') ? LUNGS[gearLv('lungs') - 1] : 1);
 function diveStep(o, dt, maxDepth){
   if (o.depth == null){ o.depth = 0; o.vd = 0; o.pitch = 0; o.air = airMax(); }
   const want = !o.noDive && diveHeld() && !o.gasp;
@@ -819,7 +850,7 @@ function raceStroke(r){
   const q = again ? 'miss' : off < .085 ? 'perfect' : off < .17 ? 'good' : 'miss';
   if (q === 'miss'){ r.combo = 0; r.missed++; r.vx *= .85; r.vy *= .85; sfx(150, .12, 'sawtooth', .03); }
   else { r.lastBeat = k; r.combo = Math.min(8, r.combo + 1); q === 'perfect' ? r.perfect++ : r.good++;
-    const push = (q === 'perfect' ? 45 : 27)*(1 + .05*r.combo)*speedMul()*(hasGear('fins') ? 1.08 : 1);
+    const push = (q === 'perfect' ? 45 : 27)*(1 + .05*r.combo)*speedMul()*(1 + (gearFast() - 1)*.5);
     r.vx += Math.cos(r.ang)*push; r.vy += Math.sin(r.ang)*push; r.idle = 0;
     sfx(q === 'perfect' ? 660 + r.combo*40 : 440, .1, 'triangle', .05); strokeSplash(r, r.lastBeat % 2 ? 'la' : 'ra'); }
   r.beatFx = { q, t: time }; const b = $('strokeBtn'); b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 90);
@@ -1172,7 +1203,7 @@ function updCannons(o, dt){
    Nothing can bite you in mid-air. */
 function dolphinJump(){   // (the Rocket Fin makes the jump about twice as high)
   const o = ocean; if (mode !== 'ocean' || !o || paused || curChar().id !== 'dolphin' || o.onLand || o.ride || o.jumpY > 0 || (o.depth || 0) > .6) return;
-  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*(hasGear('rocketfin') ? 1.6 : 1); o.jumpY = .01; o.depth = 0; o.vd = 0;
+  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*[1, 1.6, 1.9, 2.3][gearLv('rocketfin')]; o.jumpY = .01; o.depth = 0; o.vd = 0;
   sfx(300, .3, 'sine', .06, 0, 320); for (let i=0;i<12;i++) bubble(o.x + (Math.random()-.5)*30, o.y + (Math.random()-.5)*30, (Math.random()-.5)*40, (Math.random()-.5)*40);
 }
 function jumpStep(o, dt){
@@ -1191,7 +1222,7 @@ let sonarUntil = 0, sonarReadyAt = 0, sonarHits = [];
 function sonarPing(){
   const o = ocean; if (mode !== 'ocean' || !o || paused || !hasGear('sonar')) return;
   if (time < sonarReadyAt){ banner('Sonar is recharging', `Ready in ${Math.ceil(sonarReadyAt - time)} s`); return; }
-  sonarReadyAt = time + 12; sonarUntil = time + 12; sonarHits = [];
+  sonarReadyAt = time + SONAR_WAIT[gearLv('sonar') - 1]; sonarUntil = time + 12; sonarHits = [];
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH), R = 60*METERS;
   for (let a=-3;a<=3;a++) for (let b=-3;b<=3;b++){ const c = getChunk(cx + a, cy + b);
     for (const p of c.pearls) if (!taken.has(p.id) && Math.hypot(p.x - o.x, p.y - o.y) < R) sonarHits.push({ x: p.x, y: p.y, k: 'pearl' });
@@ -1703,7 +1734,35 @@ function groundAt(x, y){
 function landObstacles(){
   const hx = HOUSE.x, hy = HOUSE.y;
   return [[-24, -32, 46], ...islandPlants().map(p => [p.x/U, p.z/U, p.kind === 'palm' ? 12 : 22]),
-    [hx, hy, 118], [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
+    [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
+}
+// Your house is hollow, so its walls and furniture are solid one by one: boxes [x0, z0, x1, z1] in meters,
+// in the house's own frame (turned 45 degrees, door facing +z), matching buildHouse().
+const HOUSE_SOLID = [[-2.5, -2, 2.5, -1.85], [-2.5, -2, -2.35, 2], [2.35, -2, 2.5, 2], [-2.5, 1.85, -.75, 2], [.75, 1.85, 2.5, 2],   // walls
+  [-2.35, -1.85, -1.25, .15], [.6, -1.85, 2, -1.38], [.95, .1, 2.05, 1.1], [-1.05, -1.8, -.75, -1.4]];                       // bed, fish tank, table, lamp
+const HOUSE_TURN = Math.SQRT1_2;
+function houseLocal(o){ const wx = (o.x - HOUSE.x)*U, wz = (o.y - HOUSE.y)*U; return [(wx - wz)*HOUSE_TURN, (wx + wz)*HOUSE_TURN]; }
+function houseCollide(o){
+  let [lx, lz] = houseLocal(o); o.inHouse = false; if (Math.abs(lx) > 4 || Math.abs(lz) > 4) return;
+  const rr = .28, x0 = lx, z0 = lz;
+  if (Math.abs(lz - 1.92) < .7 && Math.abs(lx) < 1.1) lx *= .9;   // the doorway gently lines you up, so you don't snag on its edges
+  for (const [a, b, c, d] of HOUSE_SOLID){
+    const px = clamp(lx, a, c), pz = clamp(lz, b, d), dx = lx - px, dz = lz - pz, dd = Math.hypot(dx, dz);
+    if (dd >= rr) continue;
+    if (dd > 1e-6){ lx = px + dx/dd*rr; lz = pz + dz/dd*rr; }
+    else { const out = [[a - rr - lx, 0], [c + rr - lx, 0], [0, b - rr - lz], [0, d + rr - lz]].sort((p, q) => Math.hypot(...p) - Math.hypot(...q))[0]; lx += out[0]; lz += out[1]; } }   // stuck inside: out the nearest side
+  if (lx !== x0 || lz !== z0){ const mx = lx - x0, mz = lz - z0; o.x += (mx + mz)*HOUSE_TURN/U; o.y += (mz - mx)*HOUSE_TURN/U; }
+  o.inHouse = Math.abs(lx) < 2.35 && Math.abs(lz) < 1.85;
+  if (o.inHouse && !o.houseHi){ o.houseHi = true; banner('Home sweet home!', 'You walked into your house'); sfx(660, .12, 'triangle', .05); sfx(880, .16, 'triangle', .05, .1); }
+}
+// Inside, the roof comes off and the walls go down so you can see yourself. The door opens when you're near it.
+function houseLook(o, dt){
+  const u = houseGroup?.userData.inside; if (!u) return;
+  const near = o && mode === 'ocean' && o.onLand && !building, [lx, lz] = near ? houseLocal(o) : [99, 99];
+  const cut = near && o.inHouse && camMode !== 'first' ? 1 : 0; u.cut += (cut - u.cut)*Math.min(1, dt*6);
+  u.walls.scale.y = 1 - .7*u.cut; u.tall.visible = u.top.visible = u.cut < .5;
+  const open = Math.hypot(lx, lz - 2) < 2.2 ? -1.7 : 0; u.hinge.rotation.y += (open - u.hinge.rotation.y)*Math.min(1, dt*5);
+  if (Math.abs(lx) < 6 && Math.abs(lz) < 6) for (const f of u.tankFish){ const a = time*.6 + f.userData.ph; f.position.x = 1.3 + Math.sin(a)*.45; f.rotation.y = Math.cos(a) > 0 ? 0 : Math.PI; }
 }
 // where the palms and bushes grow (meters), placed once so the 3D island and the collisions agree
 let plantsCache = null;
@@ -1722,7 +1781,7 @@ function walkStep(o, dt){
   o.x += o.vx*dt; o.y += o.vy*dt;
   o.walkPh = (o.walkPh || 0) + dt*(walking ? 8 : 0); o.walking = walking;
   o.depth = 0; o.vd = 0; o.pitch = 0; o.idle = 0; o.air = airMax(); o.gasp = false;
-  blockCollide(o);
+  blockCollide(o); houseCollide(o);
   for (const [cx, cy, r] of landObstacles()){ const dx = o.x - cx, dy = o.y - cy, d = Math.hypot(dx, dy), rr = r + 12;
     if (d < rr && d > 1e-6){ o.x = cx + dx/d*rr; o.y = cy + dy/d*rr; } }
 }
@@ -1799,7 +1858,8 @@ function updOcean(dt){
       if (dep + .25 < jd - j.size*.6 || dep - .25 > jd + j.tl) continue;
       const reach = j.size*.9*40 + 6;
       if (bodyPoints(o).some(([bx, by]) => Math.hypot(bx - jx, by - jy) < reach)){
-        if (j.deadly){ die('jelly'); return; }
+        if (j.deadly && !hasGear('armor')){ die('jelly'); return; }
+        if (j.deadly && time > (o.jellyClang || 0)){ o.jellyClang = time + 3; sfx(900, .15, 'triangle', .06); banner('Clang!', 'The jellyfish stung your armor shell. It didn\'t hurt!'); }
         const d = Math.hypot(o.x - jx, o.y - jy) || 1; hit(o, (o.x - jx)/d, (o.y - jy)/d, 3); } } }
   d = Math.hypot(o.x, o.y);
   updSharks(o, dt); if (mode === 'dead') return;
@@ -1839,7 +1899,7 @@ function updOcean(dt){
   const pcx = Math.floor(o.x/CH), pcy = Math.floor(o.y/CH);
   for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++){
     for (const p of getChunk(pcx+a,pcy+b).pearls){ if (taken.has(p.id)) continue;
-      if (Math.hypot(p.x-o.x,p.y-o.y) < 36){ taken.add(p.id); save.pearls++; addCoins(hasGear('pouch') ? 10 : 5); addXP(3);
+      if (Math.hypot(p.x-o.x,p.y-o.y) < 36){ taken.add(p.id); save.pearls++; addCoins(5*(1 + gearLv('pouch'))); addXP(3);
         for (let i=0;i<10;i++){ const an = i/10*TAU; bubble(p.x,p.y,Math.cos(an)*90,Math.sin(an)*90,3,.6,'rgba(255,245,200,.9)'); }
         sfx(1200,.08,'sine',.07); sfx(1600,.12,'sine',.06,.06); } } }
   // treasure chests and shells on the sea floor: dive down to them
@@ -2297,6 +2357,7 @@ function updDiveLight(dark){
   if (on && !diveLight){ diveLight = new THREE.SpotLight(0xfff4dd, 60, 32, .5, .55, 1.3); oceanScene.add(diveLight, diveLight.target); }
   if (!diveLight) return;
   diveLight.visible = on; if (!on) return;
+  { const n = gearLv('light') || 1; diveLight.intensity = [60, 95, 140][n - 1]; diveLight.distance = [32, 46, 62][n - 1]; }
   diveLight.position.copy(camera.position); const f = new THREE.Vector3(); camera.getWorldDirection(f); diveLight.target.position.copy(camera.position).addScaledVector(f, 10);
 }
 function buildPenguin(){
@@ -2820,13 +2881,42 @@ function buildHouse(){
   const lawn = new THREE.Mesh(new THREE.CylinderGeometry(R - 2, R - 1.2, .3, 40), std(0x5aa843, .9)); lawn.position.y = .5; lawn.receiveShadow = true; g.add(lawn);
   const H = new THREE.Group(); H.position.set(0, .65, 0); H.rotation.y = Math.PI/4; g.add(H);
   const wall = std(0xf3e2b3, .8), trim = std(0xffffff, .5), roofM = std(0xc8453a, .7), glass = new THREE.MeshStandardMaterial({ color: 0x9fd8f2, roughness: .1, metalness: .2, emissive: 0x3a6a80, emissiveIntensity: .3 });
-  const box = new THREE.Mesh(new THREE.BoxGeometry(5, 3, 4), wall); box.position.y = 1.5; box.castShadow = box.receiveShadow = true; H.add(box);
+  // The house is hollow: walk in through the front door. Everything below is in meters, in the house's own frame
+  // (the door faces +z). HOUSE_SOLID matches these walls and furniture.
+  const inM = (color, glow = .3) => new THREE.MeshStandardMaterial({ color, roughness: .8, emissive: color, emissiveIntensity: glow });   // indoors glows a little, so it isn't dark under the roof
+  const add = (parent, geo, mat, x, y, z, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true; parent.add(m); return m; };
+  const walls = new THREE.Group(), tall = new THREE.Group(), top = new THREE.Group(); H.add(walls, tall, top);   // when you're inside, the walls shrink and `tall` and `top` hide
+  const wallIn = inM(0xf3e2b3, .15);
+  add(H, new THREE.BoxGeometry(5, .06, 4), inM(0xb98553, .25), 0, .03, 0, false);                                   // wooden floor
+  add(walls, new THREE.BoxGeometry(5, 3, .15), wallIn, 0, 1.5, -1.925); add(walls, new THREE.BoxGeometry(.15, 3, 4), wallIn, -2.425, 1.5, 0);
+  add(walls, new THREE.BoxGeometry(.15, 3, 4), wallIn, 2.425, 1.5, 0);
+  for (const x of [-1.625, 1.625]) add(walls, new THREE.BoxGeometry(1.75, 3, .15), wallIn, x, 1.5, 1.925);                // front wall, with a gap for the door
+  add(tall, new THREE.BoxGeometry(1.5, 1, .15), wallIn, 0, 2.5, 1.925);                                               // above the door
+  add(top, new THREE.BoxGeometry(5, .1, 4), inM(0xfff6e0, .25), 0, 3.05, 0);                                          // ceiling
   const rg = new THREE.CylinderGeometry(3.4, 3.4, 5.6, 3, 1); rg.rotateZ(Math.PI/2); rg.scale(1, .55, 1);
-  const roof = new THREE.Mesh(rg, roofM); roof.position.y = 3.95; roof.castShadow = true; H.add(roof);
-  const chim = new THREE.Mesh(new THREE.BoxGeometry(.6, 1.4, .6), std(0x9a5a45, .9)); chim.position.set(1.4, 4.6, .8); H.add(chim);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(1, 2, .08), std(0x2f6bff, .5)); door.position.set(0, 1, 2.02); H.add(door);
-  for (const x of [-1.6, 1.6]){ const w = new THREE.Mesh(new THREE.BoxGeometry(1, .9, .06), glass); w.position.set(x, 1.8, 2.02); H.add(w);
-    const f = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.05, .04), trim); f.position.set(x, 1.8, 2.0); H.add(f); }
+  add(top, rg, roofM, 0, 3.95, 0); add(top, new THREE.BoxGeometry(.6, 1.4, .6), std(0x9a5a45, .9), 1.4, 4.6, .8);
+  const hinge = new THREE.Group(); hinge.position.set(-.75, 0, 1.96); tall.add(hinge);                                // the door swings open when you walk up to it
+  add(hinge, new THREE.BoxGeometry(1.5, 2, .08), std(0x2f6bff, .5), .75, 1, 0);
+  add(hinge, new THREE.SphereGeometry(.06, 10, 8), std(0xffd24a, .3, .8), 1.35, 1, .07, false);
+  for (const x of [-1.6, 1.6]){ add(tall, new THREE.BoxGeometry(1, .9, .06), glass, x, 1.8, 2.02, false); add(tall, new THREE.BoxGeometry(1.15, 1.05, .04), trim, x, 1.8, 2.0, false);
+    add(tall, new THREE.BoxGeometry(1, .9, .04), glass, x, 1.8, 1.83, false); }                                        // windows, outside and in
+  for (const x of [-2.52, -2.33, 2.33, 2.52]) add(tall, new THREE.BoxGeometry(.04, .9, 1), glass, x, 1.8, x < 0 ? .3 : -.4, false);
+  // inside: a bed, a rug, a table with chairs, a fish tank, a lamp and a picture
+  add(H, new THREE.BoxGeometry(1.1, .35, 2), inM(0x8a5a3a), -1.8, .2, -.85);
+  add(H, new THREE.BoxGeometry(1.14, .14, 1.45), inM(0xf28fb5), -1.8, .43, -.52);
+  add(H, new THREE.BoxGeometry(.8, .16, .4), inM(0xffffff, .2), -1.8, .46, -1.55);
+  add(H, new THREE.BoxGeometry(1.1, .9, .1), inM(0x8a5a3a), -1.8, .45, -1.82);                                         // headboard
+  add(H, new THREE.CylinderGeometry(1.1, 1.1, .02, 28), inM(0x3fb6a8, .25), 0, .07, .3, false);
+  add(H, new THREE.CylinderGeometry(.5, .5, .06, 20), inM(0xc89060), 1.5, .75, .6); add(H, new THREE.CylinderGeometry(.06, .08, .72, 8), inM(0x8a5a3a), 1.5, .38, .6);
+  for (const x of [.85, 2.15]){ add(H, new THREE.BoxGeometry(.4, .06, .4), inM(0xffc53d), x, .45, .6); add(H, new THREE.BoxGeometry(.06, .5, .4), inM(0xffc53d), x + (x < 1.5 ? -.2 : .2), .7, .6); }
+  add(H, new THREE.BoxGeometry(1.4, .8, .45), inM(0x5a3a2a), 1.3, .4, -1.6);
+  add(H, new THREE.BoxGeometry(1.3, .7, .4), new THREE.MeshStandardMaterial({ color: 0x5ec8f0, transparent: true, opacity: .45, roughness: .05, emissive: 0x1a6a90, emissiveIntensity: .5 }), 1.3, 1.16, -1.6, false);
+  add(H, new THREE.BoxGeometry(1.26, .08, .36), inM(0xe9d8a6, .4), 1.3, .85, -1.6, false);                          // sand in the fish tank
+  const tankFish = [0xff7a3d, 0xffd24a, 0x3c78d8].map((c, i) => { const f = add(H, new THREE.ConeGeometry(.05, .16, 6).rotateZ(Math.PI/2), inM(c, .6), 1.3, 1.05 + i*.12, -1.6, false); f.userData.ph = i*2.1; return f; });
+  add(H, new THREE.CylinderGeometry(.03, .03, 1.5, 6), std(0x333333, .4, .5), -.9, .75, -1.6, false);
+  add(H, new THREE.ConeGeometry(.28, .3, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xffe08a, emissive: 0xffc040, emissiveIntensity: 1.2, side: THREE.DoubleSide }), -.9, 1.55, -1.6, false);
+  { const pic = add(tall, new THREE.PlaneGeometry(.9, .6), new THREE.MeshBasicMaterial({ map: labelTex('HOME', '#3fb6a8', '#fff', 300, 200, 90) }), -2.34, 1.9, -.9, false); pic.rotation.y = Math.PI/2; }
+  g.userData.inside = { walls, tall, top, hinge, tankFish, cut: 0 };
   // porch and a little dock reaching toward the water
   const plank = std(0x9a7050, .9);
   const dock = new THREE.Mesh(new THREE.BoxGeometry(1.6, .15, 7), plank); dock.position.set(0, .45, R + 1.5); dock.castShadow = true; dock.name = 'dock'; g.add(dock);
@@ -3547,6 +3637,7 @@ function placeCamera(px, py, pz, heading, dt, kind, sub = 0, floorY = -99){
   if (kind === 'title'){ const a = Math.sin(time*.15); _tp.set(px + 2.6 + a*1.2, 1.5, pz - 4.4); _tl.set(px - .3, -.15, pz + .4); }
   else if (camMode === 'top' && sub > 0){ _tp.set(px, py + 6, pz + 2); _tl.set(px, py, pz - .5); }
   else if (camMode === 'top'){ _tp.set(px, 15, pz + 4.5); _tl.set(px, 0, pz - 1); }
+  else if (kind === 'house'){ _tp.set(px - fx*2.6, py + 3.6, pz - fz*2.6); _tl.set(px + fx*1.2, py - .5, pz + fz*1.2); }   // inside your house: look down over the lowered walls
   else { const d = kind === 'ship' ? 3.3 : lerp(kind === 'race' ? 5.6 : 4.8, 3.3, sub), h = kind === 'ship' ? 1.2 : lerp(kind === 'race' ? 3.1 : 2.4, .55, sub);   // on deck the camera stays low, under the sails
     _tp.set(px - fx*d, Math.max(floorY, py + h), pz - fz*d); _tl.set(px + fx*3.2, py - .2 + sub*.1, pz + fz*3.2); }
   const k = camInit ? 1 - Math.exp(-dt*5) : 1; camPos.lerp(_tp, k); camLook.lerp(_tl, k); camInit = true;
@@ -3610,7 +3701,8 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
+    houseLook(ocean, dt);
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105);
@@ -3666,6 +3758,7 @@ function madeItHome(o){
 // Running out of air or getting caught by a shark ends your swim.
 function die(cause){
   if (mode === 'dead') return;
+  if (cause !== 'air' && mode === 'ocean' && hasGear('armor')) return;   // the armor shell keeps a turtle safe from everything except running out of air
   deadIn = mode; const where = mode, lesson = race && race.lesson;
   $('airChip').hidden = true; $('rideBtn').hidden = true; limbQueue.length = 0;
   sfx(220, .5, 'sine', .08, 0, -120); sfx(150, .7, 'sine', .08, .35, -80);
