@@ -4148,6 +4148,17 @@ $('continueBtn').onclick = async () => {
   } finally { btn.disabled = false; arrangeTitle(); }
 };
 
+/* ---------- No zooming ----------
+   iPad browsers ignore the viewport's user-scalable=no, so kids pinching or double-tapping zoomed the whole game.
+   Block the zoom gestures themselves; the game reads touches as pointer events, so the joystick and camera drag still work. */
+for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });   // pinch (Safari and iPad Chrome)
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => { const now = performance.now();   // double-tap zoom, but not on text boxes
+  if (now - lastTouchEnd < 320 && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });   // trackpad pinch and Ctrl+scroll on computers
+addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && ['+', '=', '-', '_', '0'].includes(e.key)) e.preventDefault(); });   // Ctrl/Cmd plus, minus, zero
+
 /* ---------- Main loop ---------- */
 let last = performance.now(), chipT = 0;
 function frame(now){
