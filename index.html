@@ -3470,7 +3470,9 @@ let houseGroup = null;
 /* Neighbors: when you clone a swimmer, the clone's island goes right next to the original's. You can see each other's
    islands, houses and blocks and walk over to visit, but you can only build on your own. Each: { iid, name, house, blocks, group }. */
 const neighborMats = [];
+let neighborsSig = '';
 function setNeighbors(list){
+  const sig = JSON.stringify(list.map(d => [d.iid, d.name, d.house, d.build]).sort()); if (sig === neighborsSig) return; neighborsSig = sig;   // nothing new next door
   for (const n of neighbors) if (n.group) oceanWorld?.remove(n.group);
   neighbors = list.map(d => ({ iid: d.iid, name: (d.name || 'A friend').slice(0, 20), house: d.house, blocks: parseBuild(d.build || '') }));
   chunks.clear(); lastChunkKey = '';   // clear the reef off their islands
@@ -4567,6 +4569,8 @@ async function loadNeighbors(){
   try { if (save.near){ const d = await fsReq(`/islands/${save.near}`), v = d && fsData(d); if (v) found.push({ iid: save.near, ...v }); }
     found.push(...await islandsNear(me)); } catch(e){ return; }
   setNeighbors(found.filter(n => n.house && n.iid !== me && Math.hypot(n.house.x - save.house.x, n.house.y - save.house.y) > 600)); }
+// neighbors can appear (someone clones you) or build while you're playing: look again every 30 seconds
+setInterval(() => { if (mode === 'ocean' && account?.sid && !document.hidden) loadNeighbors(); }, 30000);
 let swimmers = [], pendingClone = null, pendingNew = false;
 const newSwimmer = label => Object.assign(fresh(), { sid: newSid(), label });
 function playSwimmer(sv, hello){
