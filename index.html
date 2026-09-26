@@ -87,6 +87,7 @@
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
+  .chip.boats{background:#c9f0e0;font-family:var(--display);font-size:17px}
   #sleepFade{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;transition:opacity 1.2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
     background:radial-gradient(circle at 50% 35%,#1d2f63,#060c1f 70%)}
   #sleepFade.on{opacity:1}
@@ -262,12 +263,13 @@
     <button class="chip" id="swimmerBtn" type="button">Menu</button>
     <button class="chip" id="viewBtn" type="button">View</button>
     <button class="chip build" id="buildBtn" type="button" hidden>Build</button>
+    <button class="chip boats" id="boatBtn" type="button" hidden>Boats</button>
   </div>
 </div>
 
 <div id="limbs" class="limbs" hidden>
   <div id="stickPad" class="stickpad" aria-label="Joystick: drag to swim"><div id="stickKnob" class="knob"></div></div>
-  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb jump" id="sonarBtn" type="button" hidden>Sonar<small>P</small></button><button class="limb jump" id="jumpBtn" type="button" hidden>Jump<small>J</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
+  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb jump" id="sonarBtn" type="button" hidden>Sonar<small>P</small></button><button class="limb jump" id="jumpBtn" type="button" hidden>Jump<small>J</small></button><button class="limb jump" id="upBtn" type="button" hidden>Up<small>hold</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
 </div>
 <button id="rideBtn" class="ridebtn" type="button" hidden>Ride the dolphin<small>E</small></button>
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
@@ -288,7 +290,7 @@
       <li><b>Swim</b>Use the joystick, or <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / arrow keys, to swim. Hold <kbd>Space</kbd> or Dive to go under. Drag the screen to look around.</li>
       <li><b>Stay alive</b>Keep moving or you'll sink. Come up for air. Stay away from sharks and red jellyfish.</li>
       <li><b>Build &amp; explore</b>Press Build on your island to place blocks. Press <kbd>T</kbd> to talk to people and animals, and <kbd>M</kbd> for your map.</li>
-      <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, talk to people and find new places. Coins buy gear for every animal at the Dive Shop, and you can upgrade each piece, level by level, to swim faster and hold your breath longer. Every Turbo Booster doubles your speed again! XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
+      <li><b>Coins &amp; XP</b>Grab pearls and shells, open treasure chests, talk to people and find new places. Coins buy gear for every animal at the Dive Shop, and you can upgrade each piece, level by level, to swim faster and hold your breath longer. Every Turbo Booster doubles your speed again! You can also buy kayaks, canoes, boats, a submarine and a pirate ship. XP makes you faster and unlocks new swimmers: turtle, otter, dolphin.</li>
     </ul>
     <div class="actions">
       <button id="startBtn" class="btn primary" type="button">Start Game</button>
@@ -363,6 +365,14 @@
     <p class="savechip" id="shopNote"></p>
     <div class="shop" id="shopItems"></div>
     <div class="row2"><button id="shopClose" class="btn secondary" type="button">Back to swimming</button></div>
+  </div>
+</div>
+
+<div id="boatPanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker">Your boats</p><h2>Which one?</h2></div>
+    <div class="actions" id="boatList"></div>
+    <button id="boatClose" class="btn secondary" type="button">Back to swimming</button>
   </div>
 </div>
 
@@ -544,6 +554,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 't' && !e.repeat) talkToFriend();
   if (k === 'z' && !e.repeat) goToSleep();
   if (k === 'r' && !e.repeat) startClimb();
+  if (k === 'v' && !e.repeat && mode === 'ocean' && !paused) boatsButton();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
   if (k === 'j' && !e.repeat) dolphinJump();
@@ -553,6 +564,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
 function closeTopWindow(){
   if (!$('shopPanel').hidden) closeShop();
   else if (!$('mapPanel').hidden) closeMap();
+  else if (!$('boatPanel').hidden) closeBoats();
   else if (!$('loginPanel').hidden){ if (!$('loginBack').hidden) $('loginBack').click(); }
   else if (!$('movePanel').hidden) $('moveClose').click();
   else if (!$('panel').hidden) closePanel();
@@ -560,7 +572,7 @@ function closeTopWindow(){
   else return false;
   return true; }
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
-for (const id of ['shopPanel', 'mapPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -691,6 +703,12 @@ const SHOP = [
   { id:'bubblefur',who:'otter',   name:'Bubble Fur',       lv:[50, 130, 260, 450, 700], inf: true, say: n => `Real otters trap air in their fur. ${breathSay(n)}` },
   { id:'pouch',    who:'otter',   name:'Pearl Pouch',      lv:[200, 400, 700], inf: true,  say: n => `Pearls are worth ${n === 1 ? 'double' : `${n + 1} times as much`}.` },
   { id:'magnet',   who:'all',     name:'Pearl Magnet',     lv:[150, 300, 550, 900, 1400],  say: n => `Pearls within ${MAGNET_M[n - 1]} m fly to you like a magnet.` },   // capped on purpose: no vacuuming up the whole sea
+  { id:'kayak',    who:'all', boat: true, name:'Kayak',      lv:[250],  say: () => 'Paddle along at about 8 mph. Swim into the water and tap Boats.' },
+  { id:'canoe',    who:'all', boat: true, name:'Canoe',      lv:[400],  say: () => 'A wooden canoe, about 9 mph. Swim into the water and tap Boats.' },
+  { id:'sailboat', who:'all', boat: true, name:'Sailboat',   lv:[900],  say: () => 'Sail with the wind at about 16 mph.' },
+  { id:'motorboat',who:'all', boat: true, name:'Speedboat',  lv:[1500], say: () => 'Zoom across the waves at about 31 mph!' },
+  { id:'sub',      who:'all', boat: true, name:'Submarine',  lv:[2500], say: () => 'Dive all the way to the sea floor with all the air you want. Hold Dive to go down and Up to come back up.' },
+  { id:'ship',     who:'all', boat: true, name:'Pirate Ship',lv:[4000], say: () => 'Your very own sailing ship, about 20 mph. Arr!' },
   { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[150],                       say: () => 'An arrow points to the nearest treasure chest.' },
   { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[30],                        say: () => 'Just for looks: shows on the Otter. Very dapper.' },
 ];
@@ -699,7 +717,7 @@ const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['sn
 // the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
 const SHOP_GROUPS = [['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
   ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['magnet', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
-  ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']]];
+  ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']], ['Boats & submarines', ['kayak', 'canoe', 'sailboat', 'motorboat', 'sub', 'ship']]];
 // the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
 const ownedLv = id => Math.max((save.gearLv || {})[id] || 0, (save.gear || []).includes(id) ? 1 : 0);
 // all gear works whoever you play as, unless you've taken it off (save.off lists unequipped gear)
@@ -732,9 +750,9 @@ function renderShop(){
       if (!(save.gear || []).includes(it.id)) save.gear = [...(save.gear || []), it.id];
       save.gearLv = { ...(save.gearLv || {}), [it.id]: n + 1 }; save.coins -= price; persist(); flushCloud();
       [784, 988, 1319].forEach((f, i) => sfx(f, .15, 'triangle', .06, i*.08)); renderShop(); pickShopBack();
-      $('shopNote').textContent = `${it.many ? `Turbo! You're now ${2**(n + 1)}× as fast` : n ? `Level ${n + 1} ${it.name.toLowerCase()}` : `You bought the ${it.name.toLowerCase()}`}! You have ${save.coins} coins left.`; };
+      $('shopNote').textContent = `${it.boat ? `You bought the ${it.name.toLowerCase()}! Swim into the water and tap Boats to get in` : it.many ? `Turbo! You're now ${2**(n + 1)}× as fast` : n ? `Level ${n + 1} ${it.name.toLowerCase()}` : `You bought the ${it.name.toLowerCase()}`}! You have ${save.coins} coins left.`; };
     d.appendChild(b);
-    if (n){ const e = document.createElement('button'), on = equipped(it.id); e.type = 'button'; e.className = 'btn equip' + (on ? ' on' : '');   // take gear off and put it back on, for free
+    if (n && !it.boat){ const e = document.createElement('button'), on = equipped(it.id); e.type = 'button'; e.className = 'btn equip' + (on ? ' on' : '');   // take gear off and put it back on, for free
       e.textContent = on ? 'Equipped ✓ (tap to take off)' : 'Not equipped (tap to put on)';
       e.onclick = () => { save.off = on ? [...(save.off || []), it.id] : (save.off || []).filter(x => x !== it.id); persist(); flushCloud(); sfx(on ? 520 : 780, .08, 'triangle', .05);
         renderShop(); pickShopBack(); $('shopNote').textContent = `${on ? 'Took off' : 'Put on'} the ${it.name.toLowerCase()}.`; };
@@ -1239,7 +1257,7 @@ const GRAV = 9.8;
 function updCannons(o, dt){
   o.balls = o.balls || []; o.cannonT = o.cannonT ?? 2;
   const mode_ = sharkMode();
-  if (afloatShip && !o.onShip && !o.onBoat && mode_ !== 'friendly'){
+  if (afloatShip && !o.onShip && !o.onBoat && !o.vehicle && mode_ !== 'friendly'){
     const [lx, lz] = shipLocal(o.x, o.y), d = Math.hypot(lx, lz);
     if (d > 9 && d < 55 && (o.depth || 0) < 1.2 && !o.onLand){
       if (!o.pirateTold){ o.pirateTold = true; coach("Pirates! They're firing cannons at you. When you hear BOOM, swerve or dive under. Or sneak to a rope ladder and climb aboard.", 9); }
@@ -1473,7 +1491,7 @@ $('bRemove').onclick = () => { buildRemove = !buildRemove; renderPalette(); };
 $('bZoomIn').onclick = () => { buildZoom = Math.max(7, buildZoom - 3); };
 $('bZoomOut').onclick = () => { buildZoom = Math.min(30, buildZoom + 3); };
 // Menu: jump straight to your island once you've found it
-$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
+$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.vehicle = null; o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
   o.onShip = false; o.onBoat = null; o.ride = null; o.ang = -Math.PI/2; camInit = false; banner('Welcome home!', 'Press Build to build around your house'); };
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
   if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y); }
@@ -1658,6 +1676,7 @@ function toggleRide(){
   const o = ocean; if (mode !== 'ocean' || !o || paused) return;
   if (o.onShip){ jumpOffShip(); return; }
   if (o.onBoat){ jumpOffBoat(); return; }
+  if (o.vehicle){ leaveVehicle(); return; }
   { const side = shipLadderNear(o); if (side){ climbShip(side); return; } }
   { const bt = boatNear(o); if (bt){ climbBoat(bt); return; } }
   if (o.ride){   // let go: you keep the dolphin's speed for a moment
@@ -1736,7 +1755,7 @@ function updSharks(o, dt){
     const zz = zoneAt(x, y); if (zz !== 0){ const k = predFor(zz, curChar().id); o.sharks.push({ k, x, y, cx:x, cy:y, depth: k === 'squid' ? 6 : 1.6, dT: k === 'squid' ? 6 : 1.6, ang:Math.random()*TAU, state:'patrol', t:0, pa:Math.random()*TAU, ph:Math.random()*TAU }); } }
   let chasing = false;
   for (const s of o.sharks){
-    const dx = o.x - s.x, dy = o.y - s.y, d = Math.hypot(dx, dy), safe = o.zone === 0 || !!o.onLand || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 1500;
+    const dx = o.x - s.x, dy = o.y - s.y, d = Math.hypot(dx, dy), safe = o.zone === 0 || !!o.onLand || !!o.vehicle || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 1500;
     s.t += dt;
     const set = st => { s.state = st; s.t = 0; };
     if (s.state === 'patrol'){
@@ -1840,6 +1859,110 @@ function sleepStep(o){
   if (o.sleeping.done && wantHeading()){ o.sleeping = null; [o.x, o.y] = toHouseWorld(-.95, -.6); o.ang = -Math.PI/4; camInit = false; }   // hop out beside the bed
 }
 $('sleepBtn').onclick = () => { initAudio(); goToSleep(); };
+
+/* ---------- Boats you own ----------
+   Buy them at the Dive Shop. In the water, tap Boats (or V) to get in, steer with the joystick, and tap Get out (or E) to swim again.
+   Boats keep you safe from sharks, jellyfish and cannons, and you never run out of air. The submarine dives: hold Dive to go down, Up to rise.
+   speed is m/s, turn is radians a second, len is half the hull length (m), seat is where you sit above the water, cam is [distance, height]. */
+const VEH = {
+  kayak:     { speed: 3.5, turn: 2.2, len: 1.6, seat: .12, cam: [4.8, 2.4], sit: true },
+  canoe:     { speed: 4,   turn: 2,   len: 2.1, seat: .2,  cam: [5.2, 2.6], sit: true },
+  sailboat:  { speed: 7,   turn: 1.3, len: 2.6, seat: .46, cam: [7, 3.6] },
+  motorboat: { speed: 14,  turn: 2,   len: 2.4, seat: .43, cam: [6.5, 3] },
+  sub:       { speed: 6,   turn: 1.4, len: 2.2, seat: 0,   cam: [7, 2.6], sub: true, hide: true },
+  ship:      { speed: 9,   turn: .8,  len: 5,   seat: 1,   cam: [12, 6], at: -2.4 } };   // at: where you stand, meters toward the bow
+let upBtnHeld = false;
+const upHeld = () => upBtnHeld || !!keys.q || !!keys.shift;
+const ownedBoats = () => Object.keys(VEH).filter(id => ownedLv(id));
+const canBoard = o => o && mode === 'ocean' && !o.onLand && !o.onShip && !o.onBoat && !o.ride && !o.vehicle && !(o.jumpY > 0);
+function boatsButton(){
+  const o = ocean; if (!o) return;
+  if (o.vehicle){ leaveVehicle(); return; }
+  const mine = ownedBoats();
+  if (!mine.length){ banner('No boats yet', 'Buy one at the Dive Shop on Pool Island'); return; }
+  if (!canBoard(o)){ banner('Swim into the water first', 'Then tap Boats to get in'); return; }
+  if (mine.length === 1){ board(mine[0]); return; }
+  const box = $('boatList'); box.innerHTML = '';
+  for (const id of mine){ const b = document.createElement('button'); b.type = 'button'; b.className = 'btn primary'; b.textContent = SHOP.find(i => i.id === id).name;
+    b.onclick = () => { closeBoats(); board(id); }; box.appendChild(b); }
+  paused = true; $('boatPanel').hidden = false; resetPick();
+}
+function closeBoats(){ $('boatPanel').hidden = true; paused = false; graceAfterPause(); }
+$('boatClose').onclick = closeBoats;
+function board(id){
+  const o = ocean; if (!canBoard(o)) return; const V = VEH[id];
+  o.vehicle = id; o.vd = 0; o.pitch = 0; o.depth = V.sub ? Math.max(0, o.depth || 0) : 0; o.air = airMax(); camInit = false;
+  [392, 523, 659].forEach((f, i) => sfx(f, .12, 'triangle', .06, i*.1));
+  const name = SHOP.find(i => i.id === id).name.toLowerCase();
+  banner(`You're in your ${name}!`, V.sub ? 'Hold Dive to go down, Up to come up · Get out (E) to swim' : 'Steer with the joystick · Get out (E) to swim');
+}
+function leaveVehicle(){
+  const o = ocean, V = VEH[o.vehicle]; if (!V) return;
+  o.vehicle = null; o.x += Math.cos(o.ang + Math.PI/2)*(V.len*.6 + .8)*METERS*.5; o.y += Math.sin(o.ang + Math.PI/2)*(V.len*.6 + .8)*METERS*.5;   // hop off the side
+  o.depth = V.sub ? o.depth : .3; o.vx *= .2; o.vy *= .2; o.air = airMax(); o.idle = 0; camInit = false;
+  sfx(180, .35, 'sine', .08, 0, -90); banner('Splash!', 'Tap Boats to get back in');
+}
+function vehicleStep(o, dt){
+  const V = VEH[o.vehicle], w = wantHeading(), top = V.speed*METERS, px = o.x, py = o.y;
+  if (w){ const err = angDiff(w.ang, o.ang); o.ang += clamp(err, -V.turn*dt, V.turn*dt); o.idle = 0;
+    const a = top*1.6*w.m*Math.max(.2, Math.cos(err)); o.vx += Math.cos(o.ang)*a*dt; o.vy += Math.sin(o.ang)*a*dt; }
+  const fx = Math.cos(o.ang), fy = Math.sin(o.ang); let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
+  fwd *= Math.exp(-1.6*dt); lat *= Math.exp(-4*dt); o.vx = fx*fwd - fy*lat; o.vy = fy*fwd + fx*lat;
+  o.x += o.vx*dt; o.y += o.vy*dt; o.swimPh = (o.swimPh || 0) + dt*(.6 + Math.abs(fwd)/60);
+  // boats can't go up onto land: check the middle and the bow
+  const shallow = (x, y) => groundAt(x, y) > (V.sub ? -1.2 - (o.depth || 0) : -.6);
+  if (shallow(o.x, o.y) || shallow(o.x + fx*V.len*METERS*.8, o.y + fy*V.len*METERS*.8)){ o.x = px; o.y = py; o.vx *= -.2; o.vy *= -.2;
+    if (time > (o.bumpT || 0)){ o.bumpT = time + 1.2; sfx(140, .15, 'sine', .06); } }
+  if (V.sub){ const floor = Math.max(0, depthAt(o.x, o.y) - 1.2);
+    o.depth = clamp((o.depth || 0) + ((diveHeld() ? 2.8 : 0) - (upHeld() ? 2.8 : 0))*dt, 0, floor); }
+  else o.depth = 0;
+  o.air = airMax(); o.vd = 0; o.pitch = 0;
+  if (Math.hypot(o.vx, o.vy) > 30 && Math.random() < dt*12) bubble(o.x - fx*V.len*METERS, o.y - fy*V.len*METERS, -o.vx*.2 + (Math.random() - .5)*30, -o.vy*.2 + (Math.random() - .5)*30);
+}
+// 3D boats (head toward +X, the water line at y = 0)
+const vehMeshes = {};
+function buildVehicle(id){
+  const g = new THREE.Group(), add = (m, x, y, z) => { m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+  const wood = std(0x8a5a36, .8), dark = std(0x2a2a2a, .6), white = std(0xf4f4f0, .5), glassM = new THREE.MeshStandardMaterial({ color: 0x8fd0ea, roughness: .1, transparent: true, opacity: .6 });
+  const paddle = () => { const p = new THREE.Group(); p.add(new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, 2.3, 6), wood));
+    for (const sgn of [-1, 1]){ const bl = new THREE.Mesh(new THREE.BoxGeometry(.18, .35, .03), std(0xffc21a, .5)); bl.position.y = sgn*1.1; p.add(bl); } p.rotation.x = Math.PI/2; return p; };
+  if (id === 'kayak'){ add(ellip(1, 1.6, .2, .33, std(0xff7a1a, .4), 24), 0, 0, 0); add(new THREE.Mesh(new THREE.TorusGeometry(.26, .05, 8, 20), dark), .05, .16, 0).rotation.x = Math.PI/2;
+    g.userData.paddle = add(paddle(), .15, .7, 0); }
+  else if (id === 'canoe'){ add(ellip(1, 2.1, .32, .5, wood, 24), 0, 0, 0); add(ellip(1, 1.95, .1, .4, std(0x5a3a22, .9), 24), 0, .24, 0);
+    for (const x of [-1, 1]) add(new THREE.Mesh(new THREE.BoxGeometry(.3, .04, .8), std(0xb08a55, .8)), x, .2, 0);
+    g.userData.paddle = add(paddle(), .2, .75, 0); }
+  else if (id === 'sailboat'){ add(ellip(1, 2.6, .5, .85, white, 28), 0, 0, 0); add(new THREE.Mesh(new THREE.BoxGeometry(3.4, .12, 1.2), std(0xc89a6a, .8)), 0, .4, 0);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(.06, .07, 6, 8), std(0xdddddd, .3, .5)), .4, 3.4, 0);
+    const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(2.4, 0); sh.lineTo(0, 5.2); sh.closePath();
+    const sail = add(new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: .8 })), .3, .8, .02); sail.rotation.y = Math.PI - .6; g.userData.sail = sail; }   // swung out, catching the wind
+  else if (id === 'motorboat'){ add(ellip(1, 2.4, .45, .8, std(0xd8322e, .35), 28), 0, 0, 0); add(new THREE.Mesh(new THREE.BoxGeometry(3.2, .1, 1.25), white), -.1, .38, 0);
+    add(new THREE.Mesh(new THREE.BoxGeometry(.08, .45, 1.1), glassM), .7, .65, 0).rotation.z = -.4;
+    add(new THREE.Mesh(new THREE.BoxGeometry(.4, .6, .35), dark), -2.3, .25, 0); }
+  else if (id === 'sub'){ const hull = std(0xffc21a, .35, .3); add(caps(.65, 3.2, hull), 0, 0, 0); add(new THREE.Mesh(new THREE.CylinderGeometry(.35, .45, .8, 16), hull), .3, .8, 0);
+    add(new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .9, 6), dark), .45, 1.4, 0); add(new THREE.Mesh(new THREE.BoxGeometry(.25, .08, .08), dark), .55, 1.85, 0);
+    for (const x of [-.9, 0, .9]) for (const z of [-1, 1]){ const w = add(new THREE.Mesh(new THREE.CircleGeometry(.16, 16), new THREE.MeshStandardMaterial({ color: 0x9fe0ff, emissive: 0x3a90b0, emissiveIntensity: .8 })), x, .05, z*.64); w.rotation.y = z > 0 ? 0 : Math.PI; }
+    const prop = add(new THREE.Group(), -2.35, 0, 0); for (let k = 0; k < 3; k++){ const bl = new THREE.Mesh(new THREE.BoxGeometry(.05, .6, .15), dark); bl.rotation.x = k*TAU/3; prop.add(bl); } g.userData.prop = prop;
+    add(new THREE.Mesh(new THREE.BoxGeometry(.5, .05, 1.6), hull), -1.9, 0, 0); }
+  else if (id === 'ship'){ add(ellip(1, 5, 1.1, 1.6, wood, 32), 0, -.1, 0); add(new THREE.Mesh(new THREE.BoxGeometry(8.6, .15, 2.5), std(0xb08a55, .85)), 0, .9, 0);
+    add(new THREE.Mesh(new THREE.BoxGeometry(1.6, .5, 2.6), wood), -3.8, 1.2, 0);
+    for (const [x, h] of [[1.6, 9], [-1.4, 8]]){ add(new THREE.Mesh(new THREE.CylinderGeometry(.12, .15, h, 8), std(0x5a3a22, .8)), x, .9 + h/2, 0);
+      for (const [y, w] of [[h*.45, 3.4], [h*.78, 2.6]]) add(new THREE.Mesh(new THREE.BoxGeometry(.05, h*.28, w), new THREE.MeshStandardMaterial({ color: 0xfff6e2, roughness: .9, emissive: 0xfff6e2, emissiveIntensity: .35 })), x + .15, .9 + y, 0); }
+    const fl = add(new THREE.Mesh(new THREE.PlaneGeometry(1.2, .8), new THREE.MeshStandardMaterial({ color: 0x111111, side: THREE.DoubleSide })), 1.6, 10.2, .6); fl.rotation.y = Math.PI/2; }
+  waterizeTree(g); return g;
+}
+function drawVehicle(o, dt, wy){
+  for (const id in vehMeshes) vehMeshes[id].visible = id === o.vehicle && mode === 'ocean';
+  if (!o.vehicle) return; const V = VEH[o.vehicle];
+  const g = vehMeshes[o.vehicle] || (vehMeshes[o.vehicle] = buildVehicle(o.vehicle)); if (g.parent !== oceanScene) oceanScene.add(g);
+  const px = o.x*U, pz = o.y*U, roll = V.sub ? 0 : (waveH(px, pz + .6, OC.amp, 1) - waveH(px, pz - .6, OC.amp, 1))*.4;
+  g.position.set(px, V.sub ? -(o.depth || 0) : wy - .05, pz); g.rotation.set(roll, -o.ang, V.sub ? 0 : (waveH(px + 1, pz, OC.amp, 1) - waveH(px - 1, pz, OC.amp, 1))*.3, 'YXZ');
+  if (g.userData.paddle) g.userData.paddle.rotation.z = Math.sin(o.swimPh*2)*.6;
+  if (g.userData.prop) g.userData.prop.rotation.x += dt*(2 + Math.hypot(o.vx, o.vy)/20);
+}
+$('boatBtn').onclick = () => { initAudio(); boatsButton(); };
+{ const u = $('upBtn'), on = v => { upBtnHeld = v; u.classList.toggle('on', v); };
+  u.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); on(true); try { u.setPointerCapture(e.pointerId); } catch(_){} });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) u.addEventListener(ev, () => on(false)); }
 // Inside, the roof comes off and the walls go down so you can see yourself. The door opens when you're near it.
 function houseLook(o, dt){
   const u = houseGroup?.userData.inside; if (!u) return;
@@ -1896,6 +2019,7 @@ function updOcean(dt){
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; }        // walked back into the sea
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
+  else if (o.vehicle){ vehicleStep(o, dt); $('airChip').hidden = true; }
   else if (o.ride){ updRide(o, dt); if (mode === 'dead') return; }
   else {
     if (!jumpStep(o, dt)){ swimMove(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return; }
@@ -1913,9 +2037,9 @@ function updOcean(dt){
   const air = o.jumpY || 0;   // a leaping dolphin sails over things lower than the jump
   if (!o.onLand && !o.ride) bumpAnimals(o);
   // the island's underwater slope is solid: you glide up it instead of through it
-  if (!o.onLand && !o.ride){ const gh = groundAt(o.x, o.y); if (gh > -3.3 && (o.depth || 0) > -gh - .35){ o.depth = Math.max(0, -gh - .35); if ((o.vd || 0) > 0) o.vd = 0; } }
+  if (!o.onLand && !o.ride && !o.vehicle){ const gh = groundAt(o.x, o.y); if (gh > -3.3 && (o.depth || 0) > -gh - .35){ o.depth = Math.max(0, -gh - .35); if ((o.vd || 0) > 0) o.vd = 0; } }
   // swim up a beach and you climb out onto the island
-  if (!o.onLand && !o.ride && groundAt(o.x, o.y) > -.35 && (o.depth || 0) < .6){
+  if (!o.onLand && !o.ride && !o.vehicle && groundAt(o.x, o.y) > -.35 && (o.depth || 0) < .6){
     o.onLand = true; o.depth = 0; o.vx *= .3; o.vy *= .3;
     if (!o.landHint){ o.landHint = true; coach('You climbed onto the island! Use the joystick to walk around. Walk back into the water to swim.', 8); } }
   if (o.ride && groundAt(o.x, o.y) > -1.2){ const d0 = Math.hypot(o.x, o.y) < Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) ? [0, 0, islR(Math.atan2(o.y, o.x))/U + 60] : [HOUSE.x, HOUSE.y, HOUSE.r + 80]; keepOutCircle(o, ...d0); }
@@ -1935,7 +2059,7 @@ function updOcean(dt){
     if (q < 1){ const k = 1/Math.sqrt(Math.max(q, 1e-4)), [nx, ny] = shipWorld((lx + .7)*k - .7, lz*k); o.x = nx; o.y = ny; } }
   { const ccx = Math.floor(o.x/CH), ccy = Math.floor(o.y/CH), dep = o.depth || 0;
     for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) for (const j of getChunk(ccx+a, ccy+b).jellies){
-      if (o.onLand || air > .3) break;
+      if (o.onLand || o.vehicle || air > .3) break;
       const [jx, jy, jd] = jellyPos(j);
       if (Math.abs(jx - o.x) > 400 || Math.abs(jy - o.y) > 400) continue;
       if (j.deadly && !o.jellyWarned && Math.hypot(jx - o.x, jy - o.y) < 360){ o.jellyWarned = true;
@@ -1958,7 +2082,7 @@ function updOcean(dt){
       banner('You spotted your house!', 'Swim to the beach and walk up to your front door!'); [659,784,988].forEach((f,i) => sfx(f,.18,'triangle',.07,i*.1)); } }
   if (o.rideAway){ const a = o.rideAway; a.t -= dt; a.x += Math.cos(a.ang)*240*dt; a.y += Math.sin(a.ang)*240*dt; a.depth = Math.min(3, a.depth + dt);
     if (a.t <= 0){ o.rideAway = null; o.rideFrom = null; } }
-  o.rideTarget = o.ride || o.onLand ? null : findDolphin(o);
+  o.rideTarget = o.ride || o.onLand || o.vehicle ? null : findDolphin(o);
   { const px = o.mphX ?? o.x, py = o.mphY ?? o.y, v = Math.hypot(o.x - px, o.y - py)/Math.max(dt, 1e-3)/METERS*2.23694;   // how fast you're really going, in miles per hour
     o.mphX = o.x; o.mphY = o.y; o.mph = v > 20000 ? o.mph || 0 : lerp(o.mph || 0, v, Math.min(1, dt*4));   // (ignore teleports)
     if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; $('mphChip').hidden = false; $('mphVal').textContent = o.mph < 10 ? o.mph.toFixed(1) : Math.round(o.mph).toLocaleString(); } }
@@ -1967,9 +2091,12 @@ function updOcean(dt){
   { const f = friendNear(o), tb = $('talkBtn'); if (tb.hidden === !!f) tb.hidden = !f;
     if (f){ const t = f.person ? ({ keeper:'Talk to the lighthouse keeper', captain:'Talk to the pirate captain', gunner:'Talk to the gunner', lookout:'Talk to the lookout', deckhand:'Talk to the deckhand' }[f.person] || 'Talk to the fisherman') : `Talk to the ${SPECIES_NAME[f.id].toLowerCase()}`; if (tb.firstChild.textContent !== t) tb.firstChild.textContent = t; } }
   { const bb = $('buildBtn'), showB = !!o.onLand && onHome(o); if (bb.hidden === showB) bb.hidden = !showB; }
-  { const jb = $('jumpBtn'), showJ = curChar().id === 'dolphin' && !o.onLand && !o.ride; if (jb.hidden === showJ) jb.hidden = !showJ;
-    const sb = $('sonarBtn'), showS = !o.onLand && !o.ride && hasGear('sonar'); if (sb.hidden === showS) sb.hidden = !showS; }
-  const rb = $('rideBtn'), ladder = shipLadderNear(o), boat = !ladder && boatNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat);
+  { const bb = $('boatBtn'), showBt = !!o.vehicle || (canBoard(o) && ownedBoats().length > 0); if (bb.hidden === showBt) bb.hidden = !showBt;
+    const bt = o.vehicle ? 'Get out' : 'Boats'; if (bb.textContent !== bt) bb.textContent = bt;
+    const ub = $('upBtn'), showU = !!VEH[o.vehicle]?.sub; if (ub.hidden === showU) ub.hidden = !showU; }
+  { const jb = $('jumpBtn'), showJ = curChar().id === 'dolphin' && !o.onLand && !o.ride && !o.vehicle; if (jb.hidden === showJ) jb.hidden = !showJ;
+    const sb = $('sonarBtn'), showS = !o.onLand && !o.ride && !o.vehicle && hasGear('sonar'); if (sb.hidden === showS) sb.hidden = !showS; }
+  const rb = $('rideBtn'), ladder = !o.vehicle && shipLadderNear(o), boat = !ladder && !o.vehicle && boatNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat);
   if (rb.hidden === showRide) rb.hidden = !showRide;
   if (showRide){ const t = o.onShip || o.onBoat ? 'Jump into the sea' : ladder ? 'Climb aboard' : boat ? 'Climb into the boat' : o.ride ? 'Let go' : 'Ride the dolphin'; if (rb.firstChild.textContent !== t) rb.firstChild.textContent = t; }
 
@@ -2481,7 +2608,7 @@ let diveLight = null;
 // The dive light switches itself on when it gets dark (deep water, dark places, inside the wreck) and off again when it's bright.
 let lightOn = false;
 function updDiveLight(dark){
-  const was = lightOn; lightOn = hasGear('light') && mode === 'ocean' && (lightOn ? dark > .28 : dark > .38);   // a little gap so it doesn't flicker
+  const was = lightOn; lightOn = (hasGear('light') || !!VEH[ocean?.vehicle]?.sub) && mode === 'ocean' && (lightOn ? dark > .28 : dark > .38);   // a little gap so it doesn't flicker
   if (lightOn !== was){ sfx(lightOn ? 1200 : 700, .05, 'square', .03); if (lightOn && !ocean.lightTold){ ocean.lightTold = true; banner('Dive light on', 'It turns on by itself when it gets dark'); } }
   const on = lightOn;
   if (on && !diveLight){ diveLight = new THREE.SpotLight(0xfff4dd, 60, 32, .5, .55, 1.3); oceanScene.add(diveLight, diveLight.target); }
@@ -3772,6 +3899,7 @@ function placeCamera(px, py, pz, heading, dt, kind, sub = 0, floorY = -99){
   else if (camMode === 'top' && sub > 0){ _tp.set(px, py + 6, pz + 2); _tl.set(px, py, pz - .5); }
   else if (camMode === 'top'){ _tp.set(px, 15, pz + 4.5); _tl.set(px, 0, pz - 1); }
   else if (kind === 'house'){ _tp.set(px - fx*2.6, py + 3.6, pz - fz*2.6); _tl.set(px + fx*1.2, py - .5, pz + fz*1.2); }   // inside your house: look down over the lowered walls
+  else if (kind === 'vehicle'){ const [d, h] = VEH[ocean.vehicle].cam; _tp.set(px - fx*d, Math.max(floorY, py + h), pz - fz*d); _tl.set(px + fx*3.2, py + .3, pz + fz*3.2); }
   else { const d = kind === 'ship' ? 3.3 : lerp(kind === 'race' ? 5.6 : 4.8, 3.3, sub), h = kind === 'ship' ? 1.2 : lerp(kind === 'race' ? 3.1 : 2.4, .55, sub);   // on deck the camera stays low, under the sails
     _tp.set(px - fx*d, Math.max(floorY, py + h), pz - fz*d); _tl.set(px + fx*3.2, py - .2 + sub*.1, pz + fz*3.2); }
   const k = camInit ? 1 - Math.exp(-dt*5) : 1; camPos.lerp(_tp, k); camLook.lerp(_tl, k); camInit = true;
@@ -3828,6 +3956,12 @@ function render3D(dt){
       else if (ocean.climb){ m.position.set(px, gy + 1.13 + ocean.climb.h, pz); m.rotation.set(0, -ocean.ang, Math.PI/2); if (ocean.climb.h >= ocean.climb.top) poseWalk(m, 0, false); else poseClimb(m, ocean.climb.ph); }   // on the rope ladder, standing up in the lookout at the top
       else { m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0);
       poseWalk(m, ocean.walkPh || 0, ocean.walking); }
+    } else if (ocean.vehicle){   // sitting in your boat (inside the submarine you're hidden)
+      const V = VEH[ocean.vehicle], human = m.userData.kind === 'swimmer';
+      const at = (V.at || 0)*Math.cos(ocean.ang), atz = (V.at || 0)*Math.sin(ocean.ang);
+      m.position.set(px + at, (V.sub ? -dep : wy) + V.seat + (human ? (V.sit ? .3 : 1.13) : .05), pz + atz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0); poseWalk(m, 0, false);
+      if (human && V.sit){ const u = m.userData; for (const l of ['ll', 'rl']){ u.legs[l].hp.rotation.z = 1.45; u.legs[l].kn.rotation.z = 0; }   // sitting, legs out in front
+        u.arms.la.sh.rotation.set(0, 0, 1.9 + Math.sin(ocean.swimPh*2)*.3); u.arms.ra.sh.rotation.set(0, 0, -1.9 + Math.sin(ocean.swimPh*2)*.3); }   // hands on the paddle
     } else if (ocean.ride && rideModel){   // holding the dorsal fin, lying along the dolphin's back
       m.position.copy(rideModel.position); m.position.y += .42; m.position.x += Math.sin(ocean.ang)*.1; m.position.z -= Math.cos(ocean.ang)*.1;
       m.rotation.set(0, -ocean.ang, rideModel.rotation.z); poseModel(m, RIDE_POSE, t);
@@ -3836,10 +3970,10 @@ function render3D(dt){
       m.position.set(px, (wy + m.userData.float)*(1 - sub) - dep + air, pz);
       m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, air > 0 ? airPitch : (ocean.pitch || 0)); poseModel(m, swimPose(ocean), ocean.swimPh || 0); }
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
-    followSun(oceanSun, px, pz); updSpray(dt, wy);
-    fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
+    drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
+    fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
     houseLook(ocean, dt);
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105);
