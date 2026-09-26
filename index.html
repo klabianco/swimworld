@@ -195,6 +195,9 @@
   .pblock.on{background:var(--deep);color:#fff;transform:translateY(2px);box-shadow:none}
   .btools{display:flex;gap:8px} .btools .btn{font-size:17px;padding:9px 14px} .btools #bDone{margin-left:auto}
   .btools .seg.on{background:var(--coral);color:#fff}
+  .codein{font-size:22px;text-align:center;letter-spacing:.08em;text-transform:uppercase;margin:4px 0}
+  .bigcode{font-size:40px;letter-spacing:.06em;color:var(--deep)}
+  .swimrow small{display:block;font-family:var(--body);font-weight:800;font-size:13px;opacity:.8;margin-top:2px}
   .movelink{width:100%;font:700 13px/1.4 Nunito,sans-serif;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink,#0b2d44)}
   .btn.back{background:#e3eef3;color:var(--deep);font-size:18px;padding-block:10px}
   /* Selected button: it fills with water, a wave rolls across it, bubbles rise, and it bobs like it's floating. */
@@ -312,6 +315,8 @@
     <div class="actions">
       <button id="startBtn" class="btn primary" type="button">Start Game</button>
       <button id="continueBtn" class="btn secondary" type="button">Continue</button>
+      <button id="makeBtn" class="btn textlink" type="button" hidden>Make an account</button>
+      <button id="cloneBtn" class="btn textlink" type="button" hidden>Clone an account</button>
       <p class="note" id="titleNote">Continue logs you in and loads your saved swimmer.</p>
       <p class="note" id="loadNote"></p>
     </div>
@@ -364,6 +369,40 @@
     </div>
   </div>
 </div>
+<div id="swimPanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker" id="swimKicker">Your swimmers</p><h2>Who's swimming?</h2></div>
+    <div class="actions" id="swimList"></div>
+    <div class="actions">
+      <button id="swimNew" class="btn secondary" type="button">+ New swimmer</button>
+      <button id="swimClone" class="btn secondary" type="button">Clone a swimmer</button>
+      <button id="swimBack" class="btn back" type="button">← Back</button>
+    </div>
+    <p class="note" id="swimNote"></p>
+  </div>
+</div>
+
+<div id="clonePanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker">Clone a swimmer</p><h2 id="cloneTitle">Type in the clone code</h2></div>
+    <p class="explain" id="cloneExplain"></p>
+    <input id="cloneCode" class="movelink codein" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="12" placeholder="SHARK-4821" aria-label="Clone code">
+    <div class="actions">
+      <button id="cloneGo" class="btn primary" type="button">Find the swimmer</button>
+      <button id="cloneBack" class="btn back" type="button">← Back</button>
+    </div>
+    <p class="note" id="cloneNote"></p>
+  </div>
+</div>
+
+<div id="codePanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker">Share a clone code</p><h2 id="codeShow" class="bigcode"></h2></div>
+    <p class="explain" id="codeExplain"></p>
+    <div class="actions"><button id="codeClose" class="btn secondary" type="button">Back to swimming</button></div>
+  </div>
+</div>
+
 <div id="movePanel" class="overlay" hidden>
   <div class="panel title">
     <div><p class="kicker">Take your swimmer with you</p><h2>Play on another device</h2></div>
@@ -424,6 +463,8 @@
       <button id="homeBtn" class="btn primary" type="button" hidden>Swim home</button>
       <button id="exitBtn" class="btn secondary" type="button">Exit to title</button>
       <button id="moveBtn" class="btn secondary" type="button">Play on another device</button>
+      <button id="switchBtn" class="btn secondary" type="button" hidden>Switch swimmer</button>
+      <button id="shareBtn" class="btn secondary" type="button" hidden>Share a clone code</button>
       <button id="logoutBtn" class="btn secondary" type="button" hidden>Log out</button>
     </div>
     <div class="sharkset"><span>Sharks</span>
@@ -584,6 +625,9 @@ function closeTopWindow(){
   if (!$('shopPanel').hidden) closeShop();
   else if (!$('mapPanel').hidden) closeMap();
   else if (!$('boatPanel').hidden) closeBoats();
+  else if (!$('clonePanel').hidden) $('cloneBack').click();
+  else if (!$('codePanel').hidden) $('codeClose').click();
+  else if (!$('swimPanel').hidden) $('swimBack').click();
   else if (!$('loginPanel').hidden){ if (!$('loginBack').hidden) $('loginBack').click(); }
   else if (!$('movePanel').hidden) $('moveClose').click();
   else if (!$('panel').hidden) closePanel();
@@ -591,7 +635,7 @@ function closeTopWindow(){
   else return false;
   return true; }
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
-for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -1078,6 +1122,7 @@ const DARK = [0, .12, 0, 0, .38, 0, .9];
    Avalon harbor (the round Casino and moored boats) facing Pool Island, and bison on the hills.
    `la` runs along the island and `lb` across it (meters); A and B are its half length and half width. */
 const CAT = { x: 1100, y: -2500, rot: .41, A: 26, B: 10 };
+let neighbors = [];   // islands next to yours (see setNeighbors)
 const catLocal = (x, y) => { const dx = (x - CAT.x)*U, dy = (y - CAT.y)*U, c = Math.cos(CAT.rot), s = Math.sin(CAT.rot); return [dx*c + dy*s, -dx*s + dy*c]; };
 const catWorld = (la, lb) => { const c = Math.cos(CAT.rot), s = Math.sin(CAT.rot); return [CAT.x + (la*c - lb*s)/U, CAT.y + (la*s + lb*c)/U]; };
 const catE = (x, y) => { const [la, lb] = catLocal(x, y); return Math.hypot(la/CAT.A, lb/CAT.B); };   // 1 = the shoreline
@@ -1125,6 +1170,7 @@ function depthAt(x, y){
   const d0 = Math.hypot(x, y)*U, dh = Math.hypot(x - HOUSE.x, y - HOUSE.y)*U;
   dep = lerp(3.2, dep, clamp((d0 - 22)/45, 0, 1));                           // Pool Island's shallow shelf
   dep = Math.min(dep, lerp(3.2, dep, clamp((dh - 10)/50, 0, 1)));            // your house's shelf
+  for (const n of neighbors) dep = Math.min(dep, lerp(3.2, dep, clamp((Math.hypot(x - n.house.x, y - n.house.y)*U - 10)/50, 0, 1)));   // neighbors' shelves
   if (Math.abs(x - CAT.x) < 2200 && Math.abs(y - CAT.y) < 2200) dep = Math.min(dep, lerp(3, dep, clamp((catE(x, y) - 1)/.7, 0, 1)));   // Catalina's shelf
   const gl = Math.hypot(x + 2550, y)*U; if (gl < 40) dep = lerp(14, dep, clamp((gl - 20)/20, 0, 1));   // the wreck rests at 14 m
   return Math.max(2.4, dep);
@@ -1149,7 +1195,7 @@ function getChunk(cx,cy){
   const n = 5 + (R()*5|0);
   for (let i=0;i<n;i++){
     const x = X0 + R()*CH, y = Y0 + R()*CH;
-    if (Math.hypot(x,y) < ISL*1.9 || Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 200 || catE(x, y) < 1.2) continue;
+    if (Math.hypot(x,y) < ISL*1.9 || Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 200 || catE(x, y) < 1.2 || neighbors.some(n => Math.hypot(x - n.house.x, y - n.house.y) < HOUSE.r + 200)) continue;
     const z = zoneAt(x,y), p = R(), it = { x, y, r: R(), rot: R()*TAU, ph: R()*TAU };
     const put = (type, layer='items') => { it.type = type; c[layer].push(it); };
     if (z === 0) put(p<.2?'star':p<.42?'rock':p<.52?'shell':p<.74?'grass':'coral');
@@ -1476,8 +1522,8 @@ const HOME_TREES = [[-5, 3], [5.5, -2], [-3, -5.5], [4, 5], [-4.5, -2]];   // pa
 // save.build keeps every block as 4 characters: x, y, z and the block type packed into one base-36 number
 const packBlock = (x, y, z, t) => ((((x + 16)*32 + (z + 16))*16 + y)*16 + t).toString(36).padStart(4, '0');
 let homeBlocks = null, blockGroup = null, blockMeshes = [], blockIndex = [], blocksFrom = null;
-function loadBlocks(){ homeBlocks = new Map(); const s = blocksFrom = save.build || '';
-  for (let i=0;i + 4 <= s.length;i += 4){ const v = parseInt(s.slice(i, i + 4), 36); homeBlocks.set(`${(v >> 13) - 16},${(v >> 4) % 16},${((v >> 8) % 32) - 16}`, v % 16); } }
+function parseBuild(s){ const m = new Map(); for (let i=0;i + 4 <= s.length;i += 4){ const v = parseInt(s.slice(i, i + 4), 36); m.set(`${(v >> 13) - 16},${(v >> 4) % 16},${((v >> 8) % 32) - 16}`, v % 16); } return m; }
+function loadBlocks(){ homeBlocks = parseBuild(blocksFrom = save.build || ''); }
 function storeBlocks(){ save.build = [...homeBlocks].map(([k, t]) => { const [x, y, z] = k.split(',').map(Number); return packBlock(x, y, z, t); }).join(''); blocksFrom = save.build; persist(); }
 function cellOK(x, y, z){
   if (y < 0 || y >= BUILD_H || x < -15 || x > 15 || z < -15 || z > 15) return false;
@@ -1536,11 +1582,16 @@ function buildTap(cx, cy){
 // Blocks you've built are solid, and you can climb them like stairs: a block whose top is at most one block above your feet
 // (with nothing sitting on it) is a step you walk up onto; taller ones are walls. Walk off an edge and you drop down.
 // o.blockH is how high you stand above the lawn, o.blockShow the same but smoothed for the camera and your body.
+// the blocks on whichever island you're on: yours, or a neighbor's
+function blocksNear(x, y){
+  if (homeBlocks && homeBlocks.size && Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 60) return { x: HOUSE.x, y: HOUSE.y, b: homeBlocks };
+  for (const n of neighbors) if (n.blocks.size && Math.hypot(x - n.house.x, y - n.house.y) < HOUSE.r + 60) return { x: n.house.x, y: n.house.y, b: n.blocks };
+  return null; }
 function blockCollide(o, dt = 0){
-  if (!homeBlocks || !homeBlocks.size || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) > HOUSE.r + 60){ o.blockH = o.blockShow = o.blockV = 0; return; }
-  const lx = o.x*U - HOUSE.x*U, lz = o.y*U - HOUSE.y*U, rr = .3, feet = o.blockH || 0, has = (x, y, z) => homeBlocks.has(`${x},${y},${z}`);
+  const bs = blocksNear(o.x, o.y); if (!bs){ o.blockH = o.blockShow = o.blockV = 0; return; }
+  const lx = o.x*U - bs.x*U, lz = o.y*U - bs.y*U, rr = .3, feet = o.blockH || 0, has = (x, y, z) => bs.b.has(`${x},${y},${z}`);
   let under = 0;
-  for (const [k] of homeBlocks){ const [x, y, z] = k.split(',').map(Number); if (Math.abs(x + .5 - lx) > 1.5 || Math.abs(z + .5 - lz) > 1.5) continue;
+  for (const [k] of bs.b){ const [x, y, z] = k.split(',').map(Number); if (Math.abs(x + .5 - lx) > 1.5 || Math.abs(z + .5 - lz) > 1.5) continue;
     const top = y + 1, step = top <= feet + 1.05 && !has(x, y + 1, z);
     if (step){ if (lx + .42 > x && lx - .42 < x + 1 && lz + .42 > z && lz - .42 < z + 1) under = Math.max(under, top); continue; }   // something to stand on (a wide footprint, so corner-to-corner diagonal stairs work)
     if (top <= feet + .05 || y >= feet + 1.8) continue;                                             // under your feet, or above your head
@@ -1552,8 +1603,8 @@ function blockCollide(o, dt = 0){
 }
 // keep the camera out of your blocks: slide it in toward you until it's in the clear
 function camOutOfBlocks(px, py, pz){
-  if (!homeBlocks || !homeBlocks.size || camMode === 'first') return; const c = camera.position, hx = HOUSE.x*U, hz = HOUSE.y*U;
-  if (Math.hypot(c.x - hx, c.z - hz) > 9) return; const inBlock = (x, y, z) => homeBlocks.has(`${Math.floor(x - hx)},${Math.floor(y - LAWN_Y)},${Math.floor(z - hz)}`);
+  const c = camera.position, bs = camMode === 'first' ? null : blocksNear(c.x/U, c.z/U); if (!bs) return; const hx = bs.x*U, hz = bs.y*U;
+  const inBlock = (x, y, z) => bs.b.has(`${Math.floor(x - hx)},${Math.floor(y - LAWN_Y)},${Math.floor(z - hz)}`);
   if (!inBlock(c.x, c.y, c.z)) return; const sx = c.x, sy = c.y, sz = c.z;
   for (let t = .1; t <= 1; t += .1){ const x = lerp(sx, px, t), y = lerp(sy, py + 1, t), z = lerp(sz, pz, t); if (!inBlock(x, y, z)){ c.set(x, y + .3, z); camera.lookAt(camLook); return; } }
 }
@@ -1886,6 +1937,7 @@ function groundAt(x, y){
   if (d0 < ISL*U*1.9) g = islandH(x*U, y*U);
   const d1 = Math.hypot(x - HOUSE.x, y - HOUSE.y)*U, R1 = HOUSE.r*U + 1.5;
   if (d1 < R1) g = Math.max(g, -1 + 1.6*Math.sqrt(1 - (d1/R1)**2), d1 < HOUSE.r*U - 2 ? .65 : -99);
+  for (const n of neighbors){ const d = Math.hypot(x - n.house.x, y - n.house.y)*U; if (d < R1) g = Math.max(g, -1 + 1.6*Math.sqrt(1 - (d/R1)**2), d < HOUSE.r*U - 2 ? .65 : -99); }   // neighbors' islands
   if (Math.abs(x - CAT.x) < 1200 && Math.abs(y - CAT.y) < 1200){ const e = catE(x, y); if (e < 1.02) g = Math.max(g, catH(...catLocal(x, y))); }   // Catalina Island
   return g;
 }
@@ -1893,6 +1945,7 @@ function groundAt(x, y){
 function landObstacles(){
   const hx = HOUSE.x, hy = HOUSE.y;
   return [[-24, -32, 46], ...islandPlants().map(p => [p.x/U, p.z/U, p.kind === 'palm' ? 12 : 22]),
+    ...neighbors.flatMap(n => { const nx = n.house.x, ny = n.house.y; return [[nx, ny, 118], [nx - 200, ny + 120, 12], [nx + 220, ny - 80, 12], [nx - 120, ny - 220, 12], [nx + 160, ny + 200, 12], [nx - 180, ny - 80, 8]]; }),   // neighbors' houses are solid
     [...catWorld(...CAT_CASINO), 80], [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
 }
 // Your house is hollow, so its walls and furniture are solid one by one: boxes [x0, z0, x1, z1] in meters,
@@ -2204,7 +2257,8 @@ function updOcean(dt){
     o.onLand = true; o.depth = 0; o.vx *= .3; o.vy *= .3;
     if (!o.landHint){ o.landHint = true; coach('You climbed onto the island! Use the joystick to walk around. Walk back into the water to swim.', 8); } }
   if (o.ride && groundAt(o.x, o.y) > -1.2 && catE(o.x, o.y) < 1.3){ const [la, lb] = catLocal(o.x, o.y), e = Math.max(.01, Math.hypot(la/CAT.A, lb/CAT.B)); [o.x, o.y] = catWorld(la*1.1/e, lb*1.1/e); }
-  else if (o.ride && groundAt(o.x, o.y) > -1.2){ const d0 = Math.hypot(o.x, o.y) < Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) ? [0, 0, islR(Math.atan2(o.y, o.x))/U + 60] : [HOUSE.x, HOUSE.y, HOUSE.r + 80]; keepOutCircle(o, ...d0); }
+  else if (o.ride && groundAt(o.x, o.y) > -1.2){ const isl = [[0, 0, islR(Math.atan2(o.y, o.x))/U + 60], [HOUSE.x, HOUSE.y, HOUSE.r + 80], ...neighbors.map(n => [n.house.x, n.house.y, HOUSE.r + 80])];
+    keepOutCircle(o, ...isl.sort((a, b) => Math.hypot(o.x - a[0], o.y - a[1]) - Math.hypot(o.x - b[0], o.y - b[1]))[0]); }
   for (const L of LANDMARKS){ const R = LANDMARK_R[L.kind]; if (R && Math.abs(o.x - L.x) < R + 200 && Math.abs(o.y - L.y) < R + 200) keepOutCircle(o, L.x, L.y, R); }
   { const ccx = Math.floor(o.x/CH), ccy = Math.floor(o.y/CH); let inKelp = false;
     for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++){ const c = getChunk(ccx+a, ccy+b);
@@ -3332,11 +3386,11 @@ function buildOcean(){
   for (let i=0;i<14;i++){ const r = new THREE.Mesh(new THREE.PlaneGeometry(1.4 + Math.random()*1.8, 26), new THREE.MeshBasicMaterial({ map: rayTex, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
     r.userData.off = new THREE.Vector2((Math.random() - .5)*26, (Math.random() - .5)*26); r.userData.ph = Math.random()*TAU; r.visible = false; oceanWorld.add(r); rays.push(r); }
   addClouds(oceanScene, clouds);
-  buildIsland(); buildLandmarks(); buildHouse(); buildWreck(); buildCatalina();
+  buildIsland(); buildLandmarks(); buildHouse(); buildWreck(); buildCatalina(); for (const n of neighbors) if (!n.group) drawNeighbor(n);
   applyAssetsToOcean();
 }
 
-function buildHouse(){
+function buildHouse(own = true, at = HOUSE, label = 'YOUR HOUSE'){
   const g = new THREE.Group(), R = HOUSE.r*U;
   const sand = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 20, 0, TAU, 0, Math.PI/2), new THREE.MeshStandardMaterial({ map: rep(sandTex, 8, 8), roughness: 1 }));
   sand.scale.set(R + 1.5, 1.6, R + 1.5); sand.position.y = -1; sand.receiveShadow = true; g.add(sand);
@@ -3398,7 +3452,7 @@ function buildHouse(){
   { const f = new THREE.Group(); const jar = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .14, 12), inM(0xffffff, .2)); jar.castShadow = true; f.add(jar);
     const lid = new THREE.Mesh(new THREE.CylinderGeometry(.065, .065, .04, 12), inM(0xff7a1a, .3)); lid.position.y = .09; f.add(lid);
     const label = new THREE.Mesh(new THREE.CylinderGeometry(.061, .061, .06, 12, 1, true), inM(0x3fb6a8, .3)); f.add(label); items.food = f; }
-  for (const id in items) H.add(items[id]);
+  if (own) for (const id in items) H.add(items[id]);
   g.userData.inside = { walls, tall, top, hinge, tankFish, cut: 0, items, lampShade, chairs };
   // porch and a little dock reaching toward the water
   const plank = std(0x9a7050, .9);
@@ -3409,10 +3463,28 @@ function buildHouse(){
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07, .09, 12, 8), std(0xeeeeee, .3, .6)); pole.position.set(-4.5, 6.6, -2); pole.castShadow = true; g.add(pole);
   const flag = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.6, 10, 4), new THREE.MeshStandardMaterial({ color: 0xffc53d, side: THREE.DoubleSide, roughness: .7 }));
   flag.position.set(-3.2, 11.6, -2); g.add(flag); g.userData.flag = flag;
-  const sign = sprite(labelTex('YOUR HOUSE', '#ff6f59', '#fff', 768, 200, 120), 7, 1.8); sign.position.set(0, 15, 0); g.add(sign);
-  g.position.set(HOUSE.x*U, 0, HOUSE.y*U); oceanWorld.add(g); houseGroup = g;
+  const sign = sprite(labelTex(label, own ? '#ff6f59' : '#3c78d8', '#fff', 768, 200, label.length > 12 ? 84 : 120), 7, 1.8); sign.position.set(0, 15, 0); g.add(sign);
+  g.position.set(at.x*U, 0, at.y*U); oceanWorld.add(g); if (own) houseGroup = g; return g;
 }
 let houseGroup = null;
+/* Neighbors: when you clone a swimmer, the clone's island goes right next to the original's. You can see each other's
+   islands, houses and blocks and walk over to visit, but you can only build on your own. Each: { iid, name, house, blocks, group }. */
+const neighborMats = [];
+function setNeighbors(list){
+  for (const n of neighbors) if (n.group) oceanWorld?.remove(n.group);
+  neighbors = list.map(d => ({ iid: d.iid, name: (d.name || 'A friend').slice(0, 20), house: d.house, blocks: parseBuild(d.build || '') }));
+  chunks.clear(); lastChunkKey = '';   // clear the reef off their islands
+  if (oceanBuilt) for (const n of neighbors) drawNeighbor(n);
+}
+function drawNeighbor(n){
+  const g = n.group = buildHouse(false, n.house, `${n.name.toUpperCase()}'S HOUSE`);
+  const geo = new THREE.BoxGeometry(1, 1, 1), byType = BLOCKS.map(() => []), mtx = new THREE.Matrix4();
+  for (const [k, t] of n.blocks){ if (byType[t]) byType[t].push(k.split(',').map(Number)); }
+  byType.forEach((list, t) => { if (!list.length) return; const b = BLOCKS[t];
+    const mat = neighborMats[t] || (neighborMats[t] = new THREE.MeshStandardMaterial({ color: b.col, roughness: b.glass ? .1 : .75, metalness: b.glass ? .1 : 0, transparent: !!b.glass, opacity: b.glass ? .45 : 1, emissive: b.glow ? 0xffc040 : 0x000000, emissiveIntensity: b.glow ? 1.4 : 0 }));
+    const m = new THREE.InstancedMesh(geo, mat, list.length); list.forEach(([x, y, z], i) => { mtx.makeTranslation(x + .5, LAWN_Y + y + .5, z + .5); m.setMatrixAt(i, mtx); });
+    m.castShadow = !b.glass; m.receiveShadow = true; g.add(m); });
+}
 let islandGroup = null; const rocksIsl = [];
 function buildIsland(){
   const g = new THREE.Group();
@@ -4304,7 +4376,7 @@ function renderPanel(){
       ? `<span class="wchip on" style="background:rgb(${z.water.join(',')})">${z.name}</span>` : `<span class="wchip">??? world</span>`).join('')
     : `<span class="wchip">7 ocean worlds are waiting past the gate</span>`;
   $('homeBtn').hidden = !(mode === 'ocean' && (save.houseFound || save.homeRuns));
-  $('logoutBtn').hidden = !(STANDALONE && fbAuth && account); $('moveBtn').hidden = STANDALONE;
+  $('logoutBtn').hidden = !(STANDALONE && fbAuth && account); $('switchBtn').hidden = $('shareBtn').hidden = !(STANDALONE && fbAuth && account && save.sid); $('moveBtn').hidden = STANDALONE;
   $('saveInfo').textContent = STANDALONE ? (fbAuth && account ? `Logged in as ${fbAuth.name}. Your swimmer saves to your account.` : 'Not logged in. Progress saves on this device only.') : account ? 'Progress saves to your account, so you can continue on any device.'
     : 'Progress saves on this device. Use Continue on the title screen to log in and keep it on your account.';
   const box = $('chars'); box.innerHTML = '';
@@ -4367,9 +4439,10 @@ const hasSwimmer = d => !!d && ((d.coins || 0) > 0 || (d.gear || []).length > 0 
 function arrangeTitle(){
   const back = !!fbAuth || hasSwimmer(readLocal()), st = $('startBtn'), co = $('continueBtn');
   if (!startArmed) st.textContent = back ? 'or start a new swimmer' : 'Start Game';
-  if (!co.disabled) co.textContent = back ? 'Continue playing' : 'Continue';
+  if (!co.disabled) co.textContent = back ? 'Continue playing' : STANDALONE ? 'Log in' : 'Continue';
   st.classList.toggle('primary', !back); st.classList.toggle('textlink', back); co.classList.toggle('primary', back); co.classList.toggle('secondary', !back);   // one big button; starting over is a small link
   if (back) st.before(co); else co.before(st);
+  $('makeBtn').hidden = !STANDALONE || !!fbAuth; $('cloneBtn').hidden = !STANDALONE; $('cloneBtn').textContent = fbAuth ? 'Clone a swimmer' : 'Clone an account';
 }
 function titleNote(text, warn){ const n = $('titleNote'); n.textContent = text; n.className = 'note' + (warn ? ' warn' : ''); }
 function enterGame(){ taken.clear(); buildMinimap(); startOcean(); }   // no pool any more: straight into the ocean
@@ -4381,6 +4454,7 @@ $('chooseBack').onclick = () => { persist(); flushCloud(); setMode('title'); res
 
 $('startBtn').onclick = () => {
   initAudio();
+  if (STANDALONE && fbAuth){ pendingNew = true; titleNote('Logging in…'); fbToken().then(startAccount).catch(() => { pendingNew = false; openLogin(false); }); return; }   // with an account, Start new adds a swimmer
   const had = readLocal();
   if (hasSwimmer(had) && !startArmed){
     startArmed = true; $('startBtn').textContent = $('startBtn').classList.contains('textlink') ? 'Tap again to erase your swimmer and start over' : 'Yes, start over';
@@ -4448,17 +4522,157 @@ $('loginGo').onclick = async () => {
   catch(e){ note.textContent = FB_ERR[(e.message || '').split(' ')[0]] || "Couldn't reach the server. Check the internet and try again."; }
   finally { btn.disabled = false; }
 };
-// logged in: bring the account's swimmer together with whatever is being played right now, then keep saving to the account
-async function startAccount(){
-  account = { db: fbDb, uid: fbAuth.uid };
-  let cloud = null; try { const snap = await fbDb.doc().get(); if (snap.exists) cloud = migrate(JSON.parse(JSON.stringify(snap.data()))); } catch(e){}
-  const inGame = playing(), current = inGame || (save.xp || 0) > 0 ? save : readLocal();
-  save = Object.assign(fresh(), cloud ? (current ? mergeSaves(cloud, current) : cloud) : (current || {}));
-  persist(); cloudDirty = true; flushCloud(); guestT = 0;
-  $('loginPanel').hidden = true; resetPick();
-  if (inGame){ paused = false; if (ocean) buildMinimap(); banner(`Logged in as ${fbAuth.name}!`, 'Your swimmer now saves to your account.'); }
-  else { enterGame(); banner(cloud ? `Welcome back, ${fbAuth.name}!` : `Hi, ${fbAuth.name}!`, cloud ? `${RANKS[rankOf()].n} · ${xpNow().toLocaleString()} XP · ${save.coins || 0} coins` : 'Your swimmer saves to your account.'); }
+/* ---------- Swimmers, clone codes and neighbors (the website) ----------
+   One account (a swimmer name + password) holds any number of swimmers, each saved as its own document at
+   saves/<user id>/swimmers/<swimmer id>. An account from before swimmers becomes swimmer #1 the first time it logs in.
+   Clone codes: the owner taps Share a clone code and gets something like SHARK-4821, a snapshot of their swimmer kept at
+   clonecodes/<code> for 24 hours. A friend types the code in to get a copy (without the blocks, which turn back into coins)
+   with its own island right next door. No password is ever shared. Each swimmer's island (house spot and blocks) is
+   published at islands/<user id>_<swimmer id> so neighbors can see each other. */
+const FS = `https://firestore.googleapis.com/v1/projects/${FB.project}/databases/(default)/documents`;
+async function fsReq(path, opts = {}, auth = true){
+  const headers = { 'Content-Type': 'application/json' }; if (auth) headers.Authorization = 'Bearer ' + await fbToken();
+  const r = await fetch(FS + path, { ...opts, headers }); if (r.status === 404) return null;
+  const j = await r.json().catch(() => ({})); if (!r.ok){ const e = new Error(j.error?.message || 'NETWORK'); e.status = r.status; throw e; } return j; }
+const fsData = d => { try { return JSON.parse(d?.fields?.data?.stringValue || 'null'); } catch(e){ return null; } };
+async function fsPut(path, fields, query = ''){
+  const f = {}; for (const k in fields) f[k] = typeof fields[k] === 'number' ? { integerValue: String(Math.round(fields[k])) } : { stringValue: String(fields[k]) };
+  return fsReq(path + query, { method: 'PATCH', body: JSON.stringify({ fields: f }) }); }
+const islandsNear = iid => fsReq(':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'islands' }],
+  where: { fieldFilter: { field: { fieldPath: 'near' }, op: 'EQUAL', value: { stringValue: iid } } }, limit: 30 } }) })
+  .then(q => (q || []).filter(r => r.document).map(r => ({ iid: r.document.name.split('/').pop(), ...fsData(r.document) })));
+const newSid = () => Math.random().toString(36).slice(2, 8);
+const islandId = sv => `${fbAuth.uid}_${sv.sid}`;
+const htmlText = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+async function listSwimmers(){
+  const j = await fsReq(`/saves/${fbAuth.uid}/swimmers?pageSize=60`);
+  const out = (j?.documents || []).map(d => { const sv = fsData(d); if (sv) sv.sid = d.name.split('/').pop(); return sv; }).filter(Boolean);
+  if (!out.length){ const old = await fsReq(`/saves/${fbAuth.uid}`).catch(() => null), d = old && fsData(old);   // an account from before swimmers: it becomes swimmer #1
+    if (d && hasSwimmer(d)){ const sv = migrate(d); sv.sid = newSid(); sv.label = sv.label || fbAuth.name; await putSwimmer(sv); out.push(sv); } }
+  return out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); }
+async function putSwimmer(sv){
+  await fsPut(`/saves/${fbAuth.uid}/swimmers/${sv.sid}`, { data: JSON.stringify({ ...sv, updatedAt: Date.now() }), label: sv.label || fbAuth.name, updatedAt: Date.now() });
+  publishIsland(sv); }
+// looks like the claude.ai database to flushCloud(): it saves the swimmer you're playing
+const swimDb = { doc: () => ({ async set(obj){ try { await putSwimmer(obj); } catch(e){ const x = new Error('save failed'); x.code = !e.status || e.status >= 500 ? 'unavailable' : 'denied'; throw x; } } }) };
+let islandSent = '';
+function publishIsland(sv){
+  if (!fbAuth || !sv.sid || !sv.house) return; const body = JSON.stringify({ house: sv.house, build: sv.build || '', name: sv.label || fbAuth.name });
+  if (body + (sv.near || '') === islandSent) return; islandSent = body + (sv.near || '');
+  fsPut(`/islands/${islandId(sv)}`, { data: body, near: sv.near || '', owner: fbAuth.uid }).catch(() => { islandSent = ''; }); }
+// who lives next door: the swimmer you were cloned from, and everyone cloned from you
+async function loadNeighbors(){
+  if (!STANDALONE || !fbAuth || !account || !save.sid){ setNeighbors([]); return; }
+  const me = islandId(save), found = [];
+  try { if (save.near){ const d = await fsReq(`/islands/${save.near}`), v = d && fsData(d); if (v) found.push({ iid: save.near, ...v }); }
+    found.push(...await islandsNear(me)); } catch(e){ return; }
+  setNeighbors(found.filter(n => n.house && n.iid !== me && Math.hypot(n.house.x - save.house.x, n.house.y - save.house.y) > 600)); }
+let swimmers = [], pendingClone = null, pendingNew = false;
+const newSwimmer = label => Object.assign(fresh(), { sid: newSid(), label });
+function playSwimmer(sv, hello){
+  save = Object.assign(fresh(), sv); account = { db: swimDb, uid: fbAuth.uid, sid: sv.sid }; hItems = null; heldItem = null; homeBlocks = null; titleNote('');
+  persist(); guestT = 0; islandSent = ''; publishIsland(save);
+  for (const id of ['swimPanel', 'clonePanel', 'loginPanel']) $(id).hidden = true; resetPick();
+  enterGame(); loadNeighbors();
+  banner(hello || `Hi, ${save.label || fbAuth.name}!`, `${RANKS[rankOf()].n} · ${xpNow().toLocaleString()} XP · ${save.coins || 0} coins`);
 }
+function showSwimmers(){
+  titleNote('');
+  const box = $('swimList'); box.innerHTML = '';
+  for (const sv of swimmers){ const b = document.createElement('button'); b.type = 'button'; b.className = 'btn primary swimrow';
+    b.innerHTML = `${htmlText(sv.label || fbAuth.name)}<small>${RANKS[rankOf(sv.xp || 0)].n} · ${(sv.xp || 0).toLocaleString()} XP · ${sv.coins || 0} coins${sv.near ? ' · a clone' : ''}</small>`;
+    b.onclick = () => playSwimmer(sv); box.appendChild(b); }
+  $('swimKicker').textContent = `${fbAuth.name}'s swimmers`; $('swimNote').textContent = ''; $('swimPanel').hidden = false; resetPick(); }
+async function addNewSwimmer(){
+  const sv = newSwimmer(`${fbAuth.name} ${swimmers.length + 1}`); try { await putSwimmer(sv); } catch(e){}
+  swimmers.unshift(sv); playSwimmer(sv, 'A brand-new swimmer!'); }
+// logged in: pick up where you were (a clone you just made, a new swimmer, the guest you were playing) or choose a swimmer
+async function startAccount(){
+  const inGame = playing(); let list = []; try { list = await listSwimmers(); } catch(e){ if (e.status === 403) return legacyAccount(inGame); }   // server rules not updated yet: the old one-swimmer save
+  swimmers = list; $('loginPanel').hidden = true;
+  if (pendingClone){ const pc = pendingClone; pendingClone = null; const sv = await makeClone(pc); swimmers.unshift(sv); playSwimmer(sv, `You cloned ${pc.label}!`); return; }
+  if (pendingNew){ pendingNew = false; await addNewSwimmer(); return; }
+  if (inGame){   // logged in while playing as a guest: that swimmer joins the account
+    const sv = list.length ? { ...mergeSaves(list[0], { ...save }), sid: list[0].sid, label: list[0].label } : { ...save, sid: newSid(), label: fbAuth.name };
+    account = { db: swimDb, uid: fbAuth.uid, sid: sv.sid }; save = Object.assign(fresh(), sv); persist(); cloudDirty = true; flushCloud(); guestT = 0;
+    resetPick(); paused = false; if (ocean) buildMinimap(); loadNeighbors(); banner(`Logged in as ${fbAuth.name}!`, 'Your swimmer now saves to your account.'); return; }
+  if (!list.length){ const local = readLocal(), sv = hasSwimmer(local) && !local.sid ? { ...local, sid: newSid(), label: fbAuth.name } : newSwimmer(fbAuth.name);
+    try { await putSwimmer(sv); } catch(e){} swimmers = [sv]; playSwimmer(sv, `Hi, ${fbAuth.name}!`); return; }
+  if (list.length === 1){ playSwimmer(list[0], `Welcome back, ${list[0].label || fbAuth.name}!`); return; }
+  showSwimmers();
+}
+// the one-swimmer save from before (used only until the new database rules are published)
+async function legacyAccount(inGame){
+  account = { db: fbDb, uid: fbAuth.uid }; pendingNew = false; pendingClone = null;
+  let cloud = null; try { const snap = await fbDb.doc().get(); if (snap.exists) cloud = migrate(JSON.parse(JSON.stringify(snap.data()))); } catch(e){}
+  const current = inGame || (save.xp || 0) > 0 ? save : readLocal();
+  save = Object.assign(fresh(), cloud ? (current ? mergeSaves(cloud, current) : cloud) : (current || {})); delete save.sid;
+  persist(); cloudDirty = true; flushCloud(); guestT = 0; $('loginPanel').hidden = true; resetPick();
+  if (inGame){ paused = false; if (ocean) buildMinimap(); banner(`Logged in as ${fbAuth.name}!`, 'Your swimmer now saves to your account.'); }
+  else { enterGame(); banner(cloud ? `Welcome back, ${fbAuth.name}!` : `Hi, ${fbAuth.name}!`, `${RANKS[rankOf()].n} · ${xpNow().toLocaleString()} XP · ${save.coins || 0} coins`); }
+}
+$('swimNew').onclick = () => { $('swimNote').textContent = 'Making a new swimmer…'; addNewSwimmer(); };
+$('swimClone').onclick = () => openClone();
+$('swimBack').onclick = () => { $('swimPanel').hidden = true; resetPick(); };
+$('switchBtn').onclick = async () => { $('panel').hidden = true; persist(); await flushCloud(); setMode('title'); try { swimmers = await listSwimmers(); } catch(e){} showSwimmers(); };
+// clone codes
+const CODE_WORDS = ['SHARK', 'WHALE', 'SEAL', 'CRAB', 'SQUID', 'OTTER', 'TUNA', 'ORCA', 'CORAL', 'PEARL', 'MANTA', 'KELP'];
+const blockRefund = build => { let c = 0; for (const [, t] of parseBuild(build || '')) c += BLOCKS[t]?.cost || 0; return c; };
+async function shareCode(){
+  if (!account || !save.sid) return; $('panel').hidden = true; $('codeShow').textContent = 'Making a code…'; $('codeExplain').textContent = ''; $('codePanel').hidden = false; paused = true; resetPick();
+  persist(); await flushCloud();
+  const snap = JSON.parse(JSON.stringify(save)); for (const k of ['build', 'sid', 'label', 'near', 'houseItems', 'lampOff', 'updatedAt', 'house', 'houseFound', 'homeRuns', 'homeBest']) delete snap[k];
+  snap.coins = (save.coins || 0) + blockRefund(save.build);   // the blocks stay behind, as coins
+  const body = { snap, from: islandId(save), fromHouse: save.house, owner: fbAuth.name, label: save.label || fbAuth.name, exp: Date.now() + 864e5 };
+  for (let tries = 0; tries < 5; tries++){ const code = CODE_WORDS[(Math.random()*CODE_WORDS.length)|0] + '-' + (1000 + ((Math.random()*9000)|0));
+    try { await fsPut(`/clonecodes/${code}`, { data: JSON.stringify(body), owner: fbAuth.uid }, '?currentDocument.exists=false');
+      $('codeShow').textContent = code;
+      $('codeExplain').textContent = `Give this code to a friend. They tap Clone and type it in to get a copy of ${body.label} as it is right now: everything except your blocks, which turn into coins. Their clone gets its own island right next to yours. The code works for 24 hours, for as many friends as you like, and your password stays secret.`;
+      return; }
+    catch(e){ if (![400, 403, 409].includes(e.status)) break; } }   // that code was taken: try another
+  $('codeShow').textContent = 'Oops!'; $('codeExplain').textContent = "Couldn't make a code. Check the internet and try again."; }
+$('shareBtn').onclick = () => shareCode();
+$('codeClose').onclick = () => { $('codePanel').hidden = true; if (playing()) paused = false; resetPick(); };
+let cloneFound = null;
+function openClone(){
+  for (const id of ['swimPanel', 'panel', 'loginPanel']) $(id).hidden = true; if (playing()) paused = true; cloneFound = null;
+  $('cloneTitle').textContent = 'Type in the clone code'; $('cloneExplain').textContent = 'Ask your friend to open their Menu and tap Share a clone code, then type the code here.';
+  $('cloneCode').hidden = false; $('cloneCode').value = ''; $('cloneGo').textContent = 'Find the swimmer'; $('cloneNote').textContent = ''; $('clonePanel').hidden = false; resetPick();
+  setTimeout(() => { try { $('cloneCode').focus(); } catch(e){} }, 50); }
+$('cloneGo').onclick = async () => {
+  const note = $('cloneNote'), btn = $('cloneGo');
+  if (cloneFound){ const pc = cloneFound;   // step 2: make the clone
+    if (!fbAuth){ pendingClone = pc; $('clonePanel').hidden = true; openLogin(false); setLoginMode(true); $('loginExplain').textContent = `Pick your own swimmer name and password. Your new account starts with your clone of ${pc.label}.`; return; }
+    btn.disabled = true; note.textContent = 'Cloning…';
+    try { await fbToken(); const sv = await makeClone(pc); swimmers.unshift(sv); if (playing()) paused = false; playSwimmer(sv, `You cloned ${pc.label}!`); }
+    catch(e){ note.textContent = "Couldn't reach the server. Check the internet and try again."; }
+    finally { btn.disabled = false; } return; }
+  const code = $('cloneCode').value.trim().toUpperCase().replace(/[\s_]+/g, '').replace(/^([A-Z]+)-?(\d{4})$/, '$1-$2');
+  if (!/^[A-Z]+-\d{4}$/.test(code)){ note.textContent = 'Clone codes look like SHARK-4821.'; return; }
+  btn.disabled = true; note.textContent = 'Looking…';
+  try { const d = await fsReq(`/clonecodes/${code}`, {}, false), v = d && fsData(d);
+    if (!v){ note.textContent = "There's no swimmer with that code. Check it and try again."; return; }
+    if (v.exp < Date.now()){ note.textContent = 'That code is too old. Ask your friend for a new one.'; return; }
+    cloneFound = v; const sn = v.snap || {};
+    $('cloneTitle').textContent = `Clone ${v.label}?`; $('cloneCode').hidden = true; note.textContent = '';
+    $('cloneExplain').textContent = `${v.owner}'s swimmer: ${RANKS[rankOf(sn.xp || 0)].n}, ${(sn.xp || 0).toLocaleString()} XP, ${sn.coins || 0} coins. Your clone gets everything except the blocks (those turn into coins), and its own island right next door.`;
+    btn.textContent = fbAuth ? 'Clone it!' : 'Clone it and make my account'; }
+  catch(e){ note.textContent = "Couldn't reach the server. Check the internet and try again."; }
+  finally { btn.disabled = false; } };
+$('cloneBack').onclick = () => { $('clonePanel').hidden = true; if (playing()) paused = false; resetPick(); };
+$('cloneCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('cloneGo').click(); });
+async function makeClone(pc){
+  const sv = Object.assign(fresh(), JSON.parse(JSON.stringify(pc.snap || {})), { sid: newSid(), label: `${pc.label}'s clone`.slice(0, 30), near: pc.from, build: '', houseFound: true, tutorialDone: true });
+  sv.house = await neighborSpot(pc.fromHouse, pc.from); await putSwimmer(sv); return sv; }
+// a spot for a clone's island, a short swim from the original's and clear of the other clones
+async function neighborSpot(at, fromIid){
+  if (!at) return randomHouse(); const taken = [at];
+  try { for (const n of await islandsNear(fromIid)) if (n.house) taken.push(n.house); } catch(e){}
+  for (const dist of [1700, 2500, 3300]) for (let k = 0; k < 10; k++){ const a = k/10*TAU + .3, x = Math.round(at.x + Math.cos(a)*dist), y = Math.round(at.y + Math.sin(a)*dist);
+    if (taken.every(h => Math.hypot(h.x - x, h.y - y) > 1400) && Math.hypot(x, y) > 20500) return { x, y }; }
+  return randomHouse(); }
+$('cloneBtn').onclick = () => { initAudio(); openClone(); };
+$('makeBtn').onclick = () => { initAudio(); openLogin(false); setLoginMode(true); };
 /* ---------- Swimming together: everyone logged in on the website shares one ocean ----------
    Each swimmer writes where they are to the Realtime Database (ocean/<user id>) a few times a second and listens to everyone
    else's spot through one live stream. Only names and positions are shared, and there's no chat. */
@@ -4526,7 +4740,7 @@ function leaveHumanThings(){
   if (o.onShip){ const was = paused; paused = false; jumpOffShip(); paused = was; }
   if (o.onBoat){ const was = paused; paused = false; jumpOffBoat(); paused = was; }
 }
-function logOut(){ mpLeave(); persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
+function logOut(){ mpLeave(); persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); setNeighbors([]); swimmers = []; try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
 function openGate(){ paused = true; ptr.down = false; for (const id of ['panel','shopPanel','mapPanel']) $(id).hidden = true; $('gateNote').textContent = ''; $('gatePanel').hidden = false; resetPick(); }
 $('gateLogin').onclick = async () => {
   const btn = $('gateLogin'); btn.disabled = true; btn.textContent = 'Logging in…'; $('gateNote').textContent = '';
