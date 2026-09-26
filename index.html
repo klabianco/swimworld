@@ -82,6 +82,15 @@
     padding:12px 22px;font-family:var(--display);font-size:22px;background:#bfe6ff;color:var(--ink);box-shadow:0 5px 0 rgba(8,43,69,.35);
     display:flex;align-items:center;gap:10px;animation:bob 1.6s ease-in-out infinite}
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
+  #sleepBtn{background:#e3d6ff}
+  #sleepFade{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;transition:opacity 1.2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:radial-gradient(circle at 50% 35%,#1d2f63,#060c1f 70%)}
+  #sleepFade.on{opacity:1}
+  #sleepFade .moon{width:90px;height:90px;border-radius:50%;box-shadow:-22px 10px 0 0 #fff3c4;transform:translateX(18px)}
+  #sleepFade .zzz{font-family:var(--display);font-size:56px;color:#dfe8ff;letter-spacing:6px}
+  #sleepFade .zzz span{display:inline-block;animation:zz 1.8s ease-in-out infinite}
+  #sleepFade .zzz span:last-child{animation-delay:.4s;font-size:.75em}
+  @keyframes zz{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-14px);opacity:1}}
   #jumpBtn{background:#bfe6ff}
   .limb.jump{background:#c9f0e0;font-size:22px}
   .coins{display:flex;align-items:center;gap:8px;font-family:var(--display);font-size:20px;font-weight:400}
@@ -257,6 +266,8 @@
 </div>
 <button id="rideBtn" class="ridebtn" type="button" hidden>Ride the dolphin<small>E</small></button>
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
+<button id="sleepBtn" class="ridebtn" type="button" hidden>Sleep<small>Z</small></button>
+<div id="sleepFade" aria-hidden="true"><div class="moon"></div><div class="zzz">Z<span>z</span><span>z</span></div></div>
 <div id="coach" class="coach" hidden><div class="face" aria-hidden="true">C</div><p><span class="who" id="coachWho">Coach</span><span id="coachTxt"></span></p></div>
 <div id="banner" class="banner" hidden><b id="banTitle"></b><span id="banSub"></span></div>
 
@@ -525,6 +536,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k) && playing()) e.preventDefault();
   if (k === 'e' && !e.repeat) toggleRide();
   if (k === 't' && !e.repeat) talkToFriend();
+  if (k === 'z' && !e.repeat) goToSleep();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
   if (k === 'j' && !e.repeat) dolphinJump();
@@ -1772,6 +1784,24 @@ function houseCollide(o){
   o.inHouse = Math.abs(lx) < 2.35 && Math.abs(lz) < 1.85;
   if (o.inHouse && !o.houseHi){ o.houseHi = true; banner('Home sweet home!', 'You walked into your house'); sfx(660, .12, 'triangle', .05); sfx(880, .16, 'triangle', .05, .1); }
 }
+// Sleep in your bed: walk up to it and press Sleep (or Z). You lie down, the night passes, and you wake up in the morning.
+// Move to get out of bed. Positions are in the house's frame, like HOUSE_SOLID.
+const toHouseWorld = (lx, lz) => [HOUSE.x + (lx + lz)*HOUSE_TURN/U, HOUSE.y + (lz - lx)*HOUSE_TURN/U];
+function nearBed(o){ if (!o || !o.onLand || !o.inHouse || o.sleeping) return false; const [lx, lz] = houseLocal(o); return lx < -.55 && lz < .8; }
+function goToSleep(){
+  const o = ocean; if (mode !== 'ocean' || paused || !nearBed(o)) return;
+  [o.x, o.y] = toHouseWorld(-1.8, -.85); o.ang = -3*Math.PI/4; o.vx = o.vy = 0; o.walking = false;   // head on the pillow
+  o.sleeping = { done: false }; $('sleepBtn').hidden = true; camInit = false;
+  [392, 330, 294, 262].forEach((f, i) => sfx(f, .5, 'sine', .05, .4 + i*.55));   // a little lullaby
+  setTimeout(() => $('sleepFade').classList.add('on'), 900);
+  setTimeout(() => { $('sleepFade').classList.remove('on'); if (o.sleeping) o.sleeping.done = true;
+    setTimeout(() => { if (ocean === o){ banner('Good morning!', 'You slept in your own bed. Move to get up.'); [523, 659, 784].forEach((f, i) => sfx(f, .2, 'triangle', .05, i*.12)); } }, 900); }, 5200);
+}
+function sleepStep(o){
+  o.vx = o.vy = 0; o.depth = 0; o.air = airMax();
+  if (o.sleeping.done && wantHeading()){ o.sleeping = null; [o.x, o.y] = toHouseWorld(-.95, -.6); o.ang = -Math.PI/4; camInit = false; }   // hop out beside the bed
+}
+$('sleepBtn').onclick = () => { initAudio(); goToSleep(); };
 // Inside, the roof comes off and the walls go down so you can see yourself. The door opens when you're near it.
 function houseLook(o, dt){
   const u = houseGroup?.userData.inside; if (!u) return;
@@ -1824,7 +1854,7 @@ function updOcean(dt){
   const o = ocean; o.prevDepth = o.depth || 0;
   if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
-  else if (o.onLand){ walkStep(o, dt); $('airChip').hidden = true;
+  else if (o.onLand){ if (o.sleeping) sleepStep(o); else walkStep(o, dt); $('airChip').hidden = true;
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; }        // walked back into the sea
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
@@ -1891,6 +1921,7 @@ function updOcean(dt){
   if (o.rideAway){ const a = o.rideAway; a.t -= dt; a.x += Math.cos(a.ang)*240*dt; a.y += Math.sin(a.ang)*240*dt; a.depth = Math.min(3, a.depth + dt);
     if (a.t <= 0){ o.rideAway = null; o.rideFrom = null; } }
   o.rideTarget = o.ride || o.onLand ? null : findDolphin(o);
+  { const zb = $('sleepBtn'), showZ = nearBed(o); if (zb.hidden === showZ) zb.hidden = !showZ; }
   { const f = friendNear(o), tb = $('talkBtn'); if (tb.hidden === !!f) tb.hidden = !f;
     if (f){ const t = f.person ? ({ keeper:'Talk to the lighthouse keeper', captain:'Talk to the pirate captain', gunner:'Talk to the gunner', lookout:'Talk to the lookout', deckhand:'Talk to the deckhand' }[f.person] || 'Talk to the fisherman') : `Talk to the ${SPECIES_NAME[f.id].toLowerCase()}`; if (tb.firstChild.textContent !== t) tb.firstChild.textContent = t; } }
   { const bb = $('buildBtn'), showB = !!o.onLand && onHome(o); if (bb.hidden === showB) bb.hidden = !showB; }
@@ -3737,8 +3768,10 @@ function render3D(dt){
     const dep = ocean.depth || 0, sub = clamp(dep/.4, 0, 1); curDepth = dep;
     if (ocean.onLand){   // standing on the island
       const gy = landY(ocean), human = m.userData.kind === 'swimmer';
-      m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0);
-      poseWalk(m, ocean.walkPh || 0, ocean.walking);
+      if (ocean.sleeping){ m.position.set(px, gy + ({ swimmer:.62, turtle:.6, otter:.64, dolphin:.76 }[m.userData.kind] || .6), pz);   // lying in bed, the swimmer on their back
+        m.rotation.order = 'YXZ'; m.rotation.set(human ? Math.PI : 0, -ocean.ang, 0); poseWalk(m, 0, false); }
+      else { m.rotation.order = 'XYZ'; m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0);
+      poseWalk(m, ocean.walkPh || 0, ocean.walking); }
     } else if (ocean.ride && rideModel){   // holding the dorsal fin, lying along the dolphin's back
       m.position.copy(rideModel.position); m.position.y += .42; m.position.x += Math.sin(ocean.ang)*.1; m.position.z -= Math.cos(ocean.ang)*.1;
       m.rotation.set(0, -ocean.ang, rideModel.rotation.z); poseModel(m, RIDE_POSE, t);
