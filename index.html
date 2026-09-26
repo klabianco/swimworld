@@ -1336,6 +1336,7 @@ function jumpStep(o, dt){
   o.jumpV -= 9.8*dt; o.jumpY += o.jumpV*dt; o.idle = 0; o.depth = 0; o.vd = 0;
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang); o.x += o.vx*dt; o.y += o.vy*dt;   // sail through the air with no water to slow you
   const w = wantHeading(); if (w) o.ang += clamp(angDiff(w.ang, o.ang), -1.2*dt, 1.2*dt);
+  { const gh = groundAt(o.x, o.y); if (gh > -.35 && o.jumpY <= gh){ o.jumpY = 0; o.jumpV = 0; o.depth = 0; o.vd = 0; o.onLand = true; o.vx *= .3; o.vy *= .3; sfx(120, .2, 'sine', .08); return true; } }   // came down on an island: land on it
   if (o.jumpY <= 0){ o.jumpY = 0; o.jumpV = 0; o.depth = .5; o.vd = .8; sfx(160, .35, 'sine', .08, 0, -80);
     for (let i=0;i<18;i++) bubble(o.x + fx*20 + (Math.random()-.5)*40, o.y + fy*20 + (Math.random()-.5)*40, (Math.random()-.5)*60, (Math.random()-.5)*60); }
   return true;
@@ -2124,6 +2125,7 @@ const islandPlants = () => plantsCache || (plantsCache = (() => { const R = mulb
     if (ok(x, z, kind === 'palm' ? 2.2 : 1.3)) out.push({ kind, x, z, s: .8 + R()*.6, a: R()*TAU }); }
   return out; })());
 function walkStep(o, dt){
+  o.jumpY = 0; o.jumpV = 0;   // on your feet, never mid-leap
   const w = wantHeading(), walking = !!w;
   if (w) o.ang += clamp(angDiff(w.ang, o.ang), -6*dt, 6*dt);
   const sp = walking ? 62*w.m : 0;                                             // about 1.5 m/s
@@ -2182,7 +2184,7 @@ function updOcean(dt){
   // the island's underwater slope is solid: you glide up it instead of through it
   if (!o.onLand && !o.ride && !o.vehicle){ const gh = groundAt(o.x, o.y); if (gh > -3.3 && (o.depth || 0) > -gh - .35){ o.depth = Math.max(0, -gh - .35); if ((o.vd || 0) > 0) o.vd = 0; } }
   // swim up a beach and you climb out onto the island
-  if (!o.onLand && !o.ride && !o.vehicle && groundAt(o.x, o.y) > -.35 && (o.depth || 0) < .6){
+  if (!o.onLand && !o.ride && !o.vehicle && !(o.jumpY > 0) && groundAt(o.x, o.y) > -.35 && (o.depth || 0) < .6){
     o.onLand = true; o.depth = 0; o.vx *= .3; o.vy *= .3;
     if (!o.landHint){ o.landHint = true; coach('You climbed onto the island! Use the joystick to walk around. Walk back into the water to swim.', 8); } }
   if (o.ride && groundAt(o.x, o.y) > -1.2){ const d0 = Math.hypot(o.x, o.y) < Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) ? [0, 0, islR(Math.atan2(o.y, o.x))/U + 60] : [HOUSE.x, HOUSE.y, HOUSE.r + 80]; keepOutCircle(o, ...d0); }
@@ -4146,7 +4148,7 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    houseLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.jumpY || 0;
+    houseLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.onLand ? 0 : ocean.jumpY || 0;
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (ocean.onLand) camOutOfBlocks(px, landY(ocean), pz); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
