@@ -93,6 +93,10 @@
   .item p{margin:0;font-size:13px;font-weight:700;color:var(--muted);line-height:1.35}
   .item .btn{font-size:18px;padding:10px}
   .item.owned{border-color:var(--plus)}
+  .item.off{border-style:dashed}
+  .item.off h3,.item.off p,.item.off .lvl{opacity:.55}
+  .item .btn.equip{font-size:15px;padding:8px;background:#fff;color:var(--muted);border:2px dashed var(--line)}
+  .item .btn.equip.on{background:#e6f7ec;color:#1f7a3f;border:2px solid var(--plus)}
   .item .lvl{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:800;color:var(--muted)}
   .item .lvl i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:#fff}
   .item .lvl i.on{background:var(--plus);border-color:var(--plus)}
@@ -647,28 +651,33 @@ const SHOP = [
   { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',   lv:[40, 100, 200, 350, 600],    say: n => `Breathe with your face in the water, see farther, and ${breathSay(n).toLowerCase()}` },
   { id:'light',    who:'swimmer', name:'Dive light',       lv:[120, 250, 450],             say: n => ['Lights up dark, deep water like the Mariana Trench.', 'A brighter light that shines farther.', 'The brightest light in the sea.'][n - 1] },
   { id:'scuba',    who:'swimmer', name:'Scuba gear',       lv:[400, 600, 900, 1300, 1800], say: n => `A tank with about ${SCUBA_MIN[n - 1]} minutes of air. Dive to the deep sea floor and explore the shipwreck.` },
-  { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[25],                        say: () => 'Just because it looks amazing.' },
+  { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[25],                        say: () => 'Just for looks: shows on the Swimmer. It looks amazing.' },
   { id:'turbotail',who:'dolphin', name:'Turbo Tail',       lv:[80, 200, 400, 700, 1100],   say: fastSay },
   { id:'blowhole', who:'dolphin', name:'Big Blowhole',     lv:[60, 150, 300, 500, 800],    say: breathSay },
-  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv:[150, 300, 500],             say: n => ['Jump twice as high.', 'Jump even higher.', 'Jump sky high!'][n - 1] },
+  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv:[150, 300, 500],             say: n => ['Jump twice as high.', 'Jump even higher.', 'Jump sky high!'][n - 1] + ' (Only the Dolphin can jump.)' },
   { id:'sonar',    who:'dolphin', name:'Sonar',            lv:[200, 350, 550],             say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} seconds.` },
-  { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[60],                        say: () => 'Just for looks. Very fancy.' },
+  { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[60],                        say: () => 'Just for looks: shows on the Dolphin. Very fancy.' },
   { id:'flippers', who:'turtle',  name:'Speed Flippers',   lv:[60, 150, 300, 550, 900],    say: fastSay },
   { id:'lungs',    who:'turtle',  name:'Deep Lungs',       lv:[150, 300, 500, 800, 1200],  say: n => `Stay under water ${LUNGS[n - 1]} times longer.` },
   { id:'armor',    who:'turtle',  name:'Armor Shell',      lv:[250],                       say: () => 'Nothing can hurt you: sharks, jellyfish and cannonballs bounce right off. (You still need air!)' },
-  { id:'crown',    who:'turtle',  name:'Flower Crown',     lv:[40],                        say: () => 'Just for looks. So pretty.' },
+  { id:'crown',    who:'turtle',  name:'Flower Crown',     lv:[40],                        say: () => 'Just for looks: shows on the Sea Turtle. So pretty.' },
   { id:'paws',     who:'otter',   name:'Zoom Paws',        lv:[70, 170, 350, 600, 1000],   say: fastSay },
   { id:'bubblefur',who:'otter',   name:'Bubble Fur',       lv:[50, 130, 260, 450, 700],    say: n => `Real otters trap air in their fur. ${breathSay(n)}` },
   { id:'pouch',    who:'otter',   name:'Pearl Pouch',      lv:[200, 400, 700],             say: n => `Pearls are worth ${['double', 'triple', 'four times as much'][n - 1]}.` },
   { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[150],                       say: () => 'An arrow points to the nearest treasure chest.' },
-  { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[30],                        say: () => 'Just for looks. Very dapper.' },
+  { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[30],                        say: () => 'Just for looks: shows on the Otter. Very dapper.' },
 ];
 const SCUBA_MIN = [5, 7.5, 10, 15, 20], SONAR_WAIT = [12, 7, 3], LUNGS = [3, 4, 5, 6, 8];
 const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['snorkel', 'blowhole', 'bubblefur'];   // (Deep Lungs multiplies instead)
-const SHOP_WHO = [['all','Boosters'], ['swimmer','Swimmer gear'], ['dolphin','Dolphin gear'], ['turtle','Sea Turtle gear'], ['otter','Otter gear']];
+// the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
+const SHOP_GROUPS = [['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
+  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['armor', 'sonar', 'light', 'whiskers', 'pouch', 'rocketfin']],
+  ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']]];
 // the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
 const ownedLv = id => Math.max((save.gearLv || {})[id] || 0, (save.gear || []).includes(id) ? 1 : 0);
-const gearLv = ownedLv;   // all gear works whoever you play as
+// all gear works whoever you play as, unless you've taken it off (save.off lists unequipped gear)
+const equipped = id => !(save.off || []).includes(id);
+const gearLv = id => equipped(id) ? ownedLv(id) : 0;
 const hasGear = id => gearLv(id) > 0;
 const gearFast = () => SPEED_GEAR.reduce((m, id) => m*(gearLv(id) ? FAST[gearLv(id) - 1] : 1), 2**gearLv('turbo'));
 const gearBreath = () => BREATH_GEAR.reduce((t, id) => t + (gearLv(id) ? BREATH[gearLv(id) - 1] : 0), 0);
@@ -681,11 +690,10 @@ function addCoins(n, why){
 function renderShop(){
   $('shopNote').textContent = `You have ${save.coins || 0} coins. All your gear works for every animal, and it all adds up!`;
   const box = $('shopItems'); box.innerHTML = '';
-  const order = [...SHOP_WHO].sort((a, b) => (b[0] === curChar().id || b[0] === 'all') - (a[0] === curChar().id || a[0] === 'all'));   // your current animal's gear first
-  for (const [who, title] of order){
+  for (const [title, ids] of SHOP_GROUPS){
     const h = document.createElement('h3'); h.className = 'shopgroup'; h.textContent = title; box.appendChild(h);
-  for (const it of SHOP.filter(i => i.who === who)){
-    const n = ownedLv(it.id), max = it.lv.length, full = n >= max, price = it.lv[n], d = document.createElement('div'); d.className = 'item' + (n ? ' owned' : '');
+  for (const it of ids.map(id => SHOP.find(i => i.id === id))){
+    const n = ownedLv(it.id), max = it.lv.length, full = n >= max, price = it.lv[n], d = document.createElement('div'); d.className = 'item' + (n ? (equipped(it.id) ? ' owned' : ' off') : '');
     d.innerHTML = `<h3>${it.name}</h3>` + (max > 1 && !it.many ? `<div class="lvl" aria-label="Level ${n} of ${max}">${it.lv.map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}<span>${n ? `Level ${n}` : 'Not yet'}</span></div>` : '') +
       `<p>${it.say(it.many ? n : Math.max(1, n))}</p>` + (n && !full && !it.many ? `<p class="next">Level ${n + 1}: ${it.say(n + 1)}</p>` : '') +
       (max > 1 && !it.many && n + 1 < max ? `<p class="next">Top level ${max}: ${it.say(max)}</p>` : '');   // so you can see what you're saving up for, like twice as fast
@@ -698,7 +706,13 @@ function renderShop(){
       save.gearLv = { ...(save.gearLv || {}), [it.id]: n + 1 }; save.coins -= price; persist(); flushCloud();
       [784, 988, 1319].forEach((f, i) => sfx(f, .15, 'triangle', .06, i*.08)); renderShop(); pickShopBack();
       $('shopNote').textContent = `${it.many ? `Turbo! You're now ${2**(n + 1)}× as fast` : n ? `Level ${n + 1} ${it.name.toLowerCase()}` : `You bought the ${it.name.toLowerCase()}`}! You have ${save.coins} coins left.`; };
-    d.appendChild(b); box.appendChild(d);
+    d.appendChild(b);
+    if (n){ const e = document.createElement('button'), on = equipped(it.id); e.type = 'button'; e.className = 'btn equip' + (on ? ' on' : '');   // take gear off and put it back on, for free
+      e.textContent = on ? 'Equipped ✓ (tap to take off)' : 'Not equipped (tap to put on)';
+      e.onclick = () => { save.off = on ? [...(save.off || []), it.id] : (save.off || []).filter(x => x !== it.id); persist(); flushCloud(); sfx(on ? 520 : 780, .08, 'triangle', .05);
+        renderShop(); pickShopBack(); $('shopNote').textContent = `${on ? 'Took off' : 'Put on'} the ${it.name.toLowerCase()}.`; };
+      d.appendChild(e); }
+    box.appendChild(d);
   } }
 }
 let shopFrom = null, shopLock = 0;
@@ -2344,7 +2358,7 @@ function showExtras(m, has){ const ex = m.userData.extras; if (ex) for (const k 
 function updateGearLook(m){
   showExtras(m, id => hasGear(id));
   const g = m.userData.gear; if (!g) return;
-  const on = id => (save.gear || []).includes(id);
+  const on = id => gearLv(id) > 0;
   for (const f of g.fins) f.visible = on('fins'); g.mask.visible = g.snork.visible = on('snorkel'); g.tank.visible = on('scuba');
   for (const q of g.goggles) q.visible = !on('snorkel');
   g.capM.color.set(on('goldcap') ? 0xf5c030 : 0x1f5fe0); g.capM.metalness = on('goldcap') ? .7 : 0;
@@ -3994,7 +4008,7 @@ function mpTick(dt){
   if (!mpSrc){ if ((mpRetryT -= dt) <= 0) mpConnect(); return; }
   if ((mpSendT -= dt) > 0) return; mpSendT = .2;   // five times a second
   const o = ocean, m = player; if (!m) return;
-  const me = { n: fbAuth.name.slice(0, 20), c: curChar().id, g: (save.gear || []).filter(id => SHOP.find(i => i.id === id)?.who === curChar().id).join(',').slice(0, 60),
+  const me = { n: fbAuth.name.slice(0, 20), c: curChar().id, g: (save.gear || []).filter(id => SHOP.find(i => i.id === id)?.who === curChar().id && equipped(id)).join(',').slice(0, 60),
     x: Math.round(o.x), y: Math.round(o.y), w: +m.position.y.toFixed(2), a: +o.ang.toFixed(2), p: +m.rotation.z.toFixed(2),
     l: o.onShip ? 2 : o.onBoat ? 3 : o.onLand ? 1 : 0, d: +(o.depth || 0).toFixed(2) };
   const key = JSON.stringify(me); if (key === mpLast && (mpSendT = .2, (o.mpIdle = (o.mpIdle || 0) + .2) < 4)) return;   // still: resend only now and then so you don't vanish
