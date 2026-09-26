@@ -525,14 +525,19 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'j' && !e.repeat) dolphinJump();
   if (k === 'p' && !e.repeat) sonarPing();
   // Escape closes whatever window is open (shop, map, menu, where-to-swim); with nothing open it opens the Menu
-  if (k === 'escape' && !e.repeat){
-    if (!$('shopPanel').hidden) closeShop();
-    else if (!$('mapPanel').hidden) closeMap();
-    else if (!$('loginPanel').hidden){ if (!$('loginBack').hidden) $('loginBack').click(); }
-    else if (!$('movePanel').hidden) $('moveClose').click();
-    else if (!$('panel').hidden) closePanel();
-    else if (mode === 'choose') $('chooseBack').click();
-    else if (playing() && !paused) openPanel(); } });
+  if (k === 'escape' && !e.repeat){ if (!closeTopWindow() && playing() && !paused) openPanel(); } });
+function closeTopWindow(){
+  if (!$('shopPanel').hidden) closeShop();
+  else if (!$('mapPanel').hidden) closeMap();
+  else if (!$('loginPanel').hidden){ if (!$('loginBack').hidden) $('loginBack').click(); }
+  else if (!$('movePanel').hidden) $('moveClose').click();
+  else if (!$('panel').hidden) closePanel();
+  else if (mode === 'choose') $('chooseBack').click();
+  else return false;
+  return true; }
+// tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
+for (const id of ['shopPanel', 'mapPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+  $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const ptr = { x:0, y:0, down:false };
@@ -3734,7 +3739,7 @@ const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
   mode = m; paused = false;
-  if (m === 'title' && startArmed){ startArmed = false; $('startBtn').textContent = 'Start Game'; }
+  if (m === 'title'){ startArmed = false; arrangeTitle(); }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
@@ -3857,6 +3862,16 @@ $('moveClose').onclick = () => { $('movePanel').hidden = true; $('panel').hidden
 $('moveCopy').onclick = async () => { const inp = $('moveLink'); inp.select();
   let ok = false; try { await navigator.clipboard.writeText(inp.value); ok = true; } catch(e){ try { ok = document.execCommand('copy'); } catch(_){} }
   $('moveNote').textContent = ok ? 'Copied! Send it to yourself (Messages, email or AirDrop) and open it on the other device.' : 'Select the link above and copy it.'; };
+// Already have a swimmer (or a login) on this device? Then Continue is the big first button and Start becomes "Start new",
+// so nobody starts over by accident.
+const hasSwimmer = d => !!d && ((d.coins || 0) > 0 || (d.gear || []).length > 0 || (d.xp || d.dist || 0) > 20);
+function arrangeTitle(){
+  const back = !!fbAuth || hasSwimmer(readLocal()), st = $('startBtn'), co = $('continueBtn');
+  if (!startArmed) st.textContent = back ? 'Start new' : 'Start Game';
+  if (!co.disabled) co.textContent = back ? 'Continue playing' : 'Continue';
+  st.classList.toggle('primary', !back); st.classList.toggle('secondary', back); co.classList.toggle('primary', back); co.classList.toggle('secondary', !back);
+  if (back) st.before(co); else co.before(st);
+}
 function titleNote(text, warn){ const n = $('titleNote'); n.textContent = text; n.className = 'note' + (warn ? ' warn' : ''); }
 function enterGame(){ taken.clear(); buildMinimap(); startOcean(); }   // no pool any more: straight into the ocean
 function goPool(){ if (!save.tutorialDone) startRace(true, true); else startPool(); }
@@ -3868,11 +3883,11 @@ $('chooseBack').onclick = () => { persist(); flushCloud(); setMode('title'); res
 $('startBtn').onclick = () => {
   initAudio();
   const had = readLocal();
-  if (had && ((had.coins || 0) > 0 || (had.gear || []).length || (had.xp || had.dist || 0) > 20) && !startArmed){
+  if (hasSwimmer(had) && !startArmed){
     startArmed = true; $('startBtn').textContent = 'Yes, start over';
-    titleNote(`You already have a swimmer with ${had.coins || 0} coins${(had.gear || []).length ? ' and gear' : ''}. Start Game makes a brand-new one. Press Continue to keep playing yours.`, true);
+    titleNote(`You already have a swimmer with ${had.coins || 0} coins${(had.gear || []).length ? ' and gear' : ''}. Start new makes a brand-new one. Press Continue playing to keep yours.`, true);
     return; }
-  startArmed = false; $('startBtn').textContent = 'Start Game';
+  startArmed = false; arrangeTitle();
   account = null; guestT = 0; save = fresh(); persist(); enterGame();
 };
 /* Guests get about a minute of play, then they're asked to log in so their progress is saved. */
@@ -4054,7 +4069,7 @@ $('continueBtn').onclick = async () => {
     } else {
       titleNote("Couldn't log in here and there's no saved swimmer on this device. Press Start Game to begin.", true);
     }
-  } finally { btn.disabled = false; btn.textContent = 'Continue'; }
+  } finally { btn.disabled = false; arrangeTitle(); }
 };
 
 /* ---------- Main loop ---------- */
