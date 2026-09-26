@@ -789,38 +789,42 @@ const priceAt = (it, n) => n < it.lv.length ? it.lv[n] : Math.round(it.lv[it.lv.
 const timesTxt = v => `${+v.toFixed(2)}×`;
 const fastSay = n => n < 5 ? `You swim ${Math.round((fastAt(n) - 1)*100)}% faster.` : n === 5 ? 'You swim twice as fast!' : `You swim ${timesTxt(fastAt(n))} as fast!`;
 const breathSay = n => `Hold your breath ${breathAt(n)} seconds longer.`;
+/* The economy (rebalanced 2026-09-26). Coins come from exploring (one-time rewards), quests, trips home, chests and pearls.
+   Prices sit on three shelves: starter things about 50-300, mid-game 300-1,500, big goals 1,500-6,000+. Each level of an
+   upgrade costs about 1.6x the one before (curve), so there's always something to save up for. */
+const curve = (base, n, k = 1.6) => Array.from({ length: n }, (_, i) => Math.round(base*k**i/10)*10);
 const SHOP = [
-  { id:'turbo',    who:'all',     name:'Turbo Booster',    lv: Array.from({ length: 30 }, (_, i) => 1000*2**i), many: true,   // buy it again and again: each one doubles your speed and costs twice as much
+  { id:'turbo',    who:'all',     name:'Turbo Booster',    lv: Array.from({ length: 30 }, (_, i) => 2500*2**i), many: true,   // buy it again and again: each one doubles your speed and costs twice as much
     say: n => `Each booster makes you twice as fast, on top of your other gear, up to the top speed of ${TOP_MPH} mph. ${n ? `You have ${n}: ${2**n}× as fast!` : ''}` },
-  { id:'fins',     who:'swimmer', name:'Fins',             lv:[60, 150, 300, 550, 900], inf: true, say: fastSay },
-  { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',   lv:[40, 100, 200, 350, 600], inf: true, say: n => `Breathe with your face in the water, see farther, and ${breathSay(n).toLowerCase()}` },
-  { id:'light',    who:'swimmer', name:'Dive light',       lv:[120, 250, 450], inf: true,  say: n => n === 1 ? 'Lights up dark, deep water like the Mariana Trench.' : `A brighter light that shines about ${lightAt(n)[1]} m.` },
-  { id:'scuba',    who:'swimmer', name:'Scuba gear',       lv:[400, 600, 900, 1300, 1800], inf: true, say: n => `A tank with about ${scubaMin(n)} minutes of air. Dive to the deep sea floor and explore the shipwreck.` },
-  { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[25],                        say: () => 'Just for looks: shows on the Swimmer. It looks amazing.' },
-  { id:'turbotail',who:'dolphin', name:'Turbo Tail',       lv:[80, 200, 400, 700, 1100], inf: true, say: fastSay },
-  { id:'blowhole', who:'dolphin', name:'Big Blowhole',     lv:[60, 150, 300, 500, 800], inf: true, say: breathSay },
-  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv:[150, 300, 500, 750, 1100, 1600, 2300, 3200],  say: n => `Jump ${timesTxt(jumpAt(n))} as high. (Only the Dolphin can jump.)` },
-  { id:'sonar',    who:'dolphin', name:'Sonar',            lv:[200, 350, 550, 800, 1100],  say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} second${SONAR_WAIT[n - 1] === 1 ? '' : 's'}.` },
-  { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[60],                        say: () => 'Just for looks: shows on the Dolphin. Very fancy.' },
-  { id:'flippers', who:'turtle',  name:'Speed Flippers',   lv:[60, 150, 300, 550, 900], inf: true, say: fastSay },
-  { id:'lungs',    who:'turtle',  name:'Deep Lungs',       lv:[150, 300, 500, 800, 1200], inf: true, say: n => `Stay under water ${lungsAt(n)} times longer.` },
-  { id:'armor',    who:'turtle',  name:'Armor Shell',      lv:[250],                       say: () => 'Nothing can hurt you: sharks, jellyfish and cannonballs bounce right off. (You still need air!)' },
-  { id:'crown',    who:'turtle',  name:'Flower Crown',     lv:[40],                        say: () => 'Just for looks: shows on the Sea Turtle. So pretty.' },
-  { id:'paws',     who:'otter',   name:'Zoom Paws',        lv:[70, 170, 350, 600, 1000], inf: true, say: fastSay },
-  { id:'bubblefur',who:'otter',   name:'Bubble Fur',       lv:[50, 130, 260, 450, 700], inf: true, say: n => `Real otters trap air in their fur. ${breathSay(n)}` },
-  { id:'pouch',    who:'otter',   name:'Pearl Pouch',      lv:[200, 400, 700], inf: true,  say: n => `Pearls are worth ${n === 1 ? 'double' : `${n + 1} times as much`}.` },
-  { id:'magnet',   who:'all',     name:'Pearl Magnet',     lv:[150, 300, 550, 900, 1400],  say: n => `Pearls within ${MAGNET_M[n - 1]} m fly to you like a magnet.` },   // capped on purpose: no vacuuming up the whole sea
-  { id:'kayak',    who:'all', boat: true, name:'Kayak',      lv:[250],  say: () => 'Paddle along at about 8 mph. Swim into the water and tap Boats.' },
-  { id:'canoe',    who:'all', boat: true, name:'Canoe',      lv:[400],  say: () => 'A wooden canoe, about 9 mph. Swim into the water and tap Boats.' },
+  { id:'fins',     who:'swimmer', name:'Fins',             lv: curve(100, 5), inf: true, say: fastSay },
+  { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',   lv: curve(80, 5), inf: true, say: n => `Breathe with your face in the water, see farther, and ${breathSay(n).toLowerCase()}` },
+  { id:'light',    who:'swimmer', name:'Dive light',       lv: curve(150, 3), inf: true,  say: n => n === 1 ? 'Lights up dark, deep water like the Mariana Trench.' : `A brighter light that shines about ${lightAt(n)[1]} m.` },
+  { id:'scuba',    who:'swimmer', name:'Scuba gear',       lv: curve(500, 5), inf: true, say: n => `A tank with about ${scubaMin(n)} minutes of air. Dive to the deep sea floor and explore the shipwreck.` },
+  { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[60],                        say: () => 'Just for looks: shows on the Swimmer. It looks amazing.' },
+  { id:'turbotail',who:'dolphin', name:'Turbo Tail',       lv: curve(100, 5), inf: true, say: fastSay },
+  { id:'blowhole', who:'dolphin', name:'Big Blowhole',     lv: curve(80, 5), inf: true, say: breathSay },
+  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv: curve(200, 8, 1.4),  say: n => `Jump ${timesTxt(jumpAt(n))} as high. (Only the Dolphin can jump.)` },
+  { id:'sonar',    who:'dolphin', name:'Sonar',            lv: curve(250, 5, 1.5),  say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} second${SONAR_WAIT[n - 1] === 1 ? '' : 's'}.` },
+  { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[120],                        say: () => 'Just for looks: shows on the Dolphin. Very fancy.' },
+  { id:'flippers', who:'turtle',  name:'Speed Flippers',   lv: curve(100, 5), inf: true, say: fastSay },
+  { id:'lungs',    who:'turtle',  name:'Deep Lungs',       lv: curve(200, 5), inf: true, say: n => `Stay under water ${lungsAt(n)} times longer.` },
+  { id:'armor',    who:'turtle',  name:'Armor Shell',      lv:[800],                       say: () => 'Nothing can hurt you: sharks, jellyfish and cannonballs bounce right off. (You still need air!)' },
+  { id:'crown',    who:'turtle',  name:'Flower Crown',     lv:[80],                        say: () => 'Just for looks: shows on the Sea Turtle. So pretty.' },
+  { id:'paws',     who:'otter',   name:'Zoom Paws',        lv: curve(100, 5), inf: true, say: fastSay },
+  { id:'bubblefur',who:'otter',   name:'Bubble Fur',       lv: curve(80, 5), inf: true, say: n => `Real otters trap air in their fur. ${breathSay(n)}` },
+  { id:'pouch',    who:'otter',   name:'Pearl Pouch',      lv: curve(400, 3, 2),        say: n => `Pearls are worth ${['one and a half times as much', 'double', 'triple'][Math.min(n, 3) - 1]}.` },   // capped: pearls are the main coin source
+  { id:'magnet',   who:'all',     name:'Pearl Magnet',     lv: curve(300, 4, 1.7),  say: n => `Pearls within ${MAGNET_M[Math.min(n, 4) - 1]} m fly to you like a magnet.` },   // capped on purpose: no vacuuming up the whole sea
+  { id:'kayak',    who:'all', boat: true, name:'Kayak',      lv:[150],  say: () => 'Paddle along at about 8 mph. Swim into the water and tap Boats.' },
+  { id:'canoe',    who:'all', boat: true, name:'Canoe',      lv:[300],  say: () => 'A wooden canoe, about 9 mph. Swim into the water and tap Boats.' },
   { id:'sailboat', who:'all', boat: true, name:'Sailboat',   lv:[900],  say: () => 'Sail with the wind at about 16 mph.' },
-  { id:'motorboat',who:'all', boat: true, name:'Speedboat',  lv:[1500], say: () => 'Zoom across the waves at about 31 mph!' },
-  { id:'sub',      who:'all', boat: true, name:'Submarine',  lv:[2500], say: () => 'Dive all the way to the sea floor with all the air you want. Hold Dive to go down and Up to come back up.' },
-  { id:'ship',     who:'all', boat: true, name:'Pirate Ship',lv:[4000], say: () => 'Your very own sailing ship, about 20 mph. Arr!' },
-  { id:'chestmag', who:'all',     name:'Chest Magnet',     lv:[300, 600, 1000, 1600, 2500], say: n => `Treasure chests within ${CHEST_M[n - 1]} m fly up to you. No diving needed!` },   // capped too
-  { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[150],                       say: () => 'An arrow points to the nearest treasure chest.' },
-  { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[30],                        say: () => 'Just for looks: shows on the Otter. Very dapper.' },
+  { id:'motorboat',who:'all', boat: true, name:'Speedboat',  lv:[1800], say: () => 'Zoom across the waves at about 31 mph!' },
+  { id:'sub',      who:'all', boat: true, name:'Submarine',  lv:[3500], say: () => 'Dive all the way to the sea floor with all the air you want. Hold Dive to go down and Up to come back up.' },
+  { id:'ship',     who:'all', boat: true, name:'Pirate Ship',lv:[6000], say: () => 'Your very own sailing ship, about 20 mph. Arr!' },
+  { id:'chestmag', who:'all',     name:'Chest Magnet',     lv: curve(400, 5), say: n => `Treasure chests within ${CHEST_M[n - 1]} m fly up to you. No diving needed!` },   // capped too
+  { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[250],                       say: () => 'An arrow points to the nearest treasure chest.' },
+  { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[60],                        say: () => 'Just for looks: shows on the Otter. Very dapper.' },
 ];
-const SONAR_WAIT = [12, 7, 4, 2, 1], MAGNET_M = [4, 7, 10, 14, 20], CHEST_M = [8, 12, 16, 22, 30];
+const SONAR_WAIT = [12, 7, 4, 2, 1], MAGNET_M = [3, 5, 6.5, 8], CHEST_M = [8, 12, 16, 22, 30];
 const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['snorkel', 'blowhole', 'bubblefur'];   // (Deep Lungs multiplies instead)
 // the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
 const SHOP_GROUPS = [['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
@@ -834,6 +838,16 @@ const gearLv = id => equipped(id) ? ownedLv(id) : 0;
 const hasGear = id => gearLv(id) > 0;
 const gearFast = () => SPEED_GEAR.reduce((m, id) => m*(gearLv(id) ? fastAt(gearLv(id)) : 1), 2**gearLv('turbo'));
 const gearBreath = () => BREATH_GEAR.reduce((t, id) => t + (gearLv(id) ? breathAt(gearLv(id)) : 0), 0);
+// Pearls: 5 coins each (more with the Pearl Pouch). A pearl you grab comes back 10 minutes later, and that's remembered on
+// this device, so reloading doesn't refill the ocean.
+const PEARL_MPH = 30, PEARL_BACK = 10*60*1000, PEARL_KEY = 'swimworld.pearls';
+const pearlValue = () => Math.round(5*[1, 1.5, 2, 3][Math.min(3, gearLv('pouch'))]);
+let pearlTimes = (() => { try { return JSON.parse(localStorage.getItem(PEARL_KEY)) || {}; } catch(e){ return {}; } })(), pearlSaveT = 0;
+function notePearl(id){ pearlTimes[id] = Date.now(); if (!pearlSaveT) pearlSaveT = setTimeout(() => { pearlSaveT = 0; try { localStorage.setItem(PEARL_KEY, JSON.stringify(pearlTimes)); } catch(e){} }, 2000); }
+function refreshPearls(){ const now = Date.now(); let gone = false;
+  for (const id in pearlTimes){ if (now - pearlTimes[id] > PEARL_BACK){ delete pearlTimes[id]; taken.delete(id); gone = true; } else taken.add(id); }
+  if (gone) try { localStorage.setItem(PEARL_KEY, JSON.stringify(pearlTimes)); } catch(e){} }
+setInterval(refreshPearls, 30000);
 function addCoins(n, why){
   save.coins = (save.coins || 0) + n; persist();
   const c = $('coinChip'); c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump');
@@ -1249,7 +1263,7 @@ function getChunk(cx,cy){
     if (mz === 4 && R() < .35) c.fish.push({ sp:'grouper', bx:mx, by:my, rad:120, w:.12, ph:R()*TAU, n:1 + (R()*2|0), spread:60, depth:-4.3 });
     // treasure on the bottom (more in deep, dark and wrecked places) and fishing boats up top
     if (R() < [.03, .05, .06, .05, .15, .04, .12][mz]){ const deep = mz === 4 || mz === 6;
-      c.chests.push({ x:X0 + 40 + R()*(CH - 80), y:Y0 + 40 + R()*(CH - 80), id:'c' + key, v: (deep ? 60 : 30) + ((R()*5)|0)*10, rot:R()*TAU }); }
+      c.chests.push({ x:X0 + 40 + R()*(CH - 80), y:Y0 + 40 + R()*(CH - 80), id:'c' + key, v: (deep ? 120 : 50) + ((R()*6)|0)*10, rot:R()*TAU }); }
     if (mz !== 0 && mz !== 6 && R() < .06 && Math.hypot(mx, my) > 1600) c.boats.push({ x:mx + (R() - .5)*200, y:my + (R() - .5)*200, ang:R()*TAU, id:'b' + key, ph:R()*TAU });
     // jellyfish: moon jellies are harmless; red ones are deadly (none in the Sunny Lagoon)
     const JCH = [.12, .3, .25, .3, .4, .25, 1.1], DEADLY = [0, .35, .3, .35, .4, .3, .6];
@@ -1305,7 +1319,7 @@ function climbStep(o, dt){
   c.h = clamp(c.h + s.y*1.7*dt, -.01, c.top); if (c.h !== before) c.ph += dt*6;
   if (c.h < 0){ o.climb = null; return; }                       // back down on deck
   if (c.h >= c.top && before < c.top){ const id = 'nest' + c.i; sfx(784, .15, 'triangle', .06); sfx(1047, .2, 'triangle', .06, .12);
-    if (!(save.chests || []).includes(id)){ (save.chests || (save.chests = [])).push(id); addXP(40, true); addCoins(50, c.i ? 'You climbed to the fore lookout!' : "You made it to the crow's nest!"); persist(); flushCloud(); }
+    if (!(save.chests || []).includes(id)){ (save.chests || (save.chests = [])).push(id); addXP(40, true); addCoins(75, c.i ? 'You climbed to the fore lookout!' : "You made it to the crow's nest!"); persist(); flushCloud(); }
     else banner(c.i ? 'Fore lookout' : "Crow's nest", 'What a view! Space jumps into the sea'); }
   if (diveHeld() && !o.jumpLock){ o.jumpLock = true; const high = c.h > 2; o.climb = null; jumpOffShip(); if (high) banner('Cannonball!', 'What a dive!'); return; }
   if (!diveHeld()) o.jumpLock = false;
@@ -1345,7 +1359,7 @@ function shipWalk(o, dt){
   if (!diveHeld()) o.jumpLock = false;
   if (!(save.chests || []).includes('shipdeck')){ const [lx, lz] = shipLocal(o.x, o.y);
     if (Math.hypot(lx - SHIP_CHEST[0], lz - SHIP_CHEST[1]) < 1.3){ (save.chests || (save.chests = [])).push('shipdeck');
-      addXP(60, true); addCoins(150, 'The captain\'s chest on the anchored ship!'); updShipChest(); persist(); flushCloud(); } }
+      addXP(60, true); addCoins(250, 'The captain\'s chest on the anchored ship!'); updShipChest(); persist(); flushCloud(); } }
 }
 /* Fishing boats: climb in over the side, walk the little deck in front of the cabin, say hi to the fisherman, jump back out.
    You stand in the boat's own frame (o.boatL), so you rock and swing with it. */
@@ -1469,7 +1483,7 @@ function drawWhiskers(){
    - Lost calf: her baby wandered off. Find it (it shows on your minimap) and lead it back; it follows you.
    - Scattered song: three glowing song shells floated away. Collect them and bring them back.
    Finishing a quest pays coins and XP. One quest at a time; a quest stays with you until you finish it or leave the ocean. */
-const QUEST_PAY = { calf: [150, 120], song: [120, 100] };
+const QUEST_PAY = { calf: [250, 120], song: [200, 100] };
 function whaleSpot(b){ const [x, y] = buddyPos(b); return [x, y]; }
 function whaleTalk(o, b){
   const q = o.quest, [wx, wy] = whaleSpot(b);
@@ -1735,9 +1749,9 @@ function talkToFriend(){
   const have = save.mapPieces || (save.mapPieces = []);
   if (!talked.has(key) && have.length < MAP_N){
     const missing = [...Array(MAP_N).keys()].filter(i => !have.includes(i)), piece = missing[(Math.random()*missing.length)|0];
-    have.push(piece); talked.add(key); save.coins = (save.coins || 0) + 10; addXP(30, true); persist(); flushCloud();
+    have.push(piece); talked.add(key); save.coins = (save.coins || 0) + 40; addXP(30, true); persist(); flushCloud();
     line += ' Here, take this piece of an old sea map.';
-    banner('Map piece found!', `${have.length} of ${MAP_N} pieces · +10 coins · +30 XP. Press M or tap Map to look.`);
+    banner('Map piece found!', `${have.length} of ${MAP_N} pieces · +40 coins · +30 XP. Press M or tap Map to look.`);
     [659, 880, 1175].forEach((f, i) => sfx(f, .15, 'triangle', .06, i*.09));
   } else if (have.length >= MAP_N) line += " You already have the whole map!";
   else line += b.person ? " I gave you my piece of the map already. Other sailors might have more!" : " I gave you my map piece already. Ask others like me!";
@@ -2474,7 +2488,7 @@ function updOcean(dt){
   if (z !== o.zone){ o.zone = z;
     const Z = ZONES[z], fact = Z.facts[(save.worlds.length + (time|0)) % Z.facts.length];
     if (!save.worlds.includes(z)){ save.worlds.push(z); persist(); flushCloud(); buildMinimap();
-      banner(`New place: ${Z.name}!`, `${Z.where} · ${save.worlds.length} of 7 places found · +25 coins · +50 XP`); addCoins(25); addXP(50, true);
+      banner(`New place: ${Z.name}!`, `${Z.where} · ${save.worlds.length} of 7 places found · +100 coins · +50 XP`); addCoins(100); addXP(50, true);
       [523,659,784].forEach((f,i) => sfx(f,.2,'sine',.07,i*.1)); }
     else banner(Z.name, Z.where);
     if (time > sayUntil) say('Did you know?', fact, 9);
@@ -2482,13 +2496,15 @@ function updOcean(dt){
   const tgt = ZONES[z].water; for (let i=0;i<3;i++) o.bg[i] = lerp(o.bg[i], tgt[i], Math.min(1,dt*1.2));
   o.dark = lerp(o.dark, DARK[z], Math.min(1,dt*1.2));
   for (const L of LANDMARKS){ if (!save.landmarks.includes(L.name) && Math.hypot(o.x-L.x,o.y-L.y) < (L.r || 380)){
-    save.landmarks.push(L.name); addCoins(15); addXP(40, true); banner(`Found: ${L.name}`, `${save.landmarks.length} of ${LANDMARKS.length} special spots · +15 coins · +40 XP`); sfx(784,.3,'triangle',.07); } }
-  const pcx = Math.floor(o.x/CH), pcy = Math.floor(o.y/CH), mag = gearLv('magnet') ? MAGNET_M[gearLv('magnet') - 1]*METERS : 0, K = mag > CH ? 2 : 1;
+    save.landmarks.push(L.name); addCoins(75); addXP(40, true); banner(`Found: ${L.name}`, `${save.landmarks.length} of ${LANDMARKS.length} special spots · +75 coins · +40 XP`); sfx(784,.3,'triangle',.07); } }
+  const tooFast = Math.hypot(o.vx, o.vy)/METERS*2.23694 > PEARL_MPH;   // zooming past: pearls can't be grabbed (or pulled) above 30 mph
+  if (tooFast && !o.fastTold && !o.onLand && !o.vehicle){ o.fastTold = true; coach('Too fast to grab pearls! Slow down (use the speed bar on the left) to scoop them up.', 7); }
+  const pcx = Math.floor(o.x/CH), pcy = Math.floor(o.y/CH), mag = !tooFast && gearLv('magnet') ? MAGNET_M[Math.min(4, gearLv('magnet')) - 1]*METERS : 0, K = mag > CH ? 2 : 1;
   for (let a=-K;a<=K;a++) for (let b=-K;b<=K;b++){
     for (const p of getChunk(pcx+a,pcy+b).pearls){ if (taken.has(p.id)) continue;
       if (mag){ const dx = o.x - p.x, dy = o.y - p.y, d = Math.hypot(dx, dy);   // Pearl Magnet: nearby pearls fly to you
         if (d < mag && d > 1){ const k = Math.min(1, dt*(8 + Math.hypot(o.vx, o.vy)/40)*40/d); p.x += dx*k; p.y += dy*k; } }
-      if (Math.hypot(p.x-o.x,p.y-o.y) < 36){ taken.add(p.id); save.pearls++; addCoins(5*(1 + gearLv('pouch'))); addXP(3);
+      if (!tooFast && Math.hypot(p.x-o.x,p.y-o.y) < 36){ taken.add(p.id); notePearl(p.id); save.pearls++; addCoins(pearlValue()); addXP(3);
         for (let i=0;i<10;i++){ const an = i/10*TAU; bubble(p.x,p.y,Math.cos(an)*90,Math.sin(an)*90,3,.6,'rgba(255,245,200,.9)'); }
         sfx(1200,.08,'sine',.07); sfx(1600,.12,'sine',.06,.06); } } }
   // treasure chests and shells on the sea floor: dive down to them
@@ -3898,9 +3914,9 @@ const WRECK_BOXES = [];
 }
 const cabinPos = toWorld(-8.6, .6), holdA = toWorld(-6.6, -.7), holdB = toWorld(1.8, .3);
 const WRECK_CHESTS = [
-  { x: cabinPos[0]/U, y: cabinPos[1]/U, d: -(WRECK.y0 + 2.58), id:'galleon', v:250, rot: WRECK.yaw },
-  { x: holdA[0]/U, y: holdA[1]/U, d: -(WRECK.y0 + .62), id:'hold1', v:90, rot: WRECK.yaw + .4 },
-  { x: holdB[0]/U, y: holdB[1]/U, d: -(WRECK.y0 + .55), id:'hold2', v:90, rot: WRECK.yaw - .3 },
+  { x: cabinPos[0]/U, y: cabinPos[1]/U, d: -(WRECK.y0 + 2.58), id:'galleon', v:400, rot: WRECK.yaw },
+  { x: holdA[0]/U, y: holdA[1]/U, d: -(WRECK.y0 + .62), id:'hold1', v:150, rot: WRECK.yaw + .4 },
+  { x: holdB[0]/U, y: holdB[1]/U, d: -(WRECK.y0 + .55), id:'hold2', v:150, rot: WRECK.yaw - .3 },
 ];
 function pushOutBox(p, r, b){
   const q = [clamp(p[0], b[0], b[1]), clamp(p[1], b[2], b[3]), clamp(p[2], b[4], b[5])];
@@ -4529,14 +4545,14 @@ let resA = null, resB = null, deadIn = null;
 function madeItHome(o){
   if (o.homeDone) return; o.homeDone = true; o.wentFar = false;
   deadIn = 'ocean'; const t = o.tripT || 0, first = !save.homeRuns, best = !save.homeBest || t < save.homeBest;
-  save.homeRuns = (save.homeRuns || 0) + 1; if (best) save.homeBest = t; save.coins = (save.coins || 0) + 100; addXP(300, true); persist(); flushCloud();
+  save.homeRuns = (save.homeRuns || 0) + 1; if (best) save.homeBest = t; save.coins = (save.coins || 0) + 200; addXP(300, true); persist(); flushCloud();
   [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
   const fmt = x => `${Math.floor(x/60)}:${String(Math.floor(x%60)).padStart(2,'0')}`;
   showResults('You made it home!',
     (best && !first ? '<div class="newbest">New best time</div>' : '') +
     `<div class="res-score">${fmt(t)}</div><p class="res-line">swimming time across the ocean</p>
      <p class="res-line">Best ${fmt(save.homeBest)} · made it home ${save.homeRuns} ${save.homeRuns === 1 ? 'time' : 'times'}</p>
-     <p class="res-line">+100 coins · +300 XP · ${Math.round(save.dist).toLocaleString()} m swum in all · ${save.pearls} pearls</p>`,
+     <p class="res-line">+200 coins · +300 XP · ${Math.round(save.dist).toLocaleString()} m swum in all · ${save.pearls} pearls</p>`,
     'Stay and build', () => { setMode('ocean'); banner('Your island!', 'Press Build to build around your house'); }, 'Swim home again', () => startOcean(), 'dead');
 }
 // Running out of air or getting caught by a shark ends your swim.
@@ -4653,9 +4669,9 @@ function arrangeTitle(){
   $('makeBtn').hidden = !STANDALONE || !!fbAuth; $('cloneBtn').hidden = !STANDALONE; $('cloneBtn').textContent = fbAuth ? 'Clone a swimmer' : 'Clone an account';
 }
 function titleNote(text, warn){ const n = $('titleNote'); n.textContent = text; n.className = 'note' + (warn ? ' warn' : ''); }
-function enterGame(){ taken.clear(); buildMinimap(); startOcean(); }   // no pool any more: straight into the ocean
+function enterGame(){ taken.clear(); refreshPearls(); buildMinimap(); startOcean(); }   // no pool any more: straight into the ocean
 function goPool(){ if (!save.tutorialDone) startRace(true, true); else startPool(); }
-function goOcean(){ taken.clear(); buildMinimap(); startOcean(); }
+function goOcean(){ taken.clear(); refreshPearls(); buildMinimap(); startOcean(); }
 $('goPool').onclick = () => { initAudio(); goPool(); };
 $('goOcean').onclick = () => { initAudio(); goOcean(); };
 $('chooseBack').onclick = () => { persist(); flushCloud(); setMode('title'); resetPick(); };
