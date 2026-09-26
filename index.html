@@ -640,10 +640,12 @@ function wantHeading(){ const s = moveInput(); camFollowOK = s.m < .15 || Math.a
   return s.m < .15 ? null : { ang: camHead + Math.atan2(s.x, s.y), m: s.m }; }
 const angDiff = (a, b) => ((a - b + Math.PI)%TAU + TAU)%TAU - Math.PI;
 const METERS = 40; // world units per meter
-const TOP_MPH = 500, MAX_SPEED = TOP_MPH/2.23694*METERS;   // nobody swims faster than 500 mph, however much gear they have
-// Past about 80 mph you're going faster than the world can be built around you, so super speed brings in sea mist and speed streaks
-// (hiding the scenery popping in) and rebuilds the world less often, so the game stays smooth.
-const SUPER_MPH = 80, superK = () => ocean ? clamp(((ocean.mph || 0) - SUPER_MPH)/120, 0, 1) : 0;
+// Top speed. Past about 150 mph going faster doesn't even look faster (the waves blur and the world can't be built around you in time),
+// so that's where you really top out. The speedometer shows "game mph": true mph up to 60, then stretched so top speed reads 500.
+const TOP_MPH = 500, REAL_TOP_MPH = 150, MAX_SPEED = REAL_TOP_MPH/2.23694*METERS;
+const gameMph = v => v <= 60 ? v : 60 + (v - 60)*(TOP_MPH - 60)/(REAL_TOP_MPH - 60);
+// Near top speed a little sea mist and speed streaks come in, and the world rebuilds on a timer so the game stays smooth.
+const SUPER_MPH = 90, superK = () => ocean ? clamp(((ocean.mph || 0) - SUPER_MPH)/55, 0, 1) : 0;
 // Swim toward where the stick points. `base` is cruising speed in units per second (100 = 2.5 m/s) before speed boosts.
 function swimMove(o, dt, base = 100){
   const w = wantHeading(), pc = o.pitch || 0;
@@ -2094,7 +2096,7 @@ function updOcean(dt){
   o.rideTarget = o.ride || o.onLand || o.vehicle ? null : findDolphin(o);
   { const px = o.mphX ?? o.x, py = o.mphY ?? o.y, v = Math.hypot(o.x - px, o.y - py)/Math.max(dt, 1e-3)/METERS*2.23694;   // how fast you're really going, in miles per hour
     o.mphX = o.x; o.mphY = o.y; o.mph = v > 20000 ? o.mph || 0 : lerp(o.mph || 0, v, Math.min(1, dt*4));   // (ignore teleports)
-    if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; $('mphChip').hidden = false; $('mphVal').textContent = o.mph < 10 ? o.mph.toFixed(1) : Math.round(o.mph).toLocaleString(); } }
+    if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; $('mphChip').hidden = false; const gm = gameMph(o.mph); $('mphVal').textContent = gm < 10 ? gm.toFixed(1) : Math.round(gm).toLocaleString(); } }
   { const k = superK(), fx = $('speedFx'), op = k ? (.25 + .5*k).toFixed(2) : '0'; if (fx.style.opacity !== op){ fx.style.opacity = op; fx.style.transform = `rotate(${(time*40)%9}deg)`; } }
   { const cb = $('climbBtn'), showC = ropeNear(o) >= 0; if (cb.hidden === showC) cb.hidden = !showC; }
   { const zb = $('sleepBtn'), showZ = nearBed(o); if (zb.hidden === showZ) zb.hidden = !showZ; }
@@ -3988,7 +3990,7 @@ function render3D(dt){
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
-    underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105*(1 + superK()*5));
+    underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105*(1 + superK()*1.5));
     draw(oceanScene);
   }
 }
