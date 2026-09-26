@@ -87,6 +87,32 @@
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
+  .phonechip{position:relative;font-size:20px;padding:4px 10px}
+  .phonechip b{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:var(--coral);color:#fff;font:800 12px/20px Nunito,sans-serif;text-align:center}
+  #phonePanel{align-items:center}
+  .phone{width:min(360px,92vw);height:min(660px,88vh);background:#15181d;border-radius:40px;padding:12px 12px 10px;box-shadow:0 20px 50px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:8px}
+  .phone-top{display:flex;justify-content:space-between;color:#fff;font:800 13px Nunito,sans-serif;padding:4px 14px 0}
+  .phone-screen{flex:1;border-radius:28px;background:linear-gradient(160deg,#2aa6c9,#0b3a5c);overflow-y:auto;padding:16px;color:#fff;font-family:Nunito,sans-serif;display:flex;flex-direction:column;gap:12px}
+  .phone-screen h3{margin:0;font-family:var(--display);font-weight:400;font-size:22px}
+  .phone-screen p{margin:0;font-weight:700;font-size:14px;opacity:.9;line-height:1.35}
+  .phone-home{align-self:center;width:120px;height:6px;border:0;border-radius:3px;background:#fff;opacity:.8;margin:4px 0 2px}
+  .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 8px;margin-top:8px}
+  .app{position:relative;border:0;background:none;color:#fff;font:800 12px Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .app i{font-style:normal;width:62px;height:62px;border-radius:18px;display:grid;place-items:center;font-size:32px;box-shadow:0 4px 10px rgba(0,0,0,.25)}
+  .app b{position:absolute;top:-4px;right:8px;min-width:20px;height:20px;border-radius:10px;background:var(--coral);font-size:12px;line-height:20px}
+  .prow{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.14);border-radius:16px;padding:10px 12px}
+  .prow .who{flex:1;font-weight:800;font-size:15px}
+  .prow .who small{display:block;font-weight:700;font-size:12px;opacity:.8}
+  .pbtn{border:0;border-radius:12px;padding:9px 12px;font:800 14px Nunito,sans-serif;background:#fff;color:#0b3a5c}
+  .pbtn.talk{background:var(--coral);color:#fff;touch-action:none;user-select:none;-webkit-user-select:none}
+  .pbtn.talk.on{background:#d62839;transform:scale(1.06)}
+  .pbtn.wide{width:100%;padding:12px}
+  .pin{width:100%;box-sizing:border-box;font:800 20px Nunito,sans-serif;text-align:center;letter-spacing:.08em;text-transform:uppercase;padding:10px;border-radius:12px;border:0}
+  .bigcode2{font-family:var(--display);font-size:34px;letter-spacing:.05em;text-align:center}
+  .phone-screen img{width:100%;border-radius:14px}
+  .pnote{min-height:1.2em;font-weight:800;font-size:13px;color:#ffe08a}
+  #shutter{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .35s ease;z-index:60}
+  #shutter.on{opacity:1;transition:none}
   #casinoBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #arcCanvas{display:block;width:100%;max-width:360px;aspect-ratio:1;margin:0 auto;border-radius:14px;background:#0b2d44;touch-action:none}
   .overlay.movie{background:#000;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
@@ -280,6 +306,7 @@
     <div class="chip rank" id="rankChip"><div class="rk"><b id="rankName">Guppy</b><span id="xpVal">0 XP</span></div><div class="xpbar"><i id="xpFill"></i></div><span id="xpFloat" aria-hidden="true"></span></div>
     <div class="chip mph" id="mphChip" hidden><b id="mphVal">0</b><span>mph</span></div>
     <div class="chip coins" id="coinChip"><span class="coin" aria-hidden="true"></span><b id="coinVal">0</b></div>
+    <button class="chip phonechip" id="phoneBtn" type="button" aria-label="Phone">📱<b id="phoneBadge" hidden></b></button>
     <button class="chip" id="swimmerBtn" type="button">Menu</button>
     <button class="chip" id="viewBtn" type="button">View</button>
     <button class="chip build" id="buildBtn" type="button" hidden>Build</button>
@@ -374,6 +401,15 @@
     </div>
   </div>
 </div>
+<div id="phonePanel" class="overlay" hidden>
+  <div class="phone" role="dialog" aria-label="Phone">
+    <div class="phone-top"><span id="phoneClock">9:41</span><span>Swimworld</span><span>🔋</span></div>
+    <div id="phoneScreen" class="phone-screen"></div>
+    <button id="phoneHome" class="phone-home" type="button" aria-label="Home screen"></button>
+  </div>
+</div>
+<div id="shutter" aria-hidden="true"></div>
+
 <div id="arcadePanel" class="overlay" hidden>
   <div class="panel small">
     <div><p class="kicker">Avalon Casino</p><h2 id="arcTitle">Game</h2></div>
@@ -647,6 +683,7 @@ function closeTopWindow(){
   if (!$('shopPanel').hidden) closeShop();
   else if (!$('mapPanel').hidden) closeMap();
   else if (!$('boatPanel').hidden) closeBoats();
+  else if (!$('phonePanel').hidden) closePhone();
   else if (!$('clonePanel').hidden) $('cloneBack').click();
   else if (!$('arcadePanel').hidden) $('arcDone').click();
   else if (!$('moviePanel').hidden) $('movieDone').click();
@@ -659,7 +696,7 @@ function closeTopWindow(){
   else return false;
   return true; }
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
-for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'phonePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -4899,6 +4936,140 @@ async function neighborSpot(at, fromIid){
   return randomHouse(); }
 $('cloneBtn').onclick = () => { initAudio(); openClone(); };
 $('makeBtn').onclick = () => { initAudio(); openLogin(false); setLoginMode(true); };
+/* ---------- The phone ----------
+   Everyone starts with one. Apps: Camera (share pictures), Friends (friend codes, like clone codes, so only people you
+   choose can reach you), Messages (walkie-talkie voice clips: hold to talk, up to 15 seconds; they ring on your friend's
+   iPad and delete themselves once played, or after 24 hours), Find Friends, Map, Boat and Music.
+   Data: friendcodes/<CODE> (24 h), friendships/<uidA>_<uidB>, voicemsgs/<id> (expireAt: Firestore deletes it). */
+const fsVal = v => v == null ? { nullValue: null } : typeof v === 'string' ? { stringValue: v } : typeof v === 'boolean' ? { booleanValue: v }
+  : typeof v === 'number' ? (Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v }) : v instanceof Date ? { timestampValue: v.toISOString() }
+  : Array.isArray(v) ? { arrayValue: { values: v.map(fsVal) } } : { mapValue: { fields: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fsVal(x)])) } };
+const fsGet = f => !f ? null : 'stringValue' in f ? f.stringValue : 'integerValue' in f ? +f.integerValue : 'doubleValue' in f ? f.doubleValue : 'booleanValue' in f ? f.booleanValue
+  : 'timestampValue' in f ? Date.parse(f.timestampValue) : 'arrayValue' in f ? (f.arrayValue.values || []).map(fsGet) : 'mapValue' in f ? fsObj(f.mapValue) : null;
+const fsObj = d => Object.fromEntries(Object.entries(d?.fields || {}).map(([k, f]) => [k, fsGet(f)]));
+const fsWrite = (path, obj, query = '') => fsReq(path + query, { method: 'PATCH', body: JSON.stringify({ fields: fsVal(obj).mapValue.fields }) });
+const fsQuery = (coll, field, op, value) => fsReq(':runQuery', { method: 'POST', body: JSON.stringify({ structuredQuery: { from: [{ collectionId: coll }],
+  where: { fieldFilter: { field: { fieldPath: field }, op, value: fsVal(value) } }, limit: 50 } }) }).then(q => (q || []).filter(r => r.document).map(r => ({ id: r.document.name.split('/').pop(), ...fsObj(r.document) })));
+const fsDel = path => fsReq(path, { method: 'DELETE' });
+const socialOn = () => STANDALONE && !!fbAuth && !!account;
+let friends = [], myFriendCode = null, inbox = [], inboxReady = false, phoneScreen = 'home', phoneArg = null, photos = [], musicOn = false, snapWant = null;
+const heardMsgs = new Set();
+async function loadFriends(){ if (!socialOn()) return;
+  try { friends = (await fsQuery('friendships', 'members', 'ARRAY_CONTAINS', fbAuth.uid)).map(f => { const other = f.members.find(m => m !== fbAuth.uid); return { uid: other, name: f.names?.[other] || 'Friend', pid: f.id }; })
+    .sort((a, b) => a.name.localeCompare(b.name)); } catch(e){} }
+const FRIEND_WORDS = ['OTTER', 'DOLPHIN', 'TURTLE', 'SEAL', 'STARFISH', 'SHELL', 'WAVE', 'REEF', 'CORAL', 'BUBBLE'];
+async function makeFriendCode(){
+  for (let tries = 0; tries < 5; tries++){ const code = FRIEND_WORDS[(Math.random()*FRIEND_WORDS.length)|0] + '-' + (1000 + ((Math.random()*9000)|0));
+    try { await fsWrite(`/friendcodes/${code}`, { owner: fbAuth.uid, name: fbAuth.name, exp: Date.now() + 864e5 }, '?currentDocument.exists=false'); return code; }
+    catch(e){ if (![400, 403, 409].includes(e.status)) throw e; } }
+  throw new Error('NO_CODE'); }
+async function addFriend(raw){
+  const code = raw.trim().toUpperCase().replace(/[\s_]+/g, '').replace(/^([A-Z]+)-?(\d{4})$/, '$1-$2');
+  if (!/^[A-Z]+-\d{4}$/.test(code)) return 'Friend codes look like OTTER-3152.';
+  const d = await fsReq(`/friendcodes/${code}`), v = d && fsObj(d);
+  if (!v) return "There's no friend with that code. Check it and try again."; if (v.exp < Date.now()) return 'That code is too old. Ask for a new one.';
+  if (v.owner === fbAuth.uid) return "That's your own code! Give it to a friend.";
+  const members = [fbAuth.uid, v.owner].sort();
+  try { await fsWrite(`/friendships/${members.join('_')}`, { members, names: { [fbAuth.uid]: fbAuth.name, [v.owner]: v.name }, code, since: Date.now() }, '?currentDocument.exists=false'); }
+  catch(e){ if ([400, 409].includes(e.status)) return `You and ${v.name} are already friends!`; throw e; }
+  await loadFriends(); [523, 659, 784].forEach((f, i) => sfx(f, .15, 'triangle', .05, i*.1)); return `You and ${v.name} are friends now!`; }
+async function removeFriend(f){ try { await fsDel(`/friendships/${f.pid}`); } catch(e){} await loadFriends(); }
+// voice messages
+let rec = null;
+async function startTalk(friend, btn){
+  if (rec) return; rec = { friend, btn, t0: performance.now(), stopAsked: false, chunks: [] }; btn.classList.add('on'); btn.textContent = 'Talking… let go to send';
+  try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find(t => window.MediaRecorder?.isTypeSupported?.(t)) || '';
+    const r = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 }); rec.r = r; rec.stream = stream; rec.t0 = performance.now();
+    r.ondataavailable = e => { if (e.data.size) rec?.chunks.push(e.data); };
+    r.onstop = () => { stream.getTracks().forEach(t => t.stop()); finishTalk(); };
+    r.start(); rec.timer = setTimeout(stopTalk, 15000); if (rec.stopAsked) stopTalk(); }
+  catch(e){ rec = null; btn.classList.remove('on'); btn.textContent = 'Hold to talk'; phoneNote('Tap Allow so your phone can use the microphone.'); } }
+function stopTalk(){ if (!rec) return; if (!rec.r){ rec.stopAsked = true; return; } clearTimeout(rec.timer); if (rec.r.state === 'recording') rec.r.stop(); }
+async function finishTalk(){
+  const r = rec; rec = null; if (!r) return; r.btn.classList.remove('on'); r.btn.textContent = 'Hold to talk';
+  const secs = (performance.now() - r.t0)/1000; if (secs < .6){ phoneNote('Hold the button down while you talk.'); return; }
+  const blob = new Blob(r.chunks, { type: r.r.mimeType || 'audio/mp4' }), url = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+  phoneNote('Sending…'); try { await sendVoice(r.friend, url, secs); phoneNote(`Sent to ${r.friend.name}!`); sfx(880, .08, 'triangle', .05); } catch(e){ phoneNote("Couldn't send it. Check the internet and try again."); } }
+async function sendVoice(friend, url, secs){
+  if (url.length > 280000) throw new Error('TOO_BIG');
+  await fsWrite(`/voicemsgs/${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, { from: fbAuth.uid, to: friend.uid, fromName: fbAuth.name, audio: url,
+    secs: Math.round(secs*10)/10, createdAt: Date.now(), expireAt: new Date(Date.now() + 864e5) }); }
+async function checkInbox(){
+  if (!socialOn()) return;
+  try { const now = Date.now(), all = await fsQuery('voicemsgs', 'to', 'EQUAL', fbAuth.uid);
+    for (const m of all) if (m.expireAt <= now) fsDel(`/voicemsgs/${m.id}`).catch(() => {});   // older than a day: gone
+    const before = new Set(inbox.map(m => m.id)); inbox = all.filter(m => m.expireAt > now && !heardMsgs.has(m.id)).sort((a, b) => a.createdAt - b.createdAt);
+    const fresh = inbox.filter(m => !before.has(m.id));
+    if (fresh.length && inboxReady && playing()){ const m = fresh[fresh.length - 1]; [1318, 1568, 1318, 1568].forEach((f, i) => sfx(f, .12, 'sine', .06, i*.16));   // ring ring
+      banner(`📱 ${m.fromName} sent you a voice message`, 'Open your phone to listen'); }
+    inboxReady = true; phoneBadge(); if (!$('phonePanel').hidden && (phoneScreen === 'messages' || phoneScreen === 'home')) showPhone(phoneScreen, phoneArg); } catch(e){} }
+setInterval(() => { if (socialOn() && !document.hidden) checkInbox(); }, 10000);
+function playVoice(m){ const a = new Audio(m.audio); a.play().catch(() => phoneNote("Couldn't play it on this device."));
+  heardMsgs.add(m.id); inbox = inbox.filter(x => x.id !== m.id); fsDel(`/voicemsgs/${m.id}`).catch(() => {}); phoneBadge(); showPhone('messages'); }   // played once, then gone
+function phoneBadge(){ const n = inbox.length, b = $('phoneBadge'); b.hidden = !n; b.textContent = n; }
+// camera: the next frame of the game becomes a picture
+function takePhoto(){ closePhone(); setTimeout(() => { snapWant = url => { photos.unshift(url); photos = photos.slice(0, 12); const s = $('shutter'); s.classList.add('on'); requestAnimationFrame(() => s.classList.remove('on'));
+  sfx(1800, .05, 'square', .04); sfx(900, .08, 'square', .03, .05); openPhone('photo', 0); }; }, 350); }
+async function sharePhoto(i){ const url = photos[i]; if (!url) return; const blob = await (await fetch(url)).blob(), file = new File([blob], 'swimworld.jpg', { type: 'image/jpeg' });
+  if (navigator.canShare?.({ files: [file] })){ try { await navigator.share({ files: [file], title: 'My Swimworld picture' }); } catch(e){} return; }
+  const a = document.createElement('a'); a.href = url; a.download = 'swimworld.jpg'; a.click(); }
+// music: a little tune while you swim
+let musicT = null;
+function toggleMusic(){ musicOn = !musicOn; clearInterval(musicT); if (musicOn){ let i = 0; const tune = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1047, 988, 784, 659, 587];
+  musicT = setInterval(() => { if (!document.hidden) sfx(tune[i++ % tune.length], .32, 'triangle', .025); if (i % 4 === 1) sfx(131, .3, 'sine', .04); }, 380); } }
+// which way and how far
+function friendsOnline(){ const out = []; if (!ocean) return out;
+  for (const f of friends){ const o = others.get(f.uid); if (!o) continue; const dx = o.x - ocean.x, dy = o.y - ocean.y, m = Math.round(Math.hypot(dx, dy)/METERS);
+    const dirs = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+    out.push({ ...f, m, dir: dirs[((Math.round(Math.atan2(dy, dx)/(Math.PI/4)) % 8) + 8) % 8] }); } return out; }
+// the screens
+const APPS = [['camera', '📸', 'Camera', '#ffd23f'], ['friends', '👫', 'Friends', '#3fb6a8'], ['messages', '🎙️', 'Messages', '#ff6f59'], ['find', '📍', 'Find Friends', '#b57bff'],
+  ['map', '🗺️', 'Map', '#e9d8a6'], ['boat', '🚤', 'Boat', '#6ecbf5'], ['music', '🎵', 'Music', '#ff7eb6']];
+const loginFirst = '<p>Log in to your account to use this. Only friends you add with a friend code can reach you.</p>';
+function showPhone(scr = 'home', arg = null){
+  phoneScreen = scr; phoneArg = arg; const el = $('phoneScreen'), d = new Date(); $('phoneClock').textContent = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  let h = '';
+  if (scr === 'home') h = `<h3>Hi, ${htmlText(save.label || fbAuth?.name || 'swimmer')}!</h3><div class="apps">${APPS.map(([id, ic, name, col]) =>
+    `<button class="app" data-app="${id}" type="button"><i style="background:${col}">${ic}</i>${name}${id === 'messages' && inbox.length ? `<b>${inbox.length}</b>` : ''}${id === 'music' && musicOn ? ' ♪' : ''}</button>`).join('')}</div>`;
+  else if (scr === 'friends') h = !socialOn() ? `<h3>👫 Friends</h3>${loginFirst}` : `<h3>👫 Friends</h3>
+    <div class="prow"><div class="who">Your friend code<small>Tell it to a friend so you can send each other messages. It works for 24 hours.</small></div></div>
+    ${myFriendCode ? `<div class="bigcode2">${myFriendCode}</div>` : '<button class="pbtn wide" data-act="code" type="button">Get my friend code</button>'}
+    <div class="prow"><div class="who">Add a friend<small>Type in the code your friend gave you.</small></div></div>
+    <input id="friendCodeIn" class="pin" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" maxlength="14" placeholder="OTTER-3152" aria-label="Friend code">
+    <button class="pbtn wide" data-act="add" type="button">Add friend</button><p class="pnote" id="phoneNote"></p>
+    ${friends.length ? '<h3>Your friends</h3>' + friends.map((f, i) => `<div class="prow"><div class="who">${htmlText(f.name)}</div><button class="pbtn" data-act="unfriend" data-i="${i}" type="button">Remove</button></div>`).join('') : '<p>No friends yet. Share your code!</p>'}`;
+  else if (scr === 'messages') h = !socialOn() ? `<h3>🎙️ Messages</h3>${loginFirst}` : `<h3>🎙️ Messages</h3>
+    ${inbox.length ? inbox.map((m, i) => `<div class="prow"><div class="who">${htmlText(m.fromName)}<small>${Math.round(m.secs || 0)} second voice message</small></div><button class="pbtn" data-act="play" data-i="${i}" type="button">▶ Listen</button></div>`).join('') : '<p>No new messages.</p>'}
+    <h3>Send a voice message</h3><p>Hold the button, talk, and let go to send (up to 15 seconds).</p><p class="pnote" id="phoneNote"></p>
+    ${friends.length ? friends.map((f, i) => `<div class="prow"><div class="who">${htmlText(f.name)}</div><button class="pbtn talk" data-talk="${i}" type="button">Hold to talk</button></div>`).join('') : '<p>Add a friend first (in the Friends app).</p>'}`;
+  else if (scr === 'find'){ const on = friendsOnline(); h = !socialOn() ? `<h3>📍 Find Friends</h3>${loginFirst}` : `<h3>📍 Find Friends</h3>
+    ${on.length ? on.map(f => `<div class="prow"><div class="who">${htmlText(f.name)}<small>${f.m} m to the ${f.dir}</small></div></div>`).join('') : `<p>${friends.length ? 'None of your friends are swimming right now.' : 'Add friends in the Friends app, and see where they are when they swim.'}</p>`}`; }
+  else if (scr === 'camera') h = `<h3>📸 Camera</h3><button class="pbtn wide" data-act="snap" type="button">Take a picture</button>
+    ${photos.length ? '<p>Your pictures:</p>' + photos.map((u, i) => `<img src="${u}" alt="Swimworld picture ${i + 1}" data-photo="${i}">`).join('') : '<p>Point the camera by moving around, then take a picture of the game.</p>'}`;
+  else if (scr === 'photo') h = `<h3>📸 Nice shot!</h3><img src="${photos[arg] || ''}" alt="Your picture"><button class="pbtn wide" data-act="share" type="button">Share</button><button class="pbtn wide" data-act="snap" type="button">Take another</button>`;
+  el.innerHTML = h; }
+function phoneNote(t){ const n = document.getElementById('phoneNote'); if (n) n.textContent = t; else if (t) banner(t); }
+function openPhone(scr = 'home', arg = null){ if (!playing()) return; paused = true; ptr.down = false; $('phonePanel').hidden = false; showPhone(scr, arg); resetPick();
+  if (socialOn()){ loadFriends().then(() => { if (!$('phonePanel').hidden) showPhone(phoneScreen, phoneArg); }); checkInbox(); } }
+function closePhone(){ stopTalk(); $('phonePanel').hidden = true; paused = false; graceAfterPause(); resetPick(); }
+$('phoneBtn').onclick = () => { initAudio(); openPhone(); };
+$('phoneHome').onclick = () => showPhone('home');
+$('phoneScreen').addEventListener('click', async e => {
+  const app = e.target.closest('[data-app]')?.dataset.app, act = e.target.closest('[data-act]')?.dataset.act, ph = e.target.closest('[data-photo]');
+  if (app === 'map'){ closePhone(); openMap(); return; }
+  if (app === 'boat'){ closePhone(); boatsButton(); return; }
+  if (app === 'music'){ toggleMusic(); showPhone('home'); return; }
+  if (app){ showPhone(app); return; }
+  if (ph){ showPhone('photo', +ph.dataset.photo); return; }
+  if (act === 'snap'){ takePhoto(); return; }
+  if (act === 'share'){ sharePhoto(phoneArg); return; }
+  if (act === 'code'){ phoneNote('Making a code…'); try { myFriendCode = await makeFriendCode(); showPhone('friends'); } catch(err){ phoneNote("Couldn't make a code. Check the internet and try again."); } return; }
+  if (act === 'add'){ const v = document.getElementById('friendCodeIn')?.value || ''; phoneNote('Looking…'); try { const msg = await addFriend(v); showPhone('friends'); phoneNote(msg); } catch(err){ phoneNote("Couldn't reach the server. Check the internet and try again."); } return; }
+  if (act === 'unfriend'){ const f = friends[+e.target.dataset.i]; if (f && e.target.dataset.sure){ await removeFriend(f); showPhone('friends'); } else if (f){ e.target.dataset.sure = '1'; e.target.textContent = 'Sure?'; } return; }
+  if (act === 'play'){ const m = inbox[+e.target.dataset.i]; if (m) playVoice(m); return; } });
+$('phoneScreen').addEventListener('pointerdown', e => { const b = e.target.closest('[data-talk]'); if (!b) return; e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch(_){} startTalk(friends[+b.dataset.talk], b); });
+for (const ev of ['pointerup', 'pointercancel']) $('phoneScreen').addEventListener(ev, e => { if (e.target.closest('[data-talk]')) stopTalk(); });
 /* ---------- Swimming together: everyone logged in on the website shares one ocean ----------
    Each swimmer writes where they are to the Realtime Database (ocean/<user id>) a few times a second and listens to everyone
    else's spot through one live stream. Only names and positions are shared, and there's no chat. */
@@ -4966,7 +5137,7 @@ function leaveHumanThings(){
   if (o.onShip){ const was = paused; paused = false; jumpOffShip(); paused = was; }
   if (o.onBoat){ const was = paused; paused = false; jumpOffBoat(); paused = was; }
 }
-function logOut(){ mpLeave(); persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); setNeighbors([]); swimmers = []; try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
+function logOut(){ mpLeave(); persist(); flushCloud(); fbKeep(null); account = null; save = fresh(); setNeighbors([]); swimmers = []; friends = []; inbox = []; myFriendCode = null; inboxReady = false; phoneBadge(); try { localStorage.removeItem(LOCAL_KEY); } catch(e){} setMode('title'); titleNote('Logged out. Press Continue to log in again.'); }
 function openGate(){ paused = true; ptr.down = false; for (const id of ['panel','shopPanel','mapPanel']) $(id).hidden = true; $('gateNote').textContent = ''; $('gatePanel').hidden = false; resetPick(); }
 $('gateLogin').onclick = async () => {
   const btn = $('gateLogin'); btn.disabled = true; btn.textContent = 'Logging in…'; $('gateNote').textContent = '';
@@ -5031,7 +5202,8 @@ function frame(now){
     else if (mode === 'pool') updPool(dt);
     else if (mode === 'ocean') updOcean(dt);
   }
-  render3D(dt); if (playing() && !paused && document.visibilityState === 'visible') adaptQuality(dt);
+  render3D(dt); if (snapWant){ const f = snapWant; snapWant = null; try { f(renderer.domElement.toDataURL('image/jpeg', .85)); } catch(e){} }   // the camera app
+  if (playing() && !paused && document.visibilityState === 'visible') adaptQuality(dt);
   ctx.setTransform(DPR,0,0,DPR,0,0); ctx.clearRect(0, 0, W, H);
   if (underNow && (mode === 'pool' || mode === 'ocean')){   // under water: soft blue edges and light shafts
     const g = ctx.createRadialGradient(W/2, H*.45, Math.min(W,H)*.2, W/2, H/2, Math.max(W,H)*.75);
