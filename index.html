@@ -95,7 +95,10 @@
   .phone-screen{flex:1;border-radius:28px;background:linear-gradient(160deg,#2aa6c9,#0b3a5c);overflow-y:auto;padding:16px;color:#fff;font-family:Nunito,sans-serif;display:flex;flex-direction:column;gap:12px}
   .phone-screen h3{margin:0;font-family:var(--display);font-weight:400;font-size:22px}
   .phone-screen p{margin:0;font-weight:700;font-size:14px;opacity:.9;line-height:1.35}
-  .phone-home{align-self:center;width:120px;height:6px;border:0;border-radius:3px;background:#fff;opacity:.8;margin:4px 0 2px}
+  .phone-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:2px 4px 4px}
+  .phone-nav button{border:0;border-radius:14px;padding:11px 4px;background:#2b3038;color:#fff;font:800 15px Nunito,sans-serif}
+  .phone-nav button:active{background:#454c57}
+  .phone-nav button:disabled{opacity:.35}
   .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 8px;margin-top:8px}
   .app{position:relative;border:0;background:none;color:#fff;font:800 12px Nunito,sans-serif;display:flex;flex-direction:column;align-items:center;gap:6px}
   .app i{font-style:normal;width:62px;height:62px;border-radius:18px;display:grid;place-items:center;font-size:32px;box-shadow:0 4px 10px rgba(0,0,0,.25)}
@@ -408,7 +411,11 @@
   <div class="phone" role="dialog" aria-label="Phone">
     <div class="phone-top"><span id="phoneClock">9:41</span><span>Swimworld</span><span>🔋</span></div>
     <div id="phoneScreen" class="phone-screen"></div>
-    <button id="phoneHome" class="phone-home" type="button" aria-label="Home screen"></button>
+    <div class="phone-nav">
+      <button id="phoneBack" type="button">‹ Back</button>
+      <button id="phoneHome" type="button">⌂ Home</button>
+      <button id="phoneClose" type="button">✕ Close</button>
+    </div>
   </div>
 </div>
 <div id="shutter" aria-hidden="true"></div>
@@ -5068,6 +5075,8 @@ function openPhone(scr = 'home', arg = null){ if (!playing()) return; paused = t
 function closePhone(){ stopTalk(); $('phonePanel').hidden = true; paused = false; graceAfterPause(); resetPick(); }
 $('phoneBtn').onclick = () => { initAudio(); openPhone(); };
 $('phoneHome').onclick = () => showPhone('home');
+$('phoneBack').onclick = () => phoneScreen === 'home' ? closePhone() : showPhone(phoneScreen === 'photo' ? 'camera' : 'home');   // back one screen (from the home screen, back to swimming)
+$('phoneClose').onclick = () => closePhone();
 $('phoneScreen').addEventListener('click', async e => {
   const app = e.target.closest('[data-app]')?.dataset.app, act = e.target.closest('[data-act]')?.dataset.act, ph = e.target.closest('[data-photo]');
   if (app === 'map'){ closePhone(); openMap(); return; }
