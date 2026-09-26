@@ -4833,6 +4833,7 @@ setInterval(() => { if (mode === 'ocean' && account?.sid && !document.hidden) lo
 let swimmers = [], pendingClone = null, pendingNew = false;
 const newSwimmer = label => Object.assign(fresh(), { sid: newSid(), label });
 function playSwimmer(sv, hello){
+  if (mpOn) mpLeave();   // your spot in the ocean is per swimmer
   save = Object.assign(fresh(), sv); account = { db: swimDb, uid: fbAuth.uid, sid: sv.sid }; hItems = null; heldItem = null; homeBlocks = null; titleNote('');
   persist(); guestT = 0; islandSent = ''; publishIsland(save);
   for (const id of ['swimPanel', 'clonePanel', 'loginPanel']) $(id).hidden = true; resetPick();
@@ -4924,6 +4925,9 @@ $('cloneGo').onclick = async () => {
   finally { btn.disabled = false; } };
 $('cloneBack').onclick = () => { $('clonePanel').hidden = true; if (playing()) paused = false; resetPick(); };
 $('cloneCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('cloneGo').click(); });
+// codes fill in their own dash: type WHALE2236 (or whale 2236) and it becomes WHALE-2236
+function codeTidy(el){ const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, ''), m = v.match(/^([A-Z]+)(\d{1,4})\d*$/); const t = m ? `${m[1]}-${m[2]}` : v.replace(/\d+/g, ''); if (el.value !== t) el.value = t; }
+document.addEventListener('input', e => { if (e.target.id === 'cloneCode' || e.target.id === 'friendCodeIn') codeTidy(e.target); });
 async function makeClone(pc){
   const sv = Object.assign(fresh(), JSON.parse(JSON.stringify(pc.snap || {})), { sid: newSid(), label: `${pc.label}'s clone`.slice(0, 30), near: pc.from, build: '', houseFound: true, tutorialDone: true });
   sv.house = await neighborSpot(pc.fromHouse, pc.from); await putSwimmer(sv); return sv; }
@@ -5022,7 +5026,7 @@ function toggleMusic(){ musicOn = !musicOn; clearInterval(musicT); if (musicOn){
   musicT = setInterval(() => { if (!document.hidden) sfx(tune[i++ % tune.length], .32, 'triangle', .025); if (i % 4 === 1) sfx(131, .3, 'sine', .04); }, 380); } }
 // which way and how far
 function friendsOnline(){ const out = []; if (!ocean) return out;
-  for (const f of friends){ const o = others.get(f.uid); if (!o) continue; const dx = o.x - ocean.x, dy = o.y - ocean.y, m = Math.round(Math.hypot(dx, dy)/METERS);
+  for (const f of friends){ const o = [...others].find(([k]) => k === f.uid || k.startsWith(f.uid + '_'))?.[1]; if (!o) continue; const dx = o.x - ocean.x, dy = o.y - ocean.y, m = Math.round(Math.hypot(dx, dy)/METERS);
     const dirs = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
     out.push({ ...f, m, dir: dirs[((Math.round(Math.atan2(dy, dx)/(Math.PI/4)) % 8) + 8) % 8] }); } return out; }
 // the screens
@@ -5079,11 +5083,13 @@ const RTDB = 'https://testing123-ac9c1.firebaseio.com';
 const others = new Map();                     // user id -> { n, c, x, y, w, a, p, l, g, seen, sx, sy, sw, sa, model, tag }
 let mpSrc = null, mpOn = false, mpSendT = 0, mpLast = '', mpRetryT = 0;
 const mpReady = () => STANDALONE && account && fbAuth && mode === 'ocean';
+// your spot in the shared ocean: one per swimmer (so two iPads on one account still see each other); old games used just the user id
+const mpKey = () => fbAuth ? `${fbAuth.uid}_${account?.sid || 'main'}` : '';
 async function mpConnect(){
   if (mpSrc) return; mpOn = true;
   let tok; try { tok = await fbToken(); } catch(e){ mpRetryT = 10; mpOn = false; return; }
   const src = new EventSource(`${RTDB}/ocean.json?auth=${encodeURIComponent(tok)}`); mpSrc = src;
-  const take = (uid, v) => { if (uid === fbAuth?.uid) return;
+  const take = (uid, v) => { if (uid === mpKey()) return;
     if (!v){ const o = others.get(uid); if (o){ dropOther(o); others.delete(uid); } return; }
     const o = others.get(uid), fresh = !o;
     const n = o || { sx: v.x, sy: v.y, sw: v.w ?? 0, sa: v.a ?? 0 }; Object.assign(n, v, { seen: performance.now() }); others.set(uid, n);
@@ -5098,7 +5104,7 @@ async function mpConnect(){
   const again = () => { src.close(); if (mpSrc === src) mpSrc = null; mpRetryT = 3; };   // the login token runs out every hour: reconnect with a new one
   src.addEventListener('auth_revoked', again); src.addEventListener('cancel', again); src.onerror = () => { if (src.readyState === 2) again(); };
 }
-function mpSay(body){ return fbToken().then(tok => fetch(`${RTDB}/ocean/${fbAuth.uid}.json?auth=${encodeURIComponent(tok)}`,
+function mpSay(body){ return fbToken().then(tok => fetch(`${RTDB}/ocean/${mpKey()}.json?auth=${encodeURIComponent(tok)}`,
   body ? { method: 'PUT', body: JSON.stringify(body), keepalive: true } : { method: 'DELETE', keepalive: true })).catch(() => {}); }
 function mpLeave(){
   if (mpSrc){ mpSrc.close(); mpSrc = null; } if (mpOn && fbAuth) mpSay(null); mpOn = false; mpLast = '';
@@ -5109,7 +5115,7 @@ function mpTick(dt){
   if (!mpSrc){ if ((mpRetryT -= dt) <= 0) mpConnect(); return; }
   if ((mpSendT -= dt) > 0) return; mpSendT = .2;   // five times a second
   const o = ocean, m = player; if (!m) return;
-  const me = { n: fbAuth.name.slice(0, 20), c: curChar().id, g: LOOK_GEAR.filter(id => hasGear(id)).join(',').slice(0, 60),
+  const me = { n: (save.label || fbAuth.name).slice(0, 20), c: curChar().id, g: LOOK_GEAR.filter(id => hasGear(id)).join(',').slice(0, 60),
     x: Math.round(o.x), y: Math.round(o.y), w: +m.position.y.toFixed(2), a: +o.ang.toFixed(2), p: +m.rotation.z.toFixed(2),
     l: o.onShip ? 2 : o.onBoat ? 3 : o.onLand ? 1 : 0, d: +(o.depth || 0).toFixed(2) };
   const key = JSON.stringify(me); if (key === mpLast && (mpSendT = .2, (o.mpIdle = (o.mpIdle || 0) + .2) < 4)) return;   // still: resend only now and then so you don't vanish
