@@ -86,6 +86,7 @@
     display:flex;align-items:center;gap:10px;animation:bob 1.6s ease-in-out infinite}
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #sleepBtn{background:#e3d6ff}
+  #climbBtn{background:#ffd9b8}
   #sleepFade{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;transition:opacity 1.2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
     background:radial-gradient(circle at 50% 35%,#1d2f63,#060c1f 70%)}
   #sleepFade.on{opacity:1}
@@ -271,6 +272,7 @@
 <button id="rideBtn" class="ridebtn" type="button" hidden>Ride the dolphin<small>E</small></button>
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
 <button id="sleepBtn" class="ridebtn" type="button" hidden>Sleep<small>Z</small></button>
+<button id="climbBtn" class="ridebtn" type="button" hidden>Climb the rope<small>R</small></button>
 <div id="sleepFade" aria-hidden="true"><div class="moon"></div><div class="zzz">Z<span>z</span><span>z</span></div></div>
 <div id="coach" class="coach" hidden><div class="face" aria-hidden="true">C</div><p><span class="who" id="coachWho">Coach</span><span id="coachTxt"></span></p></div>
 <div id="banner" class="banner" hidden><b id="banTitle"></b><span id="banSub"></span></div>
@@ -541,6 +543,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'e' && !e.repeat) toggleRide();
   if (k === 't' && !e.repeat) talkToFriend();
   if (k === 'z' && !e.repeat) goToSleep();
+  if (k === 'r' && !e.repeat) startClimb();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
   if (k === 'j' && !e.repeat) dolphinJump();
@@ -1136,6 +1139,29 @@ function shipWalkable(lx, lz){
   return SHIP_MASTS.every(([mx, mz]) => Math.hypot(lx - mx, lz - mz) > .45);
 }
 const ladderFoot = side => shipWorld(.5, side*3.05);
+/* Rope ladders up the masts to the lookout platforms (measured from the ship model: [mast x, deck height, platform height] above the keel).
+   Walk up to one and press Climb (or R); push up to climb, down to go back; Space jumps into the sea from any height. */
+const MAST_ROPES = [[-3, 4.1, 10.95], [4, 4.1, 8.85]], ROPE_X = -.34, ROPE_FOOT = -.62;
+function ropeNear(o){ if (!o.onShip || o.climb) return -1; const [lx, lz] = shipLocal(o.x, o.y);
+  return MAST_ROPES.findIndex(([mx]) => Math.hypot(lx - (mx + ROPE_FOOT), lz) < 1.1); }
+function startClimb(){
+  const o = ocean, i = ocean ? ropeNear(ocean) : -1; if (i < 0 || paused) return;
+  const [mx, deck, top] = MAST_ROPES[i]; [o.x, o.y] = shipWorld(mx + ROPE_FOOT + .12, 0); o.vx = o.vy = 0;
+  o.ang = Math.atan2(...(([ax, ay], [bx, by]) => [by - ay, bx - ax])(shipWorld(mx - 1, 0), shipWorld(mx + 1, 0)));   // face the mast
+  o.climb = { i, h: 0, top: top - deck, ph: 0 }; $('climbBtn').hidden = true; sfx(330, .1, 'triangle', .05);
+  if (!o.climbTold){ o.climbTold = true; coach('Push up to climb the rope, down to climb back. Press Space to jump into the sea!', 7); }
+}
+function climbStep(o, dt){
+  const c = o.climb, s = moveInput(), before = c.h;
+  c.h = clamp(c.h + s.y*1.7*dt, -.01, c.top); if (c.h !== before) c.ph += dt*6;
+  if (c.h < 0){ o.climb = null; return; }                       // back down on deck
+  if (c.h >= c.top && before < c.top){ const id = 'nest' + c.i; sfx(784, .15, 'triangle', .06); sfx(1047, .2, 'triangle', .06, .12);
+    if (!(save.chests || []).includes(id)){ (save.chests || (save.chests = [])).push(id); addXP(40, true); addCoins(50, c.i ? 'You climbed to the fore lookout!' : "You made it to the crow's nest!"); persist(); flushCloud(); }
+    else banner(c.i ? 'Fore lookout' : "Crow's nest", 'What a view! Space jumps into the sea'); }
+  if (diveHeld() && !o.jumpLock){ o.jumpLock = true; const high = c.h > 2; o.climb = null; jumpOffShip(); if (high) banner('Cannonball!', 'What a dive!'); return; }
+  if (!diveHeld()) o.jumpLock = false;
+}
+$('climbBtn').onclick = () => { initAudio(); startClimb(); };
 function shipLadderNear(o){
   if (!afloatShip || o.onLand || o.ride || curChar().id !== 'swimmer' || (o.depth || 0) > 1.2) return 0;
   // anywhere alongside the hull counts: E (or the Climb aboard button) takes you up
@@ -1161,6 +1187,7 @@ function jumpOffShip(){
   banner('Splash!', '');
 }
 function shipWalk(o, dt){
+  if (o.climb){ climbStep(o, dt); return; }
   const [l0x, l0z] = shipLocal(o.x, o.y), h0 = shipDeckH(l0x, l0z) ?? 3, px = o.x, py = o.y;
   walkStep(o, dt);
   const ok = (x, y) => { const [lx, lz] = shipLocal(x, y), h = shipDeckH(lx, lz); return h != null && shipWalkable(lx, lz) && h - h0 < 1.1 && PIRATES.every(p => { const [px, pz] = pirateSpot(p); return Math.hypot(lx - px, lz - pz) > .55; }); };
@@ -1935,6 +1962,7 @@ function updOcean(dt){
   { const px = o.mphX ?? o.x, py = o.mphY ?? o.y, v = Math.hypot(o.x - px, o.y - py)/Math.max(dt, 1e-3)/METERS*2.23694;   // how fast you're really going, in miles per hour
     o.mphX = o.x; o.mphY = o.y; o.mph = v > 20000 ? o.mph || 0 : lerp(o.mph || 0, v, Math.min(1, dt*4));   // (ignore teleports)
     if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; $('mphChip').hidden = false; $('mphVal').textContent = o.mph < 10 ? o.mph.toFixed(1) : Math.round(o.mph).toLocaleString(); } }
+  { const cb = $('climbBtn'), showC = ropeNear(o) >= 0; if (cb.hidden === showC) cb.hidden = !showC; }
   { const zb = $('sleepBtn'), showZ = nearBed(o); if (zb.hidden === showZ) zb.hidden = !showZ; }
   { const f = friendNear(o), tb = $('talkBtn'); if (tb.hidden === !!f) tb.hidden = !f;
     if (f){ const t = f.person ? ({ keeper:'Talk to the lighthouse keeper', captain:'Talk to the pirate captain', gunner:'Talk to the gunner', lookout:'Talk to the lookout', deckhand:'Talk to the deckhand' }[f.person] || 'Talk to the fisherman') : `Talk to the ${SPECIES_NAME[f.id].toLowerCase()}`; if (tb.firstChild.textContent !== t) tb.firstChild.textContent = t; } }
@@ -2384,6 +2412,13 @@ function buildDolphin(){
   addKit(root, { head:[.68, .03, 0, .19], chin:[.52, -.2], ring:[.42, -.43, .17, .262, .22, 6], back:[.1, .26, 1.1], tailFins:true });
   root.scale.setScalar(1.05);
   return root;
+}
+// hand over hand up a rope ladder
+function poseClimb(m, ph){
+  const u = m.userData; if (u.kind !== 'swimmer') return; const sw = Math.sin(ph);
+  u.body.rotation.set(0, 0, 0);
+  u.arms.la.sh.rotation.set(0, 0, .35 + sw*.35); u.arms.ra.sh.rotation.set(0, 0, -.35 + sw*.35); u.arms.la.el.rotation.set(0, 0, -.5); u.arms.ra.el.rotation.set(0, 0, -.5);
+  u.legs.ll.hp.rotation.z = .5 + sw*.3; u.legs.rl.hp.rotation.z = .5 - sw*.3; u.legs.ll.kn.rotation.z = -.9; u.legs.rl.kn.rotation.z = -.9;
 }
 // walking on land: the swimmer stands and swings arms and legs; animals just scuttle
 function poseWalk(m, ph, moving){
@@ -3678,6 +3713,10 @@ function applyAssetsToOcean(){
         c.fillStyle = '#f2f2f2'; c.save(); c.translate(w/2, h*.62); for (const a of [.55, -.55]){ c.save(); c.rotate(a); c.fillRect(-80, 38, 160, 14); c.restore(); } c.restore(); }, false);
       const jr = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6, 8, 1), new THREE.MeshStandardMaterial({ map: flag, side: THREE.DoubleSide, roughness: .9 }));
       jr.position.set(-3 - 1.25, 20.4, 0); holder.add(jr); pirateFlag = jr; }
+    for (const [mx, deck, top] of MAST_ROPES){ const lad = new THREE.Group(), len = top - deck + .6;   // rope ladders up the masts
+      for (const dz of [-.22, .22]){ const r = new THREE.Mesh(new THREE.CylinderGeometry(.022, .022, len, 6), rope); r.position.set(0, len/2, dz); lad.add(r); }
+      for (let y = .3; y < len - .2; y += .36){ const b = new THREE.Mesh(new THREE.BoxGeometry(.05, .045, .48), rung); b.position.y = y; lad.add(b); }
+      lad.position.set(mx + ROPE_X, deck, 0); lad.traverse(m => { if (m.isMesh) m.castShadow = true; }); waterizeTree(lad); holder.add(lad); }
     for (const p of PIRATES){ p.model = buildPirate(p.role); holder.add(p.model); }
     shipChest = buildChest(); shipChest.position.set(SHIP_CHEST[0], shipDeckH(...SHIP_CHEST), SHIP_CHEST[1]); shipChest.rotation.y = Math.PI/2; holder.add(shipChest); updShipChest(); }
   if (MODELS.shell && !INST.conch){ const m = firstMesh(MODELS.shell); inst('conch', normalizeGeo(m.geometry.clone().applyMatrix4(m.matrixWorld), .28), m.material, 900, true); lastChunkKey = ''; }
@@ -3786,6 +3825,7 @@ function render3D(dt){
       const gy = landY(ocean), human = m.userData.kind === 'swimmer';
       if (ocean.sleeping){ m.position.set(px, gy + ({ swimmer:.62, turtle:.6, otter:.64, dolphin:.76 }[m.userData.kind] || .6), pz);   // lying in bed, the swimmer on their back
         m.rotation.order = 'YXZ'; m.rotation.set(human ? Math.PI : 0, -ocean.ang, 0); poseWalk(m, 0, false); }
+      else if (ocean.climb){ m.position.set(px, gy + 1.13 + ocean.climb.h, pz); m.rotation.set(0, -ocean.ang, Math.PI/2); if (ocean.climb.h >= ocean.climb.top) poseWalk(m, 0, false); else poseClimb(m, ocean.climb.ph); }   // on the rope ladder, standing up in the lookout at the top
       else { m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0);
       poseWalk(m, ocean.walkPh || 0, ocean.walking); }
     } else if (ocean.ride && rideModel){   // holding the dorsal fin, lying along the dolphin's back
@@ -3799,7 +3839,7 @@ function render3D(dt){
     followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first'; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
     houseLook(ocean, dt);
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105);
