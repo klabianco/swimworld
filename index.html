@@ -87,10 +87,14 @@
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
+  #casinoBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
+  #arcCanvas{display:block;width:100%;max-width:360px;aspect-ratio:1;margin:0 auto;border-radius:14px;background:#0b2d44;touch-action:none}
+  .overlay.movie{background:#000;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+  #movieCanvas{width:min(100%,1100px);aspect-ratio:16/9;background:#021526;border-radius:8px}
   #grabBtn{background:#d8f5c9;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #useBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 212px)}
   .chip.boats{background:#c9f0e0;font-family:var(--display);font-size:17px}
-  .speedbar{position:fixed;left:calc(env(safe-area-inset-left,0px) + 14px);top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;gap:6px;
+  .speedbar{position:fixed;left:calc(env(safe-area-inset-left,0px) + 14px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;
     background:rgba(247,251,255,.9);border-radius:16px;padding:8px 8px 6px;box-shadow:0 4px 0 rgba(8,43,69,.25);font-family:var(--display);color:var(--ink);touch-action:none}
   .speedbar .sb-lbl{font-size:11px;letter-spacing:.04em;opacity:.7}
   .speedbar .sb-val{font-size:12px;opacity:.8;white-space:nowrap}
@@ -283,6 +287,7 @@
   </div>
 </div>
 
+<div id="speedBar" class="speedbar" hidden><span class="sb-lbl">Top speed</span><div class="sb-track" id="sbTrack" role="slider" aria-label="Top speed" aria-valuemin="0" aria-valuemax="100"><i id="sbFill"></i><b id="sbKnob"></b></div><span class="sb-val"><b id="sbVal">0</b> mph</span></div>
 <div id="limbs" class="limbs" hidden>
   <div id="stickPad" class="stickpad" aria-label="Joystick: drag to swim"><div id="stickKnob" class="knob"></div></div>
   <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb jump" id="sonarBtn" type="button" hidden>Sonar<small>P</small></button><button class="limb jump" id="jumpBtn" type="button" hidden>Jump<small>J</small></button><button class="limb jump" id="upBtn" type="button" hidden>Up<small>hold</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
@@ -291,10 +296,10 @@
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
 <button id="sleepBtn" class="ridebtn" type="button" hidden>Sleep<small>Z</small></button>
 <button id="climbBtn" class="ridebtn" type="button" hidden>Climb the rope<small>R</small></button>
+<button id="casinoBtn" class="ridebtn" type="button" hidden>Play<small>U</small></button>
 <button id="grabBtn" class="ridebtn" type="button" hidden>Pick up<small>G</small></button>
 <button id="useBtn" class="ridebtn" type="button" hidden>Use<small>U</small></button>
 <div id="speedFx" aria-hidden="true"></div>
-<div id="speedBar" class="speedbar" hidden><span class="sb-lbl">Top speed</span><div class="sb-track" id="sbTrack" role="slider" aria-label="Top speed" aria-valuemin="0" aria-valuemax="100"><i id="sbFill"></i><b id="sbKnob"></b></div><span class="sb-val"><b id="sbVal">0</b> mph</span></div>
 <div id="sleepFade" aria-hidden="true"><div class="moon"></div><div class="zzz">Z<span>z</span><span>z</span></div></div>
 <div id="coach" class="coach" hidden><div class="face" aria-hidden="true">C</div><p><span class="who" id="coachWho">Coach</span><span id="coachTxt"></span></p></div>
 <div id="banner" class="banner" hidden><b id="banTitle"></b><span id="banSub"></span></div>
@@ -369,6 +374,23 @@
     </div>
   </div>
 </div>
+<div id="arcadePanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker">Avalon Casino</p><h2 id="arcTitle">Game</h2></div>
+    <canvas id="arcCanvas" width="360" height="360" aria-label="Game"></canvas>
+    <p class="explain" id="arcInfo"></p>
+    <div class="actions">
+      <button id="arcAgain" class="btn primary" type="button" hidden>Play again · 5 coins</button>
+      <button id="arcDone" class="btn secondary" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="moviePanel" class="overlay movie" hidden>
+  <canvas id="movieCanvas" width="640" height="360" aria-label="Ocean Wonders, a short film"></canvas>
+  <button id="movieDone" class="btn secondary" type="button">Leave the theater</button>
+</div>
+
 <div id="swimPanel" class="overlay" hidden>
   <div class="panel small">
     <div><p class="kicker" id="swimKicker">Your swimmers</p><h2>Who's swimming?</h2></div>
@@ -613,7 +635,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'z' && !e.repeat) goToSleep();
   if (k === 'r' && !e.repeat) startClimb();
   if (k === 'g' && !e.repeat) grabItem();
-  if (k === 'u' && !e.repeat) useItem();
+  if (k === 'u' && !e.repeat){ if (!$('casinoBtn').hidden) casinoAct(); else useItem(); }
   if (k === 'v' && !e.repeat && mode === 'ocean' && !paused) boatsButton();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
@@ -626,6 +648,8 @@ function closeTopWindow(){
   else if (!$('mapPanel').hidden) closeMap();
   else if (!$('boatPanel').hidden) closeBoats();
   else if (!$('clonePanel').hidden) $('cloneBack').click();
+  else if (!$('arcadePanel').hidden) $('arcDone').click();
+  else if (!$('moviePanel').hidden) $('movieDone').click();
   else if (!$('codePanel').hidden) $('codeClose').click();
   else if (!$('swimPanel').hidden) $('swimBack').click();
   else if (!$('loginPanel').hidden){ if (!$('loginBack').hidden) $('loginBack').click(); }
@@ -635,7 +659,7 @@ function closeTopWindow(){
   else return false;
   return true; }
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
-for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -1123,10 +1147,15 @@ const DARK = [0, .12, 0, 0, .38, 0, .9];
    `la` runs along the island and `lb` across it (meters); A and B are its half length and half width. */
 const CAT = { x: 1100, y: -2500, rot: .41, A: 26, B: 10 };
 let neighbors = [];   // islands next to yours (see setNeighbors)
-const catLocal = (x, y) => { const dx = (x - CAT.x)*U, dy = (y - CAT.y)*U, c = Math.cos(CAT.rot), s = Math.sin(CAT.rot); return [dx*c + dy*s, -dx*s + dy*c]; };
-const catWorld = (la, lb) => { const c = Math.cos(CAT.rot), s = Math.sin(CAT.rot); return [CAT.x + (la*c - lb*s)/U, CAT.y + (la*s + lb*c)/U]; };
+const CAT_U = 1/40;   // world units to meters (same as U, which isn't defined yet this early in the file)
+const catLocal = (x, y) => { const dx = (x - CAT.x)*CAT_U, dy = (y - CAT.y)*CAT_U, c = Math.cos(CAT.rot), s = Math.sin(CAT.rot); return [dx*c + dy*s, -dx*s + dy*c]; };
+const catWorld = (la, lb) => { const c = Math.cos(CAT.rot), s = Math.sin(CAT.rot); return [CAT.x + (la*c - lb*s)/CAT_U, CAT.y + (la*s + lb*c)/CAT_U]; };
 const catE = (x, y) => { const [la, lb] = catLocal(x, y); return Math.hypot(la/CAT.A, lb/CAT.B); };   // 1 = the shoreline
-function catH(la, lb){   // ground height (m): beaches at the edge, rolling hills in the middle
+const CASINO = [14, 3.4], CASINO_R = 4.6, CASINO_Y = .6;   // the Casino's middle (la, lb), its radius and its floor height (m)
+function catH(la, lb){   // ground height (m): beaches at the edge, rolling hills in the middle, flat around the Casino
+  const h = catH0(la, lb), dc = Math.hypot(la - CASINO[0], lb - CASINO[1]); if (dc > 7.5) return h;
+  const k = clamp((dc - 5.2)/2.3, 0, 1); return lerp(CASINO_Y, h, k*k*(3 - 2*k)); }
+function catH0(la, lb){
   const e = Math.hypot(la/CAT.A, lb/CAT.B); if (e >= 1.12) return -3;
   if (e > .85) return e > 1 ? -1 - (e - 1)*16 : -1 + 1.4*(1 - e)/.15;
   const k = clamp((.85 - e)/.6, 0, 1), sm = k*k*(3 - 2*k);
@@ -1151,6 +1180,7 @@ const LANDMARKS = [
   { name:'Catalina Island',          x:CAT.x, y:CAT.y, kind:'catalina', r: 1250 },
 ];
 function zoneAt(x,y){
+  if (Math.abs(x - CAT.x) < 1500 && Math.abs(y - CAT.y) < 1500 && catE(x, y) < 1.6) return 1;   // all of Catalina Island is in the Catalina kelp forest
   let d = Math.hypot(x,y); let a = Math.atan2(y,x);
   d += 110*Math.sin(a*5 + 1); a += .16*Math.sin(d/340);
   if (d < 1050) return 0;
@@ -1614,7 +1644,7 @@ $('bRemove').onclick = () => { buildRemove = !buildRemove; renderPalette(); };
 $('bZoomIn').onclick = () => { buildZoom = Math.max(7, buildZoom - 3); };
 $('bZoomOut').onclick = () => { buildZoom = Math.min(30, buildZoom + 3); };
 // Menu: jump straight to your island once you've found it
-$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.vehicle = null; o.sitting = null; o.sleeping = null; o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
+$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.vehicle = null; o.sitting = null; o.sleeping = null; o.bison = null; o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
   o.onShip = false; o.onBoat = null; o.ride = null; o.ang = -Math.PI/2; camInit = false; banner('Welcome home!', 'Press Build to build around your house'); };
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
   if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y) + (o.onLand ? o.blockShow || 0 : 0); }   // standing on your blocks
@@ -1800,6 +1830,8 @@ function toggleRide(){
   if (o.onShip){ jumpOffShip(); return; }
   if (o.onBoat){ jumpOffBoat(); return; }
   if (o.vehicle){ leaveVehicle(); return; }
+  if (o.bison){ dismountBison(); return; }
+  { const b = bisonNear(o); if (b){ mountBison(b); return; } }
   { const side = shipLadderNear(o); if (side){ climbShip(side); return; } }
   { const bt = boatNear(o); if (bt){ climbBoat(bt); return; } }
   if (o.ride){   // let go: you keep the dolphin's speed for a moment
@@ -1946,7 +1978,7 @@ function landObstacles(){
   const hx = HOUSE.x, hy = HOUSE.y;
   return [[-24, -32, 46], ...islandPlants().map(p => [p.x/U, p.z/U, p.kind === 'palm' ? 12 : 22]),
     ...neighbors.flatMap(n => { const nx = n.house.x, ny = n.house.y; return [[nx, ny, 118], [nx - 200, ny + 120, 12], [nx + 220, ny - 80, 12], [nx - 120, ny - 220, 12], [nx + 160, ny + 200, 12], [nx - 180, ny - 80, 8]]; }),   // neighbors' houses are solid
-    [...catWorld(...CAT_CASINO), 80], [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
+    [hx - 200, hy + 120, 12], [hx + 220, hy - 80, 12], [hx - 120, hy - 220, 12], [hx + 160, hy + 200, 12], [hx - 180, hy - 80, 8]];
 }
 // Your house is hollow, so its walls and furniture are solid one by one: boxes [x0, z0, x1, z1] in meters,
 // in the house's own frame (turned 45 degrees, door facing +z), matching buildHouse().
@@ -2089,6 +2121,127 @@ $('boatBtn').onclick = () => { initAudio(); boatsButton(); };
 { const u = $('upBtn'), on = v => { upBtnHeld = v; u.classList.toggle('on', v); };
   u.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); on(true); try { u.setPointerCapture(e.pointerId); } catch(_){} });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) u.addEventListener(ev, () => on(false)); }
+// The Casino's round wall is solid except for the door; the cabinets and benches inside are solid too. o.inCasino when you're in.
+function casinoLocal(o){ const [la, lb] = catLocal(o.x, o.y); return [la - CASINO[0], lb - CASINO[1]]; }
+function casinoCollide(o){
+  o.inCasino = false; if (Math.abs(o.x - CAT.x) > 1400 || Math.abs(o.y - CAT.y) > 1400) return;
+  let [x, z] = casinoLocal(o); const d0 = Math.hypot(x, z); if (d0 > CASINO_R + 1.2) return;
+  const x0 = x, z0 = z, R = CASINO_R, rr = .3;
+  if (z > R - 1.2 && Math.abs(x) < 1.2) x *= .9;   // the doorway lines you up
+  const d = Math.hypot(x, z), a = Math.atan2(x, z), door = Math.abs(a) < .13;   // the door is the gap around angle 0 (+z)
+  if (!door && Math.abs(d - R) < rr){ const k = (d < R ? R - rr : R + rr)/Math.max(d, .01); x *= k; z *= k; }
+  for (const sp of CASINO_SPOTS){ const dx = x - sp.x, dz = z - sp.z, dd = Math.hypot(dx, dz); if (dd < .7){ x = sp.x + dx/(dd || 1)*.7; z = sp.z + dz/(dd || 1)*.7; } }
+  for (const bz of [-2.9, -2.2]) if (Math.abs(x) < 1.2 + rr && Math.abs(z - bz) < .22 + rr){ z = bz + Math.sign(z - bz || 1)*(.22 + rr); }   // benches
+  if (x !== x0 || z !== z0){ const [la, lb] = [x + CASINO[0], z + CASINO[1]]; [o.x, o.y] = catWorld(la, lb); }
+  o.inCasino = Math.hypot(x, z) < R - .3;
+}
+function casinoLook(o, dt){
+  const u = casinoGroup?.userData; if (!u) return;
+  const cut = o && mode === 'ocean' && o.onLand && o.inCasino && camMode !== 'first' ? 1 : 0; u.cut += (cut - u.cut)*Math.min(1, dt*6);
+  u.walls.scale.y = 1 - .72*u.cut; u.top.visible = u.cut < .5;
+  u.ball.rotation.y += dt*1.5;
+  if (o){ const [x, z] = o.inCasino ? casinoLocal(o) : [99, 99]; o.dancing = !!(o.inCasino && !o.bison && Math.hypot(x, z - .6) < 1.35);   // on the dance floor: dance!
+    if (o.dancing && !o.danceHi){ o.danceHi = true; banner('Dance party!', 'Step off the floor to stop'); }
+    if (o.dancing && time > (o.beatT || 0)){ o.beatT = time + .3; o.beat = (o.beat || 0) + 1; const b = o.beat % 8; sfx([262, 330, 392, 330, 294, 349, 440, 349][b], .18, 'triangle', .035); if (b % 2 === 0) sfx(80, .12, 'sine', .07); }
+    const sp = paused ? null : nearCasinoSpot(o), cb = $('casinoBtn'), t = !sp ? '' : sp.id === 'movie' ? 'Watch the movie' : sp.id === 'slots' ? 'Play the slots · 5 coins' : `Play ${GAMES[sp.id].name} · 5 coins`;
+    if (cb.hidden === !!t) cb.hidden = !t; if (t && cb.firstChild.textContent !== t) cb.firstChild.textContent = t; }
+  const party = o && o.dancing; u.tiles.forEach((t, i) => { const on = party && ((i + Math.floor(time*4)) % 3 === 0); t.material.emissive.setHSL(((i/12) + time*.2) % 1, 1, on ? .45 : party ? .12 : 0); });
+}
+/* ---------- Avalon Casino: arcade games, slot machines, a movie and a dance floor ----------
+   Each game costs 5 coins. Arcade games pay out for skill; slot machines are luck (and, like real ones, pay back less than
+   you put in, on average). Games run in a little window on top of the ocean; the ocean waits while you play. */
+function nearCasinoSpot(o){
+  if (!o || !o.inCasino || o.bison) return null; const [x, z] = casinoLocal(o); let best = null, bd = 1.25;
+  for (const sp of CASINO_SPOTS){ const d = Math.hypot(x - sp.x, z - sp.z); if (d < bd){ bd = d; best = sp; } }
+  return best || (z < -1.6 && z > -3.7 && Math.abs(x) < 1.6 ? { id: 'movie' } : null); }
+function casinoAct(){ const sp = nearCasinoSpot(ocean); if (!sp || paused) return; if (sp.id === 'movie') playMovie(); else openGame(sp.id); }
+$('casinoBtn').onclick = () => { initAudio(); casinoAct(); };
+const arcCv = $('arcCanvas'), arcCx = arcCv.getContext('2d');
+let arc = null, arcLast = 0;
+const emo = (c, t, x, y, size) => { c.font = `${size}px system-ui, "Apple Color Emoji", sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, x, y); };
+const hud = (c, left, right) => { c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 0, 360, 34); c.fillStyle = '#fff'; c.font = '800 17px Nunito, sans-serif'; c.textBaseline = 'middle';
+  c.textAlign = 'left'; c.fillText(left, 12, 17); c.textAlign = 'right'; c.fillText(right, 348, 17); };
+const GAMES = {
+  whack: { name: 'Whack-a-Crab', help: 'Tap the crabs as fast as you can! 20 seconds. 1 coin for every crab, up to 30.',
+    init: () => ({ crab: -1, crabT: .6, hits: 0, time: 20, bonk: null }),
+    step(g, dt){ g.time -= dt; g.crabT -= dt; if (g.bonk) g.bonk.t -= dt;
+      if (g.crabT <= 0){ let n; do n = (Math.random()*9)|0; while (n === g.crab); g.crab = n; g.crabT = Math.max(.42, .95 - g.hits*.025); }
+      if (g.time <= 0) arcEnd(Math.min(30, g.hits), `You whacked ${g.hits} crab${g.hits === 1 ? '' : 's'}!`); },
+    tap(g, x, y){ if (y < 40) return; const i = Math.min(2, (x/120)|0) + 3*Math.min(2, ((y - 40)/107)|0);
+      if (i === g.crab){ g.hits++; g.bonk = { i, t: .25 }; g.crab = -1; g.crabT = .18; sfx(900, .06, 'square', .05); } else sfx(200, .05, 'triangle', .03); },
+    draw(c, g){ c.fillStyle = '#e9d8a6'; c.fillRect(0, 0, 360, 360);
+      for (let i = 0; i < 9; i++){ const x = 60 + (i % 3)*120, y = 95 + ((i/3)|0)*107; c.fillStyle = '#5a4020'; c.beginPath(); c.ellipse(x, y + 18, 44, 16, 0, 0, TAU); c.fill();
+        if (i === g.crab) emo(c, '🦀', x, y, 58); if (g.bonk && g.bonk.i === i && g.bonk.t > 0) emo(c, '💥', x, y, 58); }
+      hud(c, `🦀 ${g.hits}`, `${Math.max(0, Math.ceil(g.time))} s`); } },
+  claw: { name: 'Claw Machine', help: 'The claw slides back and forth. Tap to drop it on a prize!',
+    init: () => { const P = [['🐚', 3], ['🐠', 6], ['🐙', 10], ['🧸', 15], ['🦈', 25], ['🐚', 3], ['🐠', 6], ['💎', 50]];
+      return { cx: 180, dir: 1, y: 50, state: 'move', got: null, prizes: Array.from({ length: 6 }, (_, k) => { const [e, v] = P[(Math.random()*(k === 5 ? 8 : 7))|0]; return { x: 40 + k*56 + Math.random()*10, e, v }; }) }; },
+    step(g, dt){
+      if (g.state === 'move'){ g.cx += g.dir*150*dt; if (g.cx > 330 || g.cx < 30) g.dir *= -1; g.cx = clamp(g.cx, 30, 330); }
+      else if (g.state === 'drop'){ g.y += 260*dt; if (g.y >= 285){ g.y = 285; const near = g.prizes.filter(p => Math.abs(p.x - g.cx) < 24).sort((a, b) => Math.abs(a.x - g.cx) - Math.abs(b.x - g.cx))[0];
+          g.got = near && Math.random() < .8 ? near : null; if (g.got) g.prizes.splice(g.prizes.indexOf(g.got), 1); g.state = 'up'; sfx(g.got ? 700 : 250, .1, 'triangle', .05); } }
+      else if (g.state === 'up'){ g.y -= 200*dt; if (g.y <= 50) arcEnd(g.got ? g.got.v : 0, g.got ? `You grabbed a ${g.got.e}!` : 'So close! The claw came up empty.'); } },
+    tap(g){ if (g.state === 'move'){ g.state = 'drop'; sfx(400, .08, 'square', .04); } },
+    draw(c, g){ c.fillStyle = '#16304a'; c.fillRect(0, 0, 360, 360); c.fillStyle = '#e9d8a6'; c.fillRect(0, 300, 360, 60);
+      for (const p of g.prizes) emo(c, p.e, p.x, 305, 40);
+      c.strokeStyle = '#cfd8e0'; c.lineWidth = 4; c.beginPath(); c.moveTo(g.cx, 34); c.lineTo(g.cx, g.y); c.stroke();
+      c.beginPath(); c.moveTo(g.cx - 18, g.y + 22); c.lineTo(g.cx, g.y); c.lineTo(g.cx + 18, g.y + 22); c.stroke(); if (g.got) emo(c, g.got.e, g.cx, g.y + 26, 40);
+      hud(c, 'Tap to drop the claw', '💎 = 50'); } },
+  skee: { name: 'Skee-Pearl', help: 'Tap when the power bar is at the gold line to roll your pearl into the 50 hole. 5 rolls.',
+    init: () => ({ rolls: 5, score: 0, pow: 0, pdir: 1, state: 'aim', ball: null, last: '' }),
+    step(g, dt){
+      if (g.state === 'aim'){ g.pow += g.pdir*dt*1.3; if (g.pow > 1 || g.pow < 0){ g.pdir *= -1; g.pow = clamp(g.pow, 0, 1); } }
+      else { g.ball.t += dt*1.6; if (g.ball.t >= 1){ const e = Math.abs(g.ball.p - .88), pts = e < .035 ? 50 : e < .09 ? 30 : e < .16 ? 20 : e < .28 ? 10 : 0;
+          g.score += pts; g.rolls--; g.last = pts ? `+${pts}!` : 'Missed!'; sfx(pts ? 500 + pts*10 : 150, .1, 'triangle', .05); g.state = 'aim';
+          if (!g.rolls) arcEnd(Math.round(g.score/10), `You scored ${g.score} points!`); } } },
+    tap(g){ if (g.state === 'aim'){ g.state = 'roll'; g.ball = { p: g.pow, t: 0 }; sfx(300, .2, 'sine', .04, 0, 200); } },
+    draw(c, g){ c.fillStyle = '#b07a45'; c.fillRect(0, 0, 360, 360); c.fillStyle = '#8a5a36'; c.fillRect(60, 34, 220, 326);
+      [[50, 70], [30, 120], [20, 170], [10, 220]].forEach(([pts, y]) => { c.fillStyle = '#3a2410'; c.beginPath(); c.arc(170, y, 22, 0, TAU); c.fill(); c.fillStyle = '#ffe08a'; c.font = '800 14px Nunito, sans-serif'; c.textAlign = 'center'; c.fillText(pts, 170, y + 36); });
+      c.fillStyle = '#ddd'; c.fillRect(310, 60, 22, 280); c.fillStyle = '#ffc53d'; c.fillRect(306, 340 - .88*280 - 2, 30, 4);
+      c.fillStyle = '#ff6f59'; c.fillRect(312, 340 - g.pow*280, 18, g.pow*280);
+      const by = g.ball ? lerp(340, 340 - g.ball.p*300 + 30, Math.min(1, g.ball.t)) : 340; if (g.state === 'roll' || !g.ball) emo(c, '⚪', 170, by, 26);
+      hud(c, `Score ${g.score}  ${g.last}`, `Rolls ${g.rolls}`); } },
+  slots: { name: 'Slot Machine', help: '5 coins a pull. Three 🦈 is the jackpot: 100 coins! Three of a kind: 30. Two of a kind: 6.',
+    init: () => { const S = ['🐚', '🐠', '🐙', '🦀', '⭐', '🦈']; return { S, out: [0, 1, 2].map(() => S[(Math.random()*6)|0]), t: 0, done: false }; },
+    step(g, dt){ g.t += dt; if (!g.done && g.t > 2){ g.done = true; const [a, b, c2] = g.out, three = a === b && b === c2, two = a === b || b === c2 || a === c2;
+        const win = three && a === '🦈' ? 100 : three ? 30 : two ? 6 : 0; arcEnd(win, win === 100 ? 'JACKPOT! 🦈🦈🦈' : win ? (three ? 'Three of a kind!' : 'Two of a kind!') : 'No match this time.'); }
+      if (!g.done && Math.random() < dt*20) sfx(600 + Math.random()*400, .03, 'square', .02); },
+    tap(){},
+    draw(c, g){ c.fillStyle = '#7a1f2b'; c.fillRect(0, 0, 360, 360); c.fillStyle = '#ffc53d'; c.font = '800 26px Nunito, sans-serif'; c.textAlign = 'center'; c.fillText('★ SEA SLOTS ★', 180, 70);
+      for (let r = 0; r < 3; r++){ const x = 70 + r*110; c.fillStyle = '#fff'; c.fillRect(x - 45, 120, 90, 120);
+        const stopped = g.t > .9 + r*.5; emo(c, stopped ? g.out[r] : g.S[(Math.floor(g.t*18) + r*2) % 6], x, 180, 64); }
+      c.fillStyle = '#ffe7b0'; c.font = '800 15px Nunito, sans-serif'; c.fillText('🦈🦈🦈 100 · three 30 · two 6', 180, 290); } } };
+function openGame(id){
+  if ((save.coins || 0) < 5){ banner('You need 5 coins', 'Grab some pearls and come back!'); sfx(200, .2, 'square', .04); return; }
+  save.coins -= 5; persist(); paused = true; ptr.down = false; $('arcadePanel').hidden = false; resetPick(); startGame(id); }
+function startGame(id){ const G = GAMES[id]; arc = { id, over: false, ...G.init() }; $('arcTitle').textContent = G.name; $('arcInfo').textContent = G.help; $('arcAgain').hidden = true;
+  arcLast = performance.now(); requestAnimationFrame(arcLoop); }
+function arcLoop(now){ if (!arc || $('arcadePanel').hidden) return; const dt = Math.min(.05, (now - arcLast)/1000); arcLast = now;
+  const G = GAMES[arc.id]; if (!arc.over) G.step(arc, dt); G.draw(arcCx, arc); requestAnimationFrame(arcLoop); }
+function arcEnd(win, msg){ if (!arc || arc.over) return; arc.over = true;
+  if (win > 0){ save.coins = (save.coins || 0) + win; persist(); flushCloud(); [659, 784, 988].forEach((f, i) => sfx(f, .15, 'triangle', .05, i*.1)); }
+  $('arcInfo').textContent = `${msg} ${win > 0 ? `You won ${win} coin${win === 1 ? '' : 's'}!` : ''} You have ${save.coins} coins.`; $('arcAgain').hidden = false; }
+arcCv.addEventListener('pointerdown', e => { e.preventDefault(); if (!arc || arc.over) return; const r = arcCv.getBoundingClientRect(); GAMES[arc.id].tap(arc, (e.clientX - r.left)/r.width*360, (e.clientY - r.top)/r.height*360); });
+$('arcAgain').onclick = () => { if ((save.coins || 0) < 5){ $('arcInfo').textContent = 'You need 5 coins to play again.'; return; } save.coins -= 5; persist(); startGame(arc.id); };
+$('arcDone').onclick = () => { arc = null; $('arcadePanel').hidden = true; paused = false; graceAfterPause(); resetPick(); };
+// the movie: a short film on the big screen, "Ocean Wonders"
+const MOVIE = [[0, 4, null, 'OCEAN WONDERS'], [4, 11, '🐠', 'A school of fish swims together to stay safe.'], [11, 18, '🐋', 'Blue whales are the biggest animals that ever lived.'],
+  [18, 25, '🐢', 'Sea turtles can live for more than 80 years.'], [25, 32, '🐙', 'An octopus has three hearts and blue blood!'], [32, 39, '🐬', 'Dolphins call each other by name with whistles.'], [39, 44, null, 'THE END']];
+let movieT = -1, movieLast = 0;
+function playMovie(){ paused = true; ptr.down = false; $('moviePanel').hidden = false; movieT = 0; movieLast = performance.now(); resetPick(); requestAnimationFrame(movieLoop); }
+function movieLoop(now){
+  if (movieT < 0 || $('moviePanel').hidden) return; const dt = Math.min(.05, (now - movieLast)/1000); movieLast = now; const before = movieT; movieT += dt;
+  if (Math.floor(movieT*1.5) !== Math.floor(before*1.5) && movieT < 44) sfx([392, 440, 523, 587, 523, 440][Math.floor(movieT*1.5) % 6], .5, 'sine', .03);   // soft music
+  const c = $('movieCanvas').getContext('2d'), sc = MOVIE.find(m => movieT >= m[0] && movieT < m[1]) || MOVIE[MOVIE.length - 1], k = (movieT - sc[0])/(sc[1] - sc[0]);
+  const gr = c.createLinearGradient(0, 0, 0, 360); gr.addColorStop(0, '#1b6f9a'); gr.addColorStop(1, '#041a2c'); c.fillStyle = gr; c.fillRect(0, 0, 640, 360);
+  for (let i = 0; i < 14; i++){ c.fillStyle = 'rgba(255,255,255,.15)'; c.beginPath(); c.arc((i*97 + movieT*12) % 660 - 10, 360 - ((i*53 + movieT*40) % 380), 3 + i % 3, 0, TAU); c.fill(); }   // bubbles
+  if (sc[2] === '🐠') for (let i = 0; i < 12; i++) emo(c, '🐠', lerp(-80, 720, k) - (i % 4)*40 + Math.sin(movieT*3 + i)*6, 120 + ((i/4)|0)*50 + Math.sin(movieT*2 + i)*8, 40);
+  else if (sc[2]){ c.save(); c.translate(lerp(sc[2] === '🐋' ? 760 : -80, sc[2] === '🐋' ? -120 : 720, k), 170 + Math.sin(movieT*1.5)*14); if (sc[2] === '🐋') c.scale(-1, 1); emo(c, sc[2], 0, 0, sc[2] === '🐋' ? 170 : 110); c.restore(); }
+  c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (!sc[2]){ c.font = '400 56px "Titan One", Nunito, sans-serif'; c.fillText(sc[3], 320, 170); if (sc[3] !== 'THE END'){ c.font = '700 18px Nunito, sans-serif'; c.fillText('an Avalon Casino picture', 320, 225); } }
+  else { c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(0, 300, 640, 60); c.fillStyle = '#fff'; c.font = '800 22px Nunito, sans-serif'; c.fillText(sc[3], 320, 330); }
+  requestAnimationFrame(movieLoop); }
+$('movieDone').onclick = () => { movieT = -1; $('moviePanel').hidden = true; paused = false; graceAfterPause(); resetPick(); };
 // Inside, the roof comes off and the walls go down so you can see yourself. The door opens when you're near it.
 function houseLook(o, dt){
   const u = houseGroup?.userData.inside; if (!u) return;
@@ -2203,7 +2356,7 @@ function walkStep(o, dt){
   o.x += o.vx*dt; o.y += o.vy*dt;
   o.walkPh = (o.walkPh || 0) + dt*(walking ? 8 : 0); o.walking = walking;
   o.depth = 0; o.vd = 0; o.pitch = 0; o.idle = 0; o.air = airMax(); o.gasp = false;
-  blockCollide(o, dt); houseCollide(o);
+  blockCollide(o, dt); houseCollide(o); casinoCollide(o);
   for (const [cx, cy, r] of landObstacles()){ const dx = o.x - cx, dy = o.y - cy, d = Math.hypot(dx, dy), rr = r + 12;
     if (d < rr && d > 1e-6){ o.x = cx + dx/d*rr; o.y = cy + dy/d*rr; } }
 }
@@ -2229,7 +2382,7 @@ function updOcean(dt){
   const o = ocean; o.prevDepth = o.depth || 0;
   if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
-  else if (o.onLand){ if (o.sleeping) sleepStep(o); else if (o.sitting != null) sitStep(o); else walkStep(o, dt); $('airChip').hidden = true;
+  else if (o.onLand){ if (o.sleeping) sleepStep(o); else if (o.sitting != null) sitStep(o); else if (o.bison) bisonStep(o, dt); else walkStep(o, dt); $('airChip').hidden = true;
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; o.blockH = o.blockShow = 0; }        // walked back into the sea
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
@@ -2313,9 +2466,9 @@ function updOcean(dt){
     const ub = $('upBtn'), showU = !!VEH[o.vehicle]?.sub; if (ub.hidden === showU) ub.hidden = !showU; }
   { const jb = $('jumpBtn'), showJ = curChar().id === 'dolphin' && !o.onLand && !o.ride && !o.vehicle; if (jb.hidden === showJ) jb.hidden = !showJ;
     const sb = $('sonarBtn'), showS = !o.onLand && !o.ride && !o.vehicle && hasGear('sonar'); if (sb.hidden === showS) sb.hidden = !showS; }
-  const rb = $('rideBtn'), ladder = !o.vehicle && shipLadderNear(o), boat = !ladder && !o.vehicle && boatNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat);
+  const rb = $('rideBtn'), ladder = !o.vehicle && shipLadderNear(o), boat = !ladder && !o.vehicle && boatNear(o), bis = !o.bison && bisonNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat || o.bison || bis);
   if (rb.hidden === showRide) rb.hidden = !showRide;
-  if (showRide){ const t = o.onShip || o.onBoat ? 'Jump into the sea' : ladder ? 'Climb aboard' : boat ? 'Climb into the boat' : o.ride ? 'Let go' : 'Ride the dolphin'; if (rb.firstChild.textContent !== t) rb.firstChild.textContent = t; }
+  if (showRide){ const t = o.bison ? 'Get off the bison' : bis ? 'Ride the bison' : o.onShip || o.onBoat ? 'Jump into the sea' : ladder ? 'Climb aboard' : boat ? 'Climb into the boat' : o.ride ? 'Let go' : 'Ride the dolphin'; if (rb.firstChild.textContent !== t) rb.firstChild.textContent = t; }
 
   const z = zoneAt(o.x,o.y);
   if (z !== o.zone){ o.zone = z;
@@ -2956,8 +3109,14 @@ function bubble(x, y, vx, vy){ if (curDepth > .3){ sprayAt(x*U, -curDepth, y*U, 
 
 /* ---------- Scenery helpers ---------- */
 // Catalina Island in 3D: hilly terrain (sand by the water, grass above), the Casino at Avalon, palms, moored boats and grazing bison
-const CAT_CASINO = [15, 6.2];   // where the Casino stands (la, lb)
-let catGroup = null; const catBison = [];
+// inside the Casino (its own frame, meters from its middle, door toward +z): arcade games on the left, slot machines on the right
+const CASINO_SPOTS = [
+  { id: 'whack', label: 'WHACK-A-CRAB', x: -3.66, z: 1.41, col: 0xff6f59 },
+  { id: 'claw',  label: 'CLAW MACHINE', x: -3.86, z: -.5,  col: 0x3c78d8 },
+  { id: 'skee',  label: 'SKEE-PEARL',   x: -3.13, z: -2.3, col: 0x3fb6a8 },
+  { id: 'slots', label: 'SLOTS',        x: 3.66,  z: 1.41, col: 0xffc53d },
+  { id: 'slots', label: 'SLOTS',        x: 3.86,  z: -.5,  col: 0xb57bff } ];
+let catGroup = null, casinoGroup = null; const catBison = [];
 function buildCatalina(){
   const g = new THREE.Group(); g.position.set(CAT.x*U, 0, CAT.y*U); g.rotation.y = -CAT.rot;   // the island's own frame: x along it, z across
   const L = (CAT.A + 4)*2, Wd = (CAT.B + 4)*2, geo = new THREE.PlaneGeometry(L, Wd, 104, 44); geo.rotateX(-Math.PI/2);
@@ -2967,15 +3126,30 @@ function buildCatalina(){
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3)); geo.computeVertexNormals();
   const land = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95 })); land.receiveShadow = true; g.add(land);
   const at = (obj, la, lb, lift = 0) => { obj.position.set(la, catH(la, lb) + lift, lb); g.add(obj); return obj; };
-  // the Casino: a round white hall with a red tiled dome roof
-  { const cz = new THREE.Group(), white = std(0xf6f1e6, .6), red = std(0xb8452e, .7);
-    const hall = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.9, 2.6, 28), white); hall.position.y = 1.3; hall.castShadow = hall.receiveShadow = true; cz.add(hall);
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(1.86, 1.86, .18, 28), red); band.position.y = 2.45; cz.add(band);
-    const roof = new THREE.Mesh(new THREE.SphereGeometry(1.95, 28, 12, 0, TAU, 0, Math.PI/2), red); roof.scale.y = .45; roof.position.y = 2.6; roof.castShadow = true; cz.add(roof);
-    for (let k = 0; k < 12; k++){ const a = k/12*TAU, w = new THREE.Mesh(new THREE.BoxGeometry(.35, .9, .05), std(0x2b4f6e, .2, .3)); w.position.set(Math.cos(a)*1.84, 1.6, Math.sin(a)*1.84); w.rotation.y = -a + Math.PI/2; cz.add(w); }
-    const sign = sprite(labelTex('AVALON CASINO', '#b8452e', '#fff', 768, 200, 110), 4.2, 1.1); sign.position.y = 4.4; cz.add(sign);
-    at(cz, ...CAT_CASINO); }
-  for (const [la, lb] of [[9, 6.5], [11.5, 7.3], [18.5, 5.5], [21, 3.6], [6, 7.2], [-4, 8], [-12, 6.8]]) at(palm(4.5 + Math.random()*2), la, lb);   // palms along the beach
+  // the Casino: a big round white hall with a red dome, a door facing the harbor, and fun inside (see CASINO_SPOTS)
+  { const cz = new THREE.Group(), white = std(0xf6f1e6, .6), red = std(0xb8452e, .7), R = CASINO_R, walls = new THREE.Group(), top = new THREE.Group(); cz.add(walls, top);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 40), std(0x7a2230, .8)); floor.rotation.x = -Math.PI/2; floor.position.y = .02; floor.receiveShadow = true; cz.add(floor);
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 3.6, 48, 1, true, .2, TAU - .4), new THREE.MeshStandardMaterial({ color: 0xf6f1e6, roughness: .6, side: THREE.DoubleSide }));
+    shell.position.y = 1.8; shell.castShadow = shell.receiveShadow = true; walls.add(shell);   // the gap in the wall is the door, facing +z (the harbor)
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(R + .04, R + .04, .25, 48, 1, true, .2, TAU - .4), red); band.position.y = 3.45; walls.add(band);
+    const roof = new THREE.Mesh(new THREE.SphereGeometry(R + .1, 40, 14, 0, TAU, 0, Math.PI/2), red); roof.scale.y = .42; roof.position.y = 3.6; roof.castShadow = true; top.add(roof);
+    for (let k = 1; k < 16; k++){ const a = k/16*TAU, w = new THREE.Mesh(new THREE.BoxGeometry(.5, 1, .05), std(0x2b4f6e, .2, .3)); w.position.set(Math.sin(a)*(R + .03), 2.4, Math.cos(a)*(R + .03)); w.rotation.y = a; walls.add(w); }
+    const sign = sprite(labelTex('AVALON CASINO', '#b8452e', '#fff', 768, 200, 110), 4.6, 1.2); sign.position.y = 5.8; top.add(sign);
+    // the dance floor: colored slices that light up, and a disco ball
+    const tiles = []; for (let i = 0; i < 12; i++){ const t = new THREE.Mesh(new THREE.CircleGeometry(1.35, 1, i/12*TAU, TAU/12), new THREE.MeshStandardMaterial({ color: 0x333344, emissive: 0x000000, roughness: .3 }));
+      t.rotation.x = -Math.PI/2; t.position.set(0, .04, .6); cz.add(t); tiles.push(t); }
+    const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(.28, 1), new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: .15, flatShading: true })); ball.position.set(0, 3.1, .6); cz.add(ball);
+    // the movie screen and benches at the back
+    const screenTex = labelTex('OCEAN WONDERS', '#0b2d44', '#ffc53d', 768, 432, 90), screen = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.8), new THREE.MeshBasicMaterial({ map: screenTex }));
+    screen.position.set(0, 2.1, -4.2); cz.add(screen);
+    for (const z of [-2.9, -2.2]){ const bench = new THREE.Mesh(new THREE.BoxGeometry(2.4, .45, .45), std(0x8a2433, .7)); bench.position.set(0, .23, z); bench.castShadow = true; cz.add(bench); }
+    // arcade cabinets on the left, slot machines on the right
+    for (const sp of CASINO_SPOTS){ const m = new THREE.Group(), body = new THREE.Mesh(new THREE.BoxGeometry(.8, 1.7, .6), std(sp.col, .5)); body.position.y = .85; body.castShadow = true; m.add(body);
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(.6, .5), new THREE.MeshStandardMaterial({ color: 0x111122, emissive: sp.col, emissiveIntensity: .8 })); glow.position.set(0, 1.15, .31); m.add(glow);
+      const lab = sprite(labelTex(sp.label, '#111', '#fff', 512, 140, 64), 1.1, .3); lab.position.set(0, 1.95, 0); m.add(lab);
+      m.position.set(sp.x, 0, sp.z); m.rotation.y = Math.atan2(-sp.x, -sp.z); cz.add(m); }   // facing the middle
+    cz.position.set(CASINO[0], CASINO_Y, CASINO[1]); g.add(cz); cz.userData = { walls, top, tiles, ball, cut: 0 }; casinoGroup = cz; }
+  for (const [la, lb] of [[7.5, 7.2], [9.5, 7.9], [21.5, 5.5], [23, 2.5], [5, 7.6], [-4, 8], [-12, 6.8]]) at(palm(4.5 + Math.random()*2), la, lb);   // palms along the beach
   for (const [la, lb, r] of [[13, 12.5, .3], [16.5, 13.4, 1.4], [19.5, 12, .8]]){ const b = new THREE.Group(); b.add(ellip(1, 1.6, .35, .55, std(0xffffff, .4), 20)); { const cab = new THREE.Mesh(new THREE.BoxGeometry(.9, .45, .7), std(0x3c78d8, .5)); cab.position.set(-.2, .4, 0); b.add(cab); }   // moored boats in the harbor
     b.position.set(la, .05, lb); b.rotation.y = r; b.userData.bob = Math.random()*TAU; g.add(b); b.userData.boat = true; }
   // bison: big, brown and shaggy
@@ -2990,9 +3164,37 @@ function buildCatalina(){
 }
 function updCatalina(){
   if (!catGroup || !ocean || Math.abs(ocean.x - CAT.x) > 3000 || Math.abs(ocean.y - CAT.y) > 3000) return;
-  for (const b of catBison){ const u = b.userData, a = time*.05 + u.ph, la = u.la + Math.sin(a)*3, lb = u.lb + Math.sin(a*1.3)*1.5;   // wandering slowly, grazing
-    b.position.set(la, catH(la, lb), lb); b.rotation.y = -Math.atan2(Math.cos(a*1.3)*1.95, Math.cos(a)*3); b.children[2].position.y = .7 - .12*Math.max(0, Math.sin(time*.8 + u.ph)); }
+  const dt = Math.min(.05, time - (updCatalina.t ?? time)); updCatalina.t = time;
+  for (const b of catBison){ const u = b.userData; let moving = false;
+    if (ocean.bison === b){ const [la, lb] = catLocal(ocean.x, ocean.y); u.la = la; u.lb = lb; b.rotation.y = -(ocean.ang - CAT.rot); moving = !!ocean.walking; u.gallop = true; }   // someone's riding it
+    else { u.gallop = false;
+      if (u.wait > 0) u.wait -= dt;
+      else { if (u.tx == null) newBisonSpot(u); const dx = u.tx - u.la, dz = u.tz - u.lb, d = Math.hypot(dx, dz);
+        if (d < .2){ u.tx = null; u.wait = 2 + Math.random()*5; }   // stop and graze
+        else { const sp = Math.min(d, 1.1*dt); u.la += dx/d*sp; u.lb += dz/d*sp; b.rotation.y = -Math.atan2(dz, dx); moving = true; } } }
+    b.position.set(u.la, catH(u.la, u.lb), u.lb);
+    u.step = (u.step || 0) + dt*(moving ? (u.gallop ? 14 : 6) : 0); const sw = moving ? Math.sin(u.step) : 0;
+    b.children.slice(5).forEach((leg, i) => { leg.rotation.z = sw*(i % 2 ? .5 : -.5)*(i < 2 ? 1 : -1); });   // legs swing as it walks
+    b.children[2].position.y = moving ? .7 : .7 - .15*Math.max(0, Math.sin(time*.8 + u.ph)); }   // head down to graze
   for (const b of catGroup.children) if (b.userData.boat){ b.position.y = .05 + Math.sin(time*1.1 + b.userData.bob)*.06; b.rotation.z = Math.sin(time*.9 + b.userData.bob)*.05; }
+}
+// somewhere grassy to walk to (not in the sea, not in the Casino)
+function newBisonSpot(u){ for (let k = 0; k < 20; k++){ const tx = -CAT.A*.7 + Math.random()*CAT.A*1.4, tz = -CAT.B*.55 + Math.random()*CAT.B*1.1;
+  if (Math.hypot(tx/CAT.A, tz/CAT.B) < .7 && Math.hypot(tx - CASINO[0], tz - CASINO[1]) > CASINO_R + 2){ u.tx = tx; u.tz = tz; return; } } u.tx = 0; u.tz = 0; }
+// riding a bison: walk up to one and press Ride the bison (E); it gallops where you steer, but only on Catalina
+function bisonNear(o){ if (!o || !o.onLand || o.bison || o.inCasino || !catGroup || Math.abs(o.x - CAT.x) > 1400 || Math.abs(o.y - CAT.y) > 1400) return null;
+  const [la, lb] = catLocal(o.x, o.y); return catBison.find(b => Math.hypot(b.userData.la - la, b.userData.lb - lb) < 1.6) || null; }
+function mountBison(b){ const o = ocean; o.bison = b; [o.x, o.y] = catWorld(b.userData.la, b.userData.lb); o.ang = -b.rotation.y + CAT.rot; o.vx = o.vy = 0; b.userData.tx = null;
+  sfx(180, .3, 'sawtooth', .05, 0, -60); banner('Yee-haw!', 'Steer your bison with the joystick · E to get off'); }
+function dismountBison(){ const o = ocean, b = o.bison; if (!b) return; o.bison = null; const s = Math.sin(o.ang), c = Math.cos(o.ang); o.x += -s*1.2*METERS; o.y += c*1.2*METERS; b.userData.wait = 3; }
+function bisonStep(o, dt){
+  const w = wantHeading(), px = o.x, py = o.y;
+  if (w) o.ang += clamp(angDiff(w.ang, o.ang), -3*dt, 3*dt);
+  const sp = w ? 260*w.m : 0; o.vx += (Math.cos(o.ang)*sp - o.vx)*Math.min(1, dt*4); o.vy += (Math.sin(o.ang)*sp - o.vy)*Math.min(1, dt*4);   // about 6.5 m/s: a gallop
+  o.x += o.vx*dt; o.y += o.vy*dt; o.walking = !!w; o.walkPh = (o.walkPh || 0) + dt*(w ? 10 : 0);
+  const [la, lb] = catLocal(o.x, o.y);
+  if (Math.hypot(la/CAT.A, lb/CAT.B) > .9 || Math.hypot(la - CASINO[0], lb - CASINO[1]) < CASINO_R + 1){ o.x = px; o.y = py; o.vx *= -.2; o.vy *= -.2; }   // bison stay on dry land and out of the Casino
+  o.depth = 0; o.vd = 0; o.air = airMax(); o.jumpY = 0;
 }
 function palm(h = 6){
   const g = new THREE.Group(), trunkM = std(0x8a6a48, .9), leafM = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: .7, side: THREE.DoubleSide });
@@ -4260,6 +4462,10 @@ function render3D(dt){
         m.rotation.order = 'YXZ'; m.rotation.set(human ? Math.PI : 0, -ocean.ang, 0); poseWalk(m, 0, false); }
       else if (ocean.sitting != null){ m.position.set(px, gy + (human ? .78 : .5), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // sitting on the chair
         if (human) for (const l of ['ll', 'rl']){ m.userData.legs[l].hp.rotation.z = 1.5; m.userData.legs[l].kn.rotation.z = -1.5; } }
+      else if (ocean.dancing && !ocean.walking){ m.position.set(px, gy + (human ? 1.13 : .12) + Math.abs(Math.sin(time*6.5))*.08, pz); m.rotation.set(0, -ocean.ang + Math.sin(time*2)*.6, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // dancing
+        if (human){ const u = m.userData, a = Math.sin(time*6.5); u.arms.la.sh.rotation.set(0, 0, .4 + a*.5); u.arms.ra.sh.rotation.set(0, 0, -.4 + a*.5); u.legs.ll.hp.rotation.z = a*.3; u.legs.rl.hp.rotation.z = -a*.3; } }
+      else if (ocean.bison){ const bb = ocean.bison; m.position.set(px, bb.position.y + (human ? 1.55 : 1.2), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // riding the bison
+        if (human) for (const l of ['ll', 'rl']){ m.userData.legs[l].hp.rotation.z = 1.1; m.userData.legs[l].kn.rotation.z = -1.3; } m.position.y += ocean.walking ? Math.abs(Math.sin(ocean.walkPh))*.12 : 0; }
       else if (ocean.climb){ m.position.set(px, gy + 1.13 + ocean.climb.h, pz); m.rotation.set(0, -ocean.ang, Math.PI/2); if (ocean.climb.h >= ocean.climb.top) poseWalk(m, 0, false); else poseClimb(m, ocean.climb.ph); }   // on the rope ladder, standing up in the lookout at the top
       else { m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0);
       poseWalk(m, ocean.walkPh || 0, ocean.walking); }
@@ -4279,8 +4485,8 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    houseLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.onLand ? 0 : ocean.jumpY || 0;
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (ocean.onLand) camOutOfBlocks(px, landY(ocean), pz); if (building) buildCamera();
+    houseLook(ocean, dt); casinoLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.onLand ? 0 : ocean.jumpY || 0;
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && (ocean.inHouse || ocean.inCasino) ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (ocean.onLand) camOutOfBlocks(px, landY(ocean), pz); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105*(1 + superK()*1.5));
@@ -4311,7 +4517,7 @@ let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
-  mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = true; $('speedFx').style.opacity = '0'; }
+  mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
   if (m === 'title'){ startArmed = false; arrangeTitle(); hItems = null; heldItem = null; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('speedBar').hidden = !(m === 'ocean' || m === 'pool'); if (m === 'ocean' || m === 'pool') showSpeedBar(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
