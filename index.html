@@ -703,7 +703,7 @@ const SHOP = [
   { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[25],                        say: () => 'Just for looks: shows on the Swimmer. It looks amazing.' },
   { id:'turbotail',who:'dolphin', name:'Turbo Tail',       lv:[80, 200, 400, 700, 1100], inf: true, say: fastSay },
   { id:'blowhole', who:'dolphin', name:'Big Blowhole',     lv:[60, 150, 300, 500, 800], inf: true, say: breathSay },
-  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv:[150, 300, 500], inf: true,  say: n => `Jump ${timesTxt(jumpAt(n))} as high. (Only the Dolphin can jump.)` },
+  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv:[150, 300, 500, 750, 1100, 1600, 2300, 3200],  say: n => `Jump ${timesTxt(jumpAt(n))} as high. (Only the Dolphin can jump.)` },
   { id:'sonar',    who:'dolphin', name:'Sonar',            lv:[200, 350, 550, 800, 1100],  say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} second${SONAR_WAIT[n - 1] === 1 ? '' : 's'}.` },
   { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[60],                        say: () => 'Just for looks: shows on the Dolphin. Very fancy.' },
   { id:'flippers', who:'turtle',  name:'Speed Flippers',   lv:[60, 150, 300, 550, 900], inf: true, say: fastSay },
@@ -720,14 +720,15 @@ const SHOP = [
   { id:'motorboat',who:'all', boat: true, name:'Speedboat',  lv:[1500], say: () => 'Zoom across the waves at about 31 mph!' },
   { id:'sub',      who:'all', boat: true, name:'Submarine',  lv:[2500], say: () => 'Dive all the way to the sea floor with all the air you want. Hold Dive to go down and Up to come back up.' },
   { id:'ship',     who:'all', boat: true, name:'Pirate Ship',lv:[4000], say: () => 'Your very own sailing ship, about 20 mph. Arr!' },
+  { id:'chestmag', who:'all',     name:'Chest Magnet',     lv:[300, 600, 1000, 1600, 2500], say: n => `Treasure chests within ${CHEST_M[n - 1]} m fly up to you. No diving needed!` },   // capped too
   { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[150],                       say: () => 'An arrow points to the nearest treasure chest.' },
   { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[30],                        say: () => 'Just for looks: shows on the Otter. Very dapper.' },
 ];
-const SONAR_WAIT = [12, 7, 4, 2, 1], MAGNET_M = [4, 7, 10, 14, 20];
+const SONAR_WAIT = [12, 7, 4, 2, 1], MAGNET_M = [4, 7, 10, 14, 20], CHEST_M = [8, 12, 16, 22, 30];
 const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['snorkel', 'blowhole', 'bubblefur'];   // (Deep Lungs multiplies instead)
 // the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
 const SHOP_GROUPS = [['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
-  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['magnet', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
+  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['magnet', 'chestmag', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
   ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']], ['Boats & submarines', ['kayak', 'canoe', 'sailboat', 'motorboat', 'sub', 'ship']]];
 // the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
 const ownedLv = id => Math.max((save.gearLv || {})[id] || 0, (save.gear || []).includes(id) ? 1 : 0);
@@ -1299,7 +1300,7 @@ function updCannons(o, dt){
    Nothing can bite you in mid-air. */
 function dolphinJump(){   // (the Rocket Fin makes the jump about twice as high)
   const o = ocean; if (mode !== 'ocean' || !o || paused || curChar().id !== 'dolphin' || o.onLand || o.ride || o.jumpY > 0 || (o.depth || 0) > .6) return;
-  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*(gearLv('rocketfin') ? jumpAt(gearLv('rocketfin')) : 1); o.jumpY = .01; o.depth = 0; o.vd = 0;
+  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*(gearLv('rocketfin') ? jumpAt(Math.min(8, gearLv('rocketfin'))) : 1); o.jumpY = .01; o.depth = 0; o.vd = 0;
   sfx(300, .3, 'sine', .06, 0, 320); for (let i=0;i<12;i++) bubble(o.x + (Math.random()-.5)*30, o.y + (Math.random()-.5)*30, (Math.random()-.5)*40, (Math.random()-.5)*40);
 }
 function jumpStep(o, dt){
@@ -2134,9 +2135,13 @@ function updOcean(dt){
         for (let i=0;i<10;i++){ const an = i/10*TAU; bubble(p.x,p.y,Math.cos(an)*90,Math.sin(an)*90,3,.6,'rgba(255,245,200,.9)'); }
         sfx(1200,.08,'sine',.07); sfx(1600,.12,'sine',.06,.06); } } }
   // treasure chests and shells on the sea floor: dive down to them
-  if (!o.onLand){ const dep = o.depth || 0;
+  if (!o.onLand){ const dep = o.depth || 0, cmag = gearLv('chestmag') ? CHEST_M[gearLv('chestmag') - 1]*METERS : 0;
+    if (cmag){ const K = Math.ceil(cmag/CH), ccx = Math.floor(o.x/CH), ccy = Math.floor(o.y/CH);   // Chest Magnet: chests rise off the floor and fly to you
+      for (let a=-K;a<=K;a++) for (let b=-K;b<=K;b++) for (const ch of getChunk(ccx + a, ccy + b).chests){ if ((save.chests || []).includes(ch.id)) continue;
+        const dx = o.x - ch.x, dy = o.y - ch.y, d = Math.hypot(dx, dy); if (d > cmag) continue;
+        ch.pull = Math.min(1, (ch.pull || 0) + dt*1.2); if (d > 1){ const k = Math.min(1, dt*(10 + Math.hypot(o.vx, o.vy)/40)*40/d); ch.x += dx*k; ch.y += dy*k; } } }
     for (const ch of chestsNear(o)){ if ((save.chests || []).includes(ch.id)) continue;
-      if (Math.hypot(ch.x - o.x, ch.y - o.y) < 55 && (ch.d ? Math.abs(dep - ch.d) < 1.1 : dep > depthAt(ch.x, ch.y) - 1.6)){
+      if (Math.hypot(ch.x - o.x, ch.y - o.y) < 55 && (ch.pull >= 1 || (ch.d ? Math.abs(dep - ch.d) < 1.1 : dep > depthAt(ch.x, ch.y) - 1.6))){
         (save.chests || (save.chests = [])).push(ch.id); addXP(ch.id === 'galleon' ? 100 : 25); addCoins(ch.v, ch.id === 'galleon' ? 'The captain\'s treasure from the sunken galleon!' : 'You found a treasure chest!');
         if (ch.id === 'galleon'){ const have = save.mapPieces || (save.mapPieces = []); if (have.length < MAP_N){ const miss = [...Array(MAP_N).keys()].filter(i => !have.includes(i)); have.push(miss[(Math.random()*miss.length)|0]); persist();
           banner('The captain\'s old chart!', `A piece of your map: ${have.length} of ${MAP_N}.`); } }
@@ -3744,7 +3749,7 @@ function updOceanWorld(o){
   { const list = chestsNear(o).sort((a, b) => Math.hypot(a.x - o.x, a.y - o.y) - Math.hypot(b.x - o.x, b.y - o.y)).slice(0, 10);
     list.forEach((ch, i) => { let m = chestPool[i]; if (!m){ m = buildChest(); chestPool.push(m); oceanWorld.add(m); }
       const open = (save.chests || []).includes(ch.id); m.visible = true;
-      m.position.set(ch.x*U, ch.d ? -ch.d : floorY(ch.x, ch.y) + .02, ch.y*U); m.rotation.y = ch.rot; m.userData.lid.rotation.x = open ? -1.9 : 0; m.userData.glow.visible = !open;
+      m.position.set(ch.x*U, ch.d ? -ch.d : lerp(floorY(ch.x, ch.y) + .02, -(o.depth || 0) - .3, open ? 0 : ch.pull || 0), ch.y*U);   // a magnet lifts chests up to you (opened ones sink back) m.rotation.y = ch.rot; m.userData.lid.rotation.x = open ? -1.9 : 0; m.userData.glow.visible = !open;
       m.userData.glow.material.opacity = .35 + .2*Math.sin(time*3 + i); });
     for (let i = list.length; i < chestPool.length; i++) chestPool[i].visible = false; }
   { const bts = []; for (const c of visibleChunks) for (const bt of c.boats) if (Math.hypot(bt.x*U - px, bt.y*U - pz) < 90) bts.push(bt);
@@ -3901,7 +3906,7 @@ function underwaterLook(scene, mats, under, uwCol, uwD, col, d){
   causticMat.uniforms.uFogD.value = scene === poolScene ? scene.fog.density : causticMat.uniforms.uFogD.value;
   if (oceanCaustic && scene === oceanScene) oceanCaustic.material.uniforms.uFogD.value = scene.fog.density;
 }
-let fpPitch = 0, fpEye = .1;
+let fpPitch = 0, fpEye = .1, camAir = 0;   // camAir: how high a dolphin leap is right now
 function placeCamera(px, py, pz, heading, dt, kind, sub = 0, floorY = -99){
   camHead = camMode === 'first' ? heading : !camInit ? heading : camFollowOK && time > camHoldT ? lerpAngle(camHead, heading, Math.min(1, dt*2.2)) : camHead;
   const fx = Math.cos(camHead), fz = Math.sin(camHead);
@@ -3914,9 +3919,11 @@ function placeCamera(px, py, pz, heading, dt, kind, sub = 0, floorY = -99){
   else if (camMode === 'top'){ _tp.set(px, 15, pz + 4.5); _tl.set(px, 0, pz - 1); }
   else if (kind === 'house'){ _tp.set(px - fx*2.6, py + 3.6, pz - fz*2.6); _tl.set(px + fx*1.2, py - .5, pz + fz*1.2); }   // inside your house: look down over the lowered walls
   else if (kind === 'vehicle'){ const [d, h] = VEH[ocean.vehicle].cam; _tp.set(px - fx*d, Math.max(floorY, py + h), pz - fz*d); _tl.set(px + fx*3.2, py + .3, pz + fz*3.2); }
+  else if (kind === 'ocean' && camAir > 1){ const d = 4.8 + camAir*.35, h = 2.4 + camAir*.2;   // leaping high: pull back so the whole jump stays on screen
+    _tp.set(px - fx*d, Math.max(floorY, py + h), pz - fz*d); _tl.set(px + fx*2, py + camAir*.12, pz + fz*2); }
   else { const d = kind === 'ship' ? 3.3 : lerp(kind === 'race' ? 5.6 : 4.8, 3.3, sub), h = kind === 'ship' ? 1.2 : lerp(kind === 'race' ? 3.1 : 2.4, .55, sub);   // on deck the camera stays low, under the sails
     _tp.set(px - fx*d, Math.max(floorY, py + h), pz - fz*d); _tl.set(px + fx*3.2, py - .2 + sub*.1, pz + fz*3.2); }
-  const k = camInit ? 1 - Math.exp(-dt*5) : 1; camPos.lerp(_tp, k); camLook.lerp(_tl, k); camInit = true;
+  const k = camInit ? 1 - Math.exp(-dt*(kind === 'ocean' && camAir > .5 ? 14 : 5)) : 1; camPos.lerp(_tp, k); camLook.lerp(_tl, k); camInit = true;   // follow fast during a big leap
   camera.position.copy(camPos); camera.lookAt(camLook);
 }
 function toScreen(x, y, z){ const v = _tp.set(x, y, z).project(camera); return [ (v.x + 1)/2*W, (1 - v.y)/2*H, v.z < 1 ]; }
@@ -3986,7 +3993,7 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    houseLook(ocean, dt);
+    houseLook(ocean, dt); camAir = ocean.jumpY || 0;
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
