@@ -87,6 +87,12 @@
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
+  .gadgetbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;gap:8px}
+  .gslot{position:relative;width:60px;height:60px;border-radius:14px;border:3px solid rgba(255,255,255,.7);background:rgba(11,45,68,.55);font-size:30px;display:grid;place-items:center;padding:0;color:#fff}
+  .gslot small{position:absolute;top:2px;left:5px;font:800 11px Nunito,sans-serif;opacity:.8}
+  .gslot.on{border-color:#ffc53d;background:rgba(255,197,61,.35);transform:translateY(-4px)}
+  .limb.gadgetuse{background:#ffe08a}
+  .limb.gadgetuse.on{background:#ffb020}
   .phonechip{position:relative;font-size:20px;padding:4px 10px}
   .phonechip b{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:var(--coral);color:#fff;font:800 12px/20px Nunito,sans-serif;text-align:center}
   #phonePanel{align-items:center}
@@ -321,9 +327,10 @@
 </div>
 
 <div id="speedBar" class="speedbar" hidden><span class="sb-lbl">Top speed</span><div class="sb-track" id="sbTrack" role="slider" aria-label="Top speed" aria-valuemin="0" aria-valuemax="100"><i id="sbFill"></i><b id="sbKnob"></b></div><span class="sb-val"><b id="sbVal">0</b> mph</span></div>
+<div id="gadgetBar" class="gadgetbar" hidden></div>
 <div id="limbs" class="limbs" hidden>
   <div id="stickPad" class="stickpad" aria-label="Joystick: drag to swim"><div id="stickKnob" class="knob"></div></div>
-  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb jump" id="sonarBtn" type="button" hidden>Sonar<small>P</small></button><button class="limb jump" id="jumpBtn" type="button" hidden>Jump<small>J</small></button><button class="limb jump" id="upBtn" type="button" hidden>Up<small>hold</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
+  <div class="rightbtns"><button class="limb stroke" id="strokeBtn" type="button" hidden>Stroke<small>on the beat</small></button><button class="limb jump" id="sonarBtn" type="button" hidden>Sonar<small>P</small></button><button class="limb jump" id="jumpBtn" type="button" hidden>Jump<small>J</small></button><button class="limb jump gadgetuse" id="gadgetUse" type="button" hidden>Use<small>F</small></button><button class="limb jump" id="upBtn" type="button" hidden>Up<small>hold</small></button><button class="limb dive" id="diveBtn" type="button">Dive<small>hold</small></button></div>
 </div>
 <button id="rideBtn" class="ridebtn" type="button" hidden>Ride the dolphin<small>E</small></button>
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
@@ -686,6 +693,8 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
   if (k === 'j' && !e.repeat) dolphinJump();
+  if (/^[1-3]$/.test(k) && !e.repeat && mode === 'ocean' && !paused){ const id = ownedGadgets()[+k - 1]; if (id) holdGadget(id); }
+  if (k === 'f' && heldGadget){ gadgetHeld = true; $('gadgetUse').classList.add('on'); }
   if (k === 'p' && !e.repeat) sonarPing();
   // Escape closes whatever window is open (shop, map, menu, where-to-swim); with nothing open it opens the Menu
   if (k === 'escape' && !e.repeat){ if (!closeTopWindow() && playing() && !paused) openPanel(); } });
@@ -708,7 +717,7 @@ function closeTopWindow(){
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
 for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'phonePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
-addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (e.key.toLowerCase() === 'f'){ gadgetHeld = false; $('gadgetUse').classList.remove('on'); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const ptr = { x:0, y:0, down:false };
 const mmHit = { x:-1e4, y:-1e4, r:0 };   // where the minimap is on screen: tapping it opens the full map
@@ -841,6 +850,9 @@ const breathSay = n => `Hold your breath ${breathAt(n)} seconds longer.`;
    upgrade costs about 1.6x the one before (curve), so there's always something to save up for. */
 const curve = (base, n, k = 1.6) => Array.from({ length: n }, (_, i) => Math.round(base*k**i/10)*10);
 const SHOP = [
+  { id:'paraglider', who:'all', gadget: true, icon:'🪂', name:'Paraglider',     lv:[1500], say: () => 'Open it in the air (a dolphin jump, a jetpack flight, or from the crow\'s nest) and glide down. Steer with the joystick.' },
+  { id:'grapple',    who:'all', gadget: true, icon:'🪝', name:'Grappling Hook', lv:[3000], say: () => 'Shoot it straight ahead: if it hooks land or a ship (up to 25 m away), it zips you there.' },
+  { id:'jetpack',    who:'all', gadget: true, icon:'🚀', name:'Jetpack',        lv:[6000], say: () => 'Hold Use to fly up into the sky, from the water or from land. About 6 seconds of fuel that refills when you land.' },
   { id:'turbo',    who:'all',     name:'Turbo Booster',    lv: Array.from({ length: 30 }, (_, i) => 2500*2**i), many: true,   // buy it again and again: each one doubles your speed and costs twice as much
     say: n => `Each booster makes you twice as fast, on top of your other gear, up to the top speed of ${TOP_MPH} mph. ${n ? `You have ${n}: ${2**n}× as fast!` : ''}` },
   { id:'fins',     who:'swimmer', name:'Fins',             lv: curve(100, 5), inf: true, say: fastSay },
@@ -874,7 +886,7 @@ const SHOP = [
 const SONAR_WAIT = [12, 7, 4, 2, 1], MAGNET_M = [3, 5, 6.5, 8], CHEST_M = [8, 12, 16, 22, 30];
 const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['snorkel', 'blowhole', 'bubblefur'];   // (Deep Lungs multiplies instead)
 // the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
-const SHOP_GROUPS = [['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
+const SHOP_GROUPS = [['Gadgets', ['paraglider', 'grapple', 'jetpack']], ['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
   ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['magnet', 'chestmag', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
   ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']], ['Boats & submarines', ['kayak', 'canoe', 'sailboat', 'motorboat', 'sub', 'ship']]];
 // the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
@@ -902,6 +914,7 @@ function addCoins(n, why){
   sfx(1320, .08, 'square', .03); sfx(1760, .1, 'square', .025, .06);
 }
 function renderShop(){
+  renderGadgetBar();
   $('shopNote').textContent = `You have ${save.coins || 0} coins. All your gear works for every animal, and it all adds up! The fastest anyone can swim is ${TOP_MPH} mph.`;
   const box = $('shopItems'); box.innerHTML = '';
   for (const [title, ids] of SHOP_GROUPS){
@@ -919,9 +932,9 @@ function renderShop(){
       if (!(save.gear || []).includes(it.id)) save.gear = [...(save.gear || []), it.id];
       save.gearLv = { ...(save.gearLv || {}), [it.id]: n + 1 }; save.coins -= price; persist(); flushCloud();
       [784, 988, 1319].forEach((f, i) => sfx(f, .15, 'triangle', .06, i*.08)); renderShop(); pickShopBack();
-      $('shopNote').textContent = `${it.boat ? `You bought the ${it.name.toLowerCase()}! Swim into the water and tap Boats to get in` : it.many ? `Turbo! You're now ${2**(n + 1)}× as fast` : n ? `Level ${n + 1} ${it.name.toLowerCase()}` : `You bought the ${it.name.toLowerCase()}`}! You have ${save.coins} coins left.`; };
+      $('shopNote').textContent = `${it.boat ? `You bought the ${it.name.toLowerCase()}! Swim into the water and tap Boats to get in` : it.gadget ? `You got the ${it.name.toLowerCase()}! Tap its box at the bottom of the screen to hold it` : it.many ? `Turbo! You're now ${2**(n + 1)}× as fast` : n ? `Level ${n + 1} ${it.name.toLowerCase()}` : `You bought the ${it.name.toLowerCase()}`}! You have ${save.coins} coins left.`; };
     d.appendChild(b);
-    if (n && !it.boat){ const e = document.createElement('button'), on = equipped(it.id); e.type = 'button'; e.className = 'btn equip' + (on ? ' on' : '');   // take gear off and put it back on, for free
+    if (n && !it.boat && !it.gadget){ const e = document.createElement('button'), on = equipped(it.id); e.type = 'button'; e.className = 'btn equip' + (on ? ' on' : '');   // take gear off and put it back on, for free
       e.textContent = on ? 'Equipped ✓ (tap to take off)' : 'Not equipped (tap to put on)';
       e.onclick = () => { save.off = on ? [...(save.off || []), it.id] : (save.off || []).filter(x => x !== it.id); persist(); flushCloud(); sfx(on ? 520 : 780, .08, 'triangle', .05);
         renderShop(); pickShopBack(); $('shopNote').textContent = `${on ? 'Took off' : 'Put on'} the ${it.name.toLowerCase()}.`; };
@@ -1478,6 +1491,77 @@ function updCannons(o, dt){
 }
 /* Dolphins can leap out of the water: at the surface, press Jump (or J). The faster you're swimming, the higher you go.
    Nothing can bite you in mid-air. */
+/* ---------- Gadgets: buy once, then they sit in a toolbar at the bottom (tap a box or press 1-3 to hold one) ----------
+   Holding a gadget shows a Use button (or press F). Paraglider: open it in the air and glide down. Grappling hook: shoots
+   ahead and zips you to land or a ship. Jetpack: hold Use to fly (fuel refills when you land). */
+const GADGETS = ['paraglider', 'grapple', 'jetpack'];
+let heldGadget = null, gadgetHeld = false;   // gadgetHeld: the Use button (or F) is down right now
+const ownedGadgets = () => GADGETS.filter(id => ownedLv(id));
+function renderGadgetBar(){
+  const bar = $('gadgetBar'), mine = ownedGadgets(); if (heldGadget && !mine.includes(heldGadget)) heldGadget = null;
+  bar.hidden = !mine.length || mode !== 'ocean';
+  bar.innerHTML = mine.map((id, i) => { const it = SHOP.find(x => x.id === id); return `<button class="gslot${id === heldGadget ? ' on' : ''}" type="button" data-g="${id}" aria-label="${it.name}"><small>${i + 1}</small>${it.icon}</button>`; }).join('');
+  const u = $('gadgetUse'); u.hidden = !heldGadget || mode !== 'ocean'; if (heldGadget) u.firstChild.textContent = heldGadget === 'jetpack' ? 'Fly' : heldGadget === 'grapple' ? 'Shoot' : 'Glide'; }
+function holdGadget(id){ heldGadget = heldGadget === id ? null : id; sfx(heldGadget ? 700 : 400, .06, 'triangle', .04); renderGadgetBar();
+  if (heldGadget && !ocean?.gadgetTold?.[heldGadget]){ (ocean.gadgetTold = ocean.gadgetTold || {})[heldGadget] = true;
+    coach({ paraglider: 'Paraglider: jump high (dolphin jump, jetpack, or climb to the crow\'s nest), then tap Glide to float down.', grapple: 'Grappling hook: face land or the pirate ship and tap Shoot. It zips you there!',
+      jetpack: 'Jetpack: hold Fly to go up. Let go to fall, or open your paraglider!' }[heldGadget], 7); } }
+$('gadgetBar').addEventListener('click', e => { const b = e.target.closest('[data-g]'); if (b){ initAudio(); holdGadget(b.dataset.g); } });
+{ const u = $('gadgetUse'), on = v => { gadgetHeld = v; u.classList.toggle('on', v); };
+  u.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); on(true); try { u.setPointerCapture(e.pointerId); } catch(_){} });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) u.addEventListener(ev, () => on(false)); }
+// every frame, before moving: taps and holds of Use
+function gadgetStep(o, dt){
+  const tap = gadgetHeld && !o.useWas; o.useWas = gadgetHeld;
+  const inAir = o.jumpY > 0, busy = o.vehicle || o.ride || o.onBoat || o.sleeping || o.sitting != null || o.bison || o.grapple;
+  if (!inAir && !o.jetOn) o.fuel = Math.min(6, (o.fuel ?? 6) + dt*1.5);   // refuel on the ground or in the water
+  o.jetOn = false;
+  if (heldGadget === 'jetpack' && gadgetHeld && !busy && (o.fuel ?? 6) > 0){
+    if (!inAir){ if (o.onShip || o.inHouse || o.inCasino || o.climb) return; o.jumpY = o.onLand ? Math.max(.1, groundAt(o.x, o.y) + .1) : .05; o.jumpV = 3; o.onLand = false; o.depth = 0; o.vd = 0; sfx(160, .4, 'sawtooth', .05, 0, 300); }
+    o.jetOn = true; o.fuel -= dt; if (o.fuel <= 0) banner('Out of fuel!', 'Open your paraglider, or splash down'); }
+  if (!tap || busy) return;
+  if (heldGadget === 'paraglider'){
+    if (o.climb && o.climb.h >= o.climb.top - .1){   // from the crow's nest: take off!
+      const [lx] = shipLocal(o.x, o.y); o.climb = null; o.onShip = false; o.onLand = false; [o.x, o.y] = shipWorld(lx, 4.5); o.ang = Math.atan2(...(([ax, ay], [bx, by]) => [by - ay, bx - ax])(shipWorld(lx, 0), shipWorld(lx, 5)));
+      o.jumpY = 8.8; o.jumpV = 0; o.glide = true; o.vx = Math.cos(o.ang)*200; o.vy = Math.sin(o.ang)*200; sfx(500, .3, 'sine', .05, 0, 300); banner('Wheee!', 'Steer with the joystick'); return; }
+    if (inAir){ o.glide = !o.glide; sfx(o.glide ? 500 : 300, .2, 'sine', .05, 0, o.glide ? 200 : -100); return; }
+    banner('Get up high first!', 'Open it in the air: a dolphin jump, the jetpack, or the crow\'s nest'); return; }
+  if (heldGadget === 'grapple') fireGrapple(o);
+}
+// grappling hook: find the first land (across water) or ship straight ahead, up to 25 m, then zip there
+function fireGrapple(o){
+  const fx = Math.cos(o.ang), fy = Math.sin(o.ang); let wet = !(o.onLand || groundAt(o.x, o.y) > -.35), hit = null;
+  for (let d = 1; d <= 25 && !hit; d += .5){ const x = o.x + fx*d*METERS, y = o.y + fy*d*METERS;
+    if (afloatShip && !o.onShip){ const [lx, lz] = shipLocal(x, y), ex = (lx + .7)/12.9, ez = lz/3.1; if (ex*ex + ez*ez < 1){ hit = { kind: 'ship', x, y, side: lz >= 0 ? 1 : -1, h: 2 }; break; } }
+    const g = groundAt(x, y); if (g < -.5) wet = true; else if (wet && g > -.2) hit = { kind: 'land', x: x + fx*40, y: y + fy*40, h: Math.max(0, g) + .3 }; }
+  o.grapple = { t: 0, hit, fx, fy, sx: o.x, sy: o.y, d: hit ? Math.hypot(hit.x - o.x, hit.y - o.y) : 25*METERS }; o.jumpY = 0; o.jumpV = 0; o.glide = false;
+  sfx(900, .15, 'square', .04, 0, -500); }
+function grappleStep(o, dt){
+  const g = o.grapple; g.t += dt; const shoot = .25; o.vx = o.vy = 0;
+  if (!g.hit){ if (g.t > .55){ o.grapple = null; banner('Nothing to grab', 'Face land or the pirate ship, then shoot'); } return; }
+  if (g.t < shoot) return;   // the hook is still flying
+  const k = Math.min(1, (g.t - shoot)*30*METERS/g.d);   // zip at about 30 m/s
+  o.x = g.sx + (g.hit.x - g.sx)*k; o.y = g.sy + (g.hit.y - g.sy)*k; o.depth = 0; o.vd = 0;
+  if (k >= 1){ o.grapple = null; sfx(300, .12, 'triangle', .05);
+    if (g.hit.kind === 'ship'){ o.onShip = false; o.onLand = false; climbShip(g.hit.side); }
+    else { o.onShip = false; o.onBoat = null; o.onLand = true; o.climb = null; } } }
+// the paraglider canopy, the jetpack's flame and the grappling rope, drawn around you
+let gadgetFx = null;
+function drawGadgets(o, px, py, pz){
+  if (!gadgetFx){ const g = gadgetFx = { canopy: new THREE.Group(), flame: new THREE.Mesh(new THREE.ConeGeometry(.16, .6, 10), new THREE.MeshBasicMaterial({ color: 0xffa020, transparent: true, opacity: .85 })),
+      rope: new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0x3a2a1a })), hook: new THREE.Mesh(new THREE.TorusGeometry(.14, .04, 6, 12, Math.PI*1.4), std(0x888888, .3, .8)) };
+    const cm = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 8, 0, TAU, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0xff6f59, side: THREE.DoubleSide, roughness: .7 })); cm.scale.set(.9, .35, 2.2); g.canopy.add(cm);
+    for (let i = 0; i < 3; i++){ const st = new THREE.Mesh(new THREE.BoxGeometry(.05, .06, 4.4), std([0xffffff, 0xffc53d, 0x3c78d8][i], .6)); st.position.set(-.5 + i*.5, .3 - Math.abs(i - 1)*.08, 0); g.canopy.add(st); }
+    for (const z of [-1.8, 1.8]){ const l = new THREE.Mesh(new THREE.CylinderGeometry(.01, .01, 2.1, 4), std(0xeeeeee, .5)); l.position.set(0, -1, z*.5); l.rotation.x = z > 0 ? -.45 : .45; g.canopy.add(l); }
+    g.flame.rotation.x = Math.PI; for (const m of [g.canopy, g.flame, g.rope, g.hook]){ m.visible = false; oceanScene.add(m); } }
+  const g = gadgetFx;
+  g.canopy.visible = !!o.glide && o.jumpY > 0; if (g.canopy.visible){ g.canopy.position.set(px, py + 2.3, pz); g.canopy.rotation.set(0, -o.ang, 0); }
+  g.flame.visible = !!o.jetOn; if (g.flame.visible){ g.flame.position.set(px, py - .45, pz); g.flame.scale.y = .8 + Math.random()*.5; }
+  g.rope.visible = g.hook.visible = !!o.grapple;
+  if (o.grapple){ const gr = o.grapple, f = gr.hit ? (gr.t < .25 ? gr.t/.25 : 1) : Math.min(1, gr.t/.3)*(gr.t > .3 ? Math.max(0, 1 - (gr.t - .3)/.25) : 1);
+    const hx = gr.hit ? lerp(px, gr.hit.x*U, f) : px + gr.fx*25*f, hz = gr.hit ? lerp(pz, gr.hit.y*U, f) : pz + gr.fy*25*f, hy = gr.hit ? lerp(py + .8, gr.hit.h, f) : py + .8;
+    const pos = g.rope.geometry.attributes.position; pos.setXYZ(0, px, py + .8, pz); pos.setXYZ(1, hx, hy, hz); pos.needsUpdate = true; g.rope.geometry.computeBoundingSphere(); g.hook.position.set(hx, hy, hz); }
+}
 function dolphinJump(){   // (the Rocket Fin makes the jump about twice as high)
   const o = ocean; if (mode !== 'ocean' || !o || paused || curChar().id !== 'dolphin' || o.onLand || o.ride || o.jumpY > 0 || (o.depth || 0) > .6) return;
   const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*(gearLv('rocketfin') ? jumpAt(Math.min(8, gearLv('rocketfin'))) : 1); o.jumpY = .01; o.depth = 0; o.vd = 0;
@@ -1485,11 +1569,16 @@ function dolphinJump(){   // (the Rocket Fin makes the jump about twice as high)
 }
 function jumpStep(o, dt){
   if (!(o.jumpY > 0)) return false;
-  o.jumpV -= 9.8*dt; o.jumpY += o.jumpV*dt; o.idle = 0; o.depth = 0; o.vd = 0;
+  if (o.glide) o.jumpV += (-1.6 - o.jumpV)*Math.min(1, dt*3);   // paraglider: drift down slowly
+  else o.jumpV -= 9.8*dt;
+  if (o.jetOn) o.jumpV = Math.min(9, o.jumpV + 24*dt);   // jetpack: up, up and away
+  if (o.jumpY > 60 && o.jumpV > 0) o.jumpV = 0;   // the sky has a ceiling
+  o.jumpY += o.jumpV*dt; o.idle = 0; o.depth = 0; o.vd = 0;
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang); o.x += o.vx*dt; o.y += o.vy*dt;   // sail through the air with no water to slow you
-  const w = wantHeading(); if (w) o.ang += clamp(angDiff(w.ang, o.ang), -1.2*dt, 1.2*dt);
-  { const gh = groundAt(o.x, o.y); if (gh > -.35 && o.jumpY <= gh){ o.jumpY = 0; o.jumpV = 0; o.depth = 0; o.vd = 0; o.onLand = true; o.vx *= .3; o.vy *= .3; sfx(120, .2, 'sine', .08); return true; } }   // came down on an island: land on it
-  if (o.jumpY <= 0){ o.jumpY = 0; o.jumpV = 0; o.depth = .5; o.vd = .8; sfx(160, .35, 'sine', .08, 0, -80);
+  const w = wantHeading(), steer = o.glide || o.jetOn; if (w) o.ang += clamp(angDiff(w.ang, o.ang), -(steer ? 2.5 : 1.2)*dt, (steer ? 2.5 : 1.2)*dt);
+  if (steer){ const sp = w ? (o.glide ? 320 : 360)*w.m : o.glide ? 200 : 0; o.vx += (Math.cos(o.ang)*sp - o.vx)*Math.min(1, dt*2); o.vy += (Math.sin(o.ang)*sp - o.vy)*Math.min(1, dt*2); }
+  { const gh = groundAt(o.x, o.y); if (gh > -.35 && o.jumpY <= gh){ o.jumpY = 0; o.jumpV = 0; o.glide = false; o.depth = 0; o.vd = 0; o.onLand = true; o.vx *= .3; o.vy *= .3; sfx(120, .2, 'sine', .08); return true; } }   // came down on an island: land on it
+  if (o.jumpY <= 0){ o.jumpY = 0; o.jumpV = 0; o.glide = false; o.depth = .5; o.vd = .8; sfx(160, .35, 'sine', .08, 0, -80);
     for (let i=0;i<18;i++) bubble(o.x + fx*20 + (Math.random()-.5)*40, o.y + fy*20 + (Math.random()-.5)*40, (Math.random()-.5)*60, (Math.random()-.5)*60); }
   return true;
 }
@@ -2441,7 +2530,10 @@ function bumpAnimals(o){
 }
 function updOcean(dt){
   const o = ocean; o.prevDepth = o.depth || 0;
-  if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
+  gadgetStep(o, dt);
+  if (o.grapple) grappleStep(o, dt);
+  else if (!o.onLand && o.jumpY > 0 && !o.ride && !o.vehicle){ jumpStep(o, dt); }   // flying (a jump, the jetpack, the paraglider)
+  else if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onLand){ if (o.sleeping) sleepStep(o); else if (o.sitting != null) sitStep(o); else if (o.bison) bisonStep(o, dt); else walkStep(o, dt); $('airChip').hidden = true;
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; o.blockH = o.blockShow = 0; }        // walked back into the sea
@@ -2450,7 +2542,7 @@ function updOcean(dt){
   else if (o.vehicle){ vehicleStep(o, dt); $('airChip').hidden = true; }
   else if (o.ride){ updRide(o, dt); if (mode === 'dead') return; }
   else {
-    if (!jumpStep(o, dt)){ swimMove(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return; }
+    swimMove(o, dt); diveStep(o, dt, depthAt(o.x, o.y) - .5); if (mode === 'dead') return;
     const cur = currentAt(o.x, o.y, time);
     o.x += cur[0]*.3*dt; o.y += cur[1]*.3*dt; o.cur = cur;
   }
@@ -4546,7 +4638,7 @@ function render3D(dt){
       m.position.set(px, (wy + m.userData.float)*(1 - sub) - dep + air, pz);
       m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, air > 0 ? airPitch : (ocean.pitch || 0)); poseModel(m, swimPose(ocean), ocean.swimPh || 0); }
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
-    drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
+    drawVehicle(ocean, dt, wy); drawGadgets(ocean, px, m.position.y, pz); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
     houseLook(ocean, dt); casinoLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.onLand ? 0 : ocean.jumpY || 0;
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && (ocean.inHouse || ocean.inCasino) ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (ocean.onLand) camOutOfBlocks(px, landY(ocean), pz); if (building) buildCamera();
@@ -4580,7 +4672,7 @@ let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
-  mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
+  mode = m; paused = false; renderGadgetBar(); if (m !== 'ocean'){ $('mphChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
   if (m === 'title'){ startArmed = false; arrangeTitle(); hItems = null; heldItem = null; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('speedBar').hidden = !(m === 'ocean' || m === 'pool'); if (m === 'ocean' || m === 'pool') showSpeedBar(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
