@@ -1517,13 +1517,29 @@ function buildTap(cx, cy){
   if ((save.coins || 0) < b.cost){ $('bNote').textContent = `You need ${b.cost} coin${b.cost > 1 ? 's' : ''} for a ${b.name.toLowerCase()} block. Find pearls and treasure to earn more!`; sfx(200, .12, 'square', .04); return; }
   save.coins -= b.cost; homeBlocks.set(key, buildType); sfx(520 + y*30, .07, 'triangle', .05); drawBlocks(); renderPalette();
 }
-// blocks on the ground are walls you walk around
-function blockCollide(o){
-  if (!homeBlocks || !homeBlocks.size || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) > HOUSE.r + 60) return;
-  const lx = o.x*U - HOUSE.x*U, lz = o.y*U - HOUSE.y*U, rr = .3;
-  for (const [k] of homeBlocks){ const [x, y, z] = k.split(',').map(Number); if (y > 1 || Math.abs(x + .5 - lx) > 1.5 || Math.abs(z + .5 - lz) > 1.5) continue;
-    const px = clamp(lx, x, x + 1), pz = clamp(lz, z, z + 1), dx = lx - px, dz = lz - pz, d = Math.hypot(dx, dz);
+// Blocks you've built are solid, and you can climb them like stairs: a block whose top is at most one block above your feet
+// (with nothing sitting on it) is a step you walk up onto; taller ones are walls. Walk off an edge and you drop down.
+// o.blockH is how high you stand above the lawn, o.blockShow the same but smoothed for the camera and your body.
+function blockCollide(o, dt = 0){
+  if (!homeBlocks || !homeBlocks.size || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) > HOUSE.r + 60){ o.blockH = o.blockShow = o.blockV = 0; return; }
+  const lx = o.x*U - HOUSE.x*U, lz = o.y*U - HOUSE.y*U, rr = .3, feet = o.blockH || 0, has = (x, y, z) => homeBlocks.has(`${x},${y},${z}`);
+  let under = 0;
+  for (const [k] of homeBlocks){ const [x, y, z] = k.split(',').map(Number); if (Math.abs(x + .5 - lx) > 1.5 || Math.abs(z + .5 - lz) > 1.5) continue;
+    const top = y + 1, step = top <= feet + 1.05 && !has(x, y + 1, z);
+    if (step){ if (lx + .42 > x && lx - .42 < x + 1 && lz + .42 > z && lz - .42 < z + 1) under = Math.max(under, top); continue; }   // something to stand on (a wide footprint, so corner-to-corner diagonal stairs work)
+    if (top <= feet + .05 || y >= feet + 1.8) continue;                                             // under your feet, or above your head
+    const px = clamp(lx, x, x + 1), pz = clamp(lz, z, z + 1), dx = lx - px, dz = lz - pz, d = Math.hypot(dx, dz);   // too tall: a wall
     if (d < rr){ const nx = d > 1e-6 ? dx/d : (lx < x + .5 ? -1 : 1), nz = d > 1e-6 ? dz/d : 0; o.x += nx*(rr - d)/U; o.y += nz*(rr - d)/U; o.vx *= .5; o.vy *= .5; } }
+  if (under >= feet){ if (under > feet + .3) sfx(180 + under*25, .05, 'triangle', .03); o.blockH = under; o.blockV = 0; }   // step up
+  else { o.blockV = (o.blockV || 0) + 9.8*dt; o.blockH = Math.max(under, feet - o.blockV*dt); if (o.blockH === under) o.blockV = 0; }   // fall down to what's below
+  o.blockShow = (o.blockShow || 0) + (o.blockH - (o.blockShow || 0))*Math.min(1, dt*14);
+}
+// keep the camera out of your blocks: slide it in toward you until it's in the clear
+function camOutOfBlocks(px, py, pz){
+  if (!homeBlocks || !homeBlocks.size || camMode === 'first') return; const c = camera.position, hx = HOUSE.x*U, hz = HOUSE.y*U;
+  if (Math.hypot(c.x - hx, c.z - hz) > 9) return; const inBlock = (x, y, z) => homeBlocks.has(`${Math.floor(x - hx)},${Math.floor(y - LAWN_Y)},${Math.floor(z - hz)}`);
+  if (!inBlock(c.x, c.y, c.z)) return; const sx = c.x, sy = c.y, sz = c.z;
+  for (let t = .1; t <= 1; t += .1){ const x = lerp(sx, px, t), y = lerp(sy, py + 1, t), z = lerp(sz, pz, t); if (!inBlock(x, y, z)){ c.set(x, y + .3, z); camera.lookAt(camLook); return; } }
 }
 $('buildBtn').onclick = () => { initAudio(); enterBuild(); };
 $('bDone').onclick = () => exitBuild();
@@ -1534,7 +1550,7 @@ $('bZoomOut').onclick = () => { buildZoom = Math.min(30, buildZoom + 3); };
 $('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.vehicle = null; o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
   o.onShip = false; o.onBoat = null; o.ride = null; o.ang = -Math.PI/2; camInit = false; banner('Welcome home!', 'Press Build to build around your house'); };
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
-  if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y); }
+  if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y) + (o.onLand ? o.blockShow || 0 : 0); }   // standing on your blocks
 function chestsNear(o){ const out = [], cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
   for (let a=-1;a<=1;a++) for (let b=-1;b<=1;b++) out.push(...getChunk(cx+a, cy+b).chests);
   if (Math.hypot(o.x - WRECK.x/U, o.y - WRECK.z/U) < 1400) out.push(...WRECK_CHESTS);
@@ -2102,7 +2118,7 @@ function walkStep(o, dt){
   o.x += o.vx*dt; o.y += o.vy*dt;
   o.walkPh = (o.walkPh || 0) + dt*(walking ? 8 : 0); o.walking = walking;
   o.depth = 0; o.vd = 0; o.pitch = 0; o.idle = 0; o.air = airMax(); o.gasp = false;
-  blockCollide(o); houseCollide(o);
+  blockCollide(o, dt); houseCollide(o);
   for (const [cx, cy, r] of landObstacles()){ const dx = o.x - cx, dy = o.y - cy, d = Math.hypot(dx, dy), rr = r + 12;
     if (d < rr && d > 1e-6){ o.x = cx + dx/d*rr; o.y = cy + dy/d*rr; } }
 }
@@ -2129,7 +2145,7 @@ function updOcean(dt){
   if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onLand){ if (o.sleeping) sleepStep(o); else walkStep(o, dt); $('airChip').hidden = true;
-    if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; }        // walked back into the sea
+    if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; o.blockH = o.blockShow = 0; }        // walked back into the sea
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
   else if (o.vehicle){ vehicleStep(o, dt); $('airChip').hidden = true; }
@@ -4112,7 +4128,7 @@ function render3D(dt){
     drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
     houseLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.jumpY || 0;
-    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
+    placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (ocean.onLand) camOutOfBlocks(px, landY(ocean), pz); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
     underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105*(1 + superK()*1.5));
