@@ -215,6 +215,9 @@
   @media (max-width:520px){.sharkset{grid-template-columns:1fr 1fr 1fr}.sharkset>span{grid-column:1/-1}}
   .loginform{display:grid;gap:10px}
   .loginform label{display:grid;gap:4px;font-weight:800;font-size:14px;color:var(--deep)}
+  .loginform .hint{font-weight:700;font-size:12px;color:var(--muted)}
+  .loginform input.bad{border-color:#d62839;background:#fff1f1}
+  #loginNote.bad{color:#b91c1c;background:#fde2e2;border-radius:12px;padding:10px 12px;font-size:15px;font-weight:800}
   .loginform input{font:700 17px Nunito,sans-serif;padding:11px 12px;border-radius:12px;border:2px solid var(--line);background:#fff;color:var(--ink,#0b2d44)}
   .chip.build{background:#ffd76a;font-weight:900}
   .buildbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 10px);width:min(720px,calc(100% - 20px));background:rgba(247,251,255,.96);border-radius:20px;padding:10px 12px;box-shadow:0 8px 30px rgba(8,43,69,.35);display:grid;gap:8px;z-index:30}
@@ -391,13 +394,13 @@
     <p class="explain" id="loginExplain">Log in with your swimmer name and password to load your swimmer. New here? Make an account. It only takes a second.</p>
     <form id="loginForm" class="loginform" autocomplete="on" onsubmit="return false">
       <label>Swimmer name<input id="loginName" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20" placeholder="e.g. vienna"></label>
-      <label>Password<input id="loginPass" type="password" autocomplete="current-password" maxlength="40" placeholder="at least 6 letters or numbers"></label>
+      <label>Password<input id="loginPass" type="password" autocomplete="current-password" maxlength="40" placeholder="at least 6 letters or numbers"><small class="hint">At least 6 letters or numbers</small></label>
     </form>
+    <p class="note" id="loginNote" role="alert"></p>
     <div class="actions">
       <button id="loginGo" class="btn primary" type="button">Log in</button>
       <button id="loginSwap" class="btn secondary" type="button">Make a new account</button>
       <button id="loginBack" class="btn back" type="button">← Back</button>
-      <p class="note" id="loginNote"></p>
     </div>
   </div>
 </div>
@@ -4760,27 +4763,31 @@ const fbDb = { doc: () => ({
 const FB_ERR = { EMAIL_EXISTS: 'That swimmer name is taken. Try another one, or log in.', INVALID_LOGIN_CREDENTIALS: 'Wrong swimmer name or password.', INVALID_PASSWORD: 'Wrong swimmer name or password.',
   EMAIL_NOT_FOUND: 'No swimmer with that name yet. Make a new account?', INVALID_EMAIL: 'Names can use letters, numbers, dots, dashes and underscores.', TOO_MANY_ATTEMPTS_TRY_LATER: 'Too many tries. Wait a minute and try again.' };
 let loginCreate = false, loginGate = false;
+// a login message: problems show in red right under the boxes, and the box to fix is outlined (bad = true, or the box's id)
+function loginSay(text, bad){ const n = $('loginNote'); n.textContent = text; n.classList.toggle('bad', !!bad); for (const id of ['loginName', 'loginPass']) $(id).classList.toggle('bad', bad === id);
+  if (typeof bad === 'string'){ try { $(bad).focus(); } catch(e){} sfx(200, .15, 'square', .04); } }
+for (const id of ['loginName', 'loginPass']) $(id).addEventListener('input', () => { $(id).classList.remove('bad'); });
 function openLogin(gate){
   loginGate = !!gate; loginCreate = false; if (playing()){ paused = true; ptr.down = false; }
   for (const id of ['panel','shopPanel','mapPanel','movePanel']) $(id).hidden = true;
   $('loginKicker').textContent = gate ? 'Nice swimming!' : 'Your swimmer, on any device';
-  $('loginBack').hidden = gate; $('loginNote').textContent = ''; setLoginMode(false); $('loginPanel').hidden = false; resetPick();
+  $('loginBack').hidden = gate; loginSay(''); setLoginMode(false); $('loginPanel').hidden = false; resetPick();
   setTimeout(() => { try { $('loginName').focus(); } catch(e){} }, 50); }
 function setLoginMode(create){
   loginCreate = create; $('loginTitle').textContent = create ? 'Make an account' : (loginGate ? 'Log in to keep playing' : 'Log in');
   $('loginExplain').textContent = create ? 'Pick a swimmer name and a password. Use them to log in on any iPad, phone or computer.'
     : loginGate ? 'Log in or make a free account to keep playing. Your coins, XP and gear are saved, and you can play on any device.' : 'Log in with your swimmer name and password to load your swimmer. New here? Make an account.';
   $('loginGo').textContent = create ? 'Make my account' : 'Log in'; $('loginSwap').textContent = create ? 'I already have an account' : 'Make a new account';
-  $('loginPass').autocomplete = create ? 'new-password' : 'current-password'; $('loginNote').textContent = ''; }
+  $('loginPass').autocomplete = create ? 'new-password' : 'current-password'; loginSay(''); }
 $('loginSwap').onclick = () => setLoginMode(!loginCreate);
 $('loginBack').onclick = () => { $('loginPanel').hidden = true; if (playing()) paused = false; resetPick(); };
 $('loginGo').onclick = async () => {
-  const name = $('loginName').value, pass = $('loginPass').value, note = $('loginNote');
-  if (nameSlug(name).length < 3){ note.textContent = 'Swimmer names need at least 3 letters or numbers.'; return; }
-  if (pass.length < 6){ note.textContent = 'Passwords need at least 6 letters or numbers.'; return; }
-  const btn = $('loginGo'); btn.disabled = true; note.textContent = loginCreate ? 'Making your account…' : 'Logging in…';
+  const name = $('loginName').value, pass = $('loginPass').value;
+  if (nameSlug(name).length < 3) return loginSay('Swimmer names need at least 3 letters or numbers.', 'loginName');
+  if (pass.length < 6) return loginSay(`Passwords need at least 6 letters or numbers. "${'•'.repeat(pass.length)}" is only ${pass.length}.`, 'loginPass');
+  const btn = $('loginGo'); btn.disabled = true; loginSay(loginCreate ? 'Making your account…' : 'Logging in…');
   try { await fbSign(name, pass, loginCreate); await startAccount(); }
-  catch(e){ note.textContent = FB_ERR[(e.message || '').split(' ')[0]] || "Couldn't reach the server. Check the internet and try again."; }
+  catch(e){ const code = (e.message || '').split(' ')[0]; loginSay(FB_ERR[code] || "Couldn't reach the server. Check the internet and try again.", code === 'EMAIL_EXISTS' || code === 'EMAIL_NOT_FOUND' ? 'loginName' : code.includes('PASSWORD') || code.includes('CREDENTIALS') ? 'loginPass' : true); }
   finally { btn.disabled = false; }
 };
 /* ---------- Swimmers, clone codes and neighbors (the website) ----------
