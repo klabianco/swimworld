@@ -2689,6 +2689,8 @@ function buildMinimap(){
 }
 buildMinimap();
 function drawMinimap(){
+  // hidden most of the time (the Map is in the phone); it pops up by itself for a Sonar ping or a quest
+  if (!(time < sonarUntil || ocean.quest)){ mmHit.r = 0; return; }
   const size = Math.min(130, Math.min(W,H)*.28), x = W - size - 16, y = H - size - 120;
   mmHit.x = x + size/2; mmHit.y = y + size/2; mmHit.r = size/2 + 6;
   const drawNSEW = () => { ctx.font = "900 12px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.fillStyle = '#fff';
