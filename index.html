@@ -88,6 +88,9 @@
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
   .chip.boats{background:#c9f0e0;font-family:var(--display);font-size:17px}
+  #speedFx{position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;
+    background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(255,255,255,.55) 0deg 1.2deg,transparent 1.2deg 9deg);
+    -webkit-mask:radial-gradient(circle at 50% 50%,transparent 38%,#000 75%);mask:radial-gradient(circle at 50% 50%,transparent 38%,#000 75%)}
   #sleepFade{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;transition:opacity 1.2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
     background:radial-gradient(circle at 50% 35%,#1d2f63,#060c1f 70%)}
   #sleepFade.on{opacity:1}
@@ -275,6 +278,7 @@
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
 <button id="sleepBtn" class="ridebtn" type="button" hidden>Sleep<small>Z</small></button>
 <button id="climbBtn" class="ridebtn" type="button" hidden>Climb the rope<small>R</small></button>
+<div id="speedFx" aria-hidden="true"></div>
 <div id="sleepFade" aria-hidden="true"><div class="moon"></div><div class="zzz">Z<span>z</span><span>z</span></div></div>
 <div id="coach" class="coach" hidden><div class="face" aria-hidden="true">C</div><p><span class="who" id="coachWho">Coach</span><span id="coachTxt"></span></p></div>
 <div id="banner" class="banner" hidden><b id="banTitle"></b><span id="banSub"></span></div>
@@ -636,6 +640,10 @@ function wantHeading(){ const s = moveInput(); camFollowOK = s.m < .15 || Math.a
   return s.m < .15 ? null : { ang: camHead + Math.atan2(s.x, s.y), m: s.m }; }
 const angDiff = (a, b) => ((a - b + Math.PI)%TAU + TAU)%TAU - Math.PI;
 const METERS = 40; // world units per meter
+const TOP_MPH = 500, MAX_SPEED = TOP_MPH/2.23694*METERS;   // nobody swims faster than 500 mph, however much gear they have
+// Past about 80 mph you're going faster than the world can be built around you, so super speed brings in sea mist and speed streaks
+// (hiding the scenery popping in) and rebuilds the world less often, so the game stays smooth.
+const SUPER_MPH = 80, superK = () => ocean ? clamp(((ocean.mph || 0) - SUPER_MPH)/120, 0, 1) : 0;
 // Swim toward where the stick points. `base` is cruising speed in units per second (100 = 2.5 m/s) before speed boosts.
 function swimMove(o, dt, base = 100){
   const w = wantHeading(), pc = o.pitch || 0;
@@ -647,6 +655,7 @@ function swimMove(o, dt, base = 100){
   let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
   fwd *= Math.exp(-1.4*dt); lat *= Math.exp(-5*dt);
   o.vx = fx*fwd - fy*lat; o.vy = fy*fwd + fx*lat;
+  { const v = Math.hypot(o.vx, o.vy); if (v > MAX_SPEED){ o.vx *= MAX_SPEED/v; o.vy *= MAX_SPEED/v; } }   // the speed limit: any faster and the world can't be built around you in time
   o.x += o.vx*dt; o.y += o.vy*dt;
   const sp = Math.hypot(o.vx,o.vy);
   o.swimPh = (o.swimPh || 0) + dt*(.5 + sp/80);                         // arms and legs keep time with your speed
@@ -684,7 +693,7 @@ const fastSay = n => n < 5 ? `You swim ${Math.round((fastAt(n) - 1)*100)}% faste
 const breathSay = n => `Hold your breath ${breathAt(n)} seconds longer.`;
 const SHOP = [
   { id:'turbo',    who:'all',     name:'Turbo Booster',    lv: Array.from({ length: 30 }, (_, i) => 1000*2**i), many: true,   // buy it again and again: each one doubles your speed and costs twice as much
-    say: n => `Each booster makes you twice as fast, on top of your other gear. ${n ? `You have ${n}: ${2**n}× as fast!` : ''}` },
+    say: n => `Each booster makes you twice as fast, on top of your other gear, up to the top speed of ${TOP_MPH} mph. ${n ? `You have ${n}: ${2**n}× as fast!` : ''}` },
   { id:'fins',     who:'swimmer', name:'Fins',             lv:[60, 150, 300, 550, 900], inf: true, say: fastSay },
   { id:'snorkel',  who:'swimmer', name:'Mask & snorkel',   lv:[40, 100, 200, 350, 600], inf: true, say: n => `Breathe with your face in the water, see farther, and ${breathSay(n).toLowerCase()}` },
   { id:'light',    who:'swimmer', name:'Dive light',       lv:[120, 250, 450], inf: true,  say: n => n === 1 ? 'Lights up dark, deep water like the Mariana Trench.' : `A brighter light that shines about ${lightAt(n)[1]} m.` },
@@ -733,7 +742,7 @@ function addCoins(n, why){
   sfx(1320, .08, 'square', .03); sfx(1760, .1, 'square', .025, .06);
 }
 function renderShop(){
-  $('shopNote').textContent = `You have ${save.coins || 0} coins. All your gear works for every animal, and it all adds up!`;
+  $('shopNote').textContent = `You have ${save.coins || 0} coins. All your gear works for every animal, and it all adds up! The fastest anyone can swim is ${TOP_MPH} mph.`;
   const box = $('shopItems'); box.innerHTML = '';
   for (const [title, ids] of SHOP_GROUPS){
     const h = document.createElement('h3'); h.className = 'shopgroup'; h.textContent = title; box.appendChild(h);
@@ -2086,6 +2095,7 @@ function updOcean(dt){
   { const px = o.mphX ?? o.x, py = o.mphY ?? o.y, v = Math.hypot(o.x - px, o.y - py)/Math.max(dt, 1e-3)/METERS*2.23694;   // how fast you're really going, in miles per hour
     o.mphX = o.x; o.mphY = o.y; o.mph = v > 20000 ? o.mph || 0 : lerp(o.mph || 0, v, Math.min(1, dt*4));   // (ignore teleports)
     if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; $('mphChip').hidden = false; $('mphVal').textContent = o.mph < 10 ? o.mph.toFixed(1) : Math.round(o.mph).toLocaleString(); } }
+  { const k = superK(), fx = $('speedFx'), op = k ? (.25 + .5*k).toFixed(2) : '0'; if (fx.style.opacity !== op){ fx.style.opacity = op; fx.style.transform = `rotate(${(time*40)%9}deg)`; } }
   { const cb = $('climbBtn'), showC = ropeNear(o) >= 0; if (cb.hidden === showC) cb.hidden = !showC; }
   { const zb = $('sleepBtn'), showZ = nearBed(o); if (zb.hidden === showZ) zb.hidden = !showZ; }
   { const f = friendNear(o), tb = $('talkBtn'); if (tb.hidden === !!f) tb.hidden = !f;
@@ -3629,12 +3639,14 @@ function updOceanWorld(o){
   renderer.toneMappingExposure = EXPO*(1 - OC.dark*.72);
   const gx = Math.round(px/4)*4, gz = Math.round(pz/4)*4;
   oceanWaterMesh.position.set(gx, 0, gz);
-  if (seaFloor.userData.gx !== gx || seaFloor.userData.gz !== gz){   // reshape the bottom around you
+  const fast = superK() > 0, due = time > (seaFloor.userData.t || 0);
+  if ((seaFloor.userData.gx !== gx || seaFloor.userData.gz !== gz) && (!fast || due)){   // reshape the bottom around you (less often at super speed)
+    seaFloor.userData.t = time + (fast ? .25 : 0);
     seaFloor.userData.gx = gx; seaFloor.userData.gz = gz; seaFloor.position.set(gx, 0, gz);
     const p = seaFloor.geometry.attributes.position;
     for (let i=0;i<p.count;i++){ const x = p.getX(i) + gx, z = p.getZ(i) + gz; p.setY(i, floorY(x/U, z/U) + Math.sin(x*.9)*Math.cos(z*.7)*.08); }
     p.needsUpdate = true; seaFloor.geometry.computeVertexNormals(); seaFloor.geometry.computeBoundingSphere(); }
-  refreshChunks(px, pz);
+  if (!fast || time > (updOceanWorld.chunkT || 0)){ updOceanWorld.chunkT = time + (fast ? .15 : 0); refreshChunks(px, pz); }
   moveClouds(clouds, px, pz); if (camera.position.y <= 0) for (const c of clouds) c.visible = false;
   // sea snow drifts around you; sunbeams slant down (both only matter under water)
   const cam = camera.position, under = cam.y < 0;
@@ -3976,7 +3988,7 @@ function render3D(dt){
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
-    underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105);
+    underwaterLook(oceanScene, [oceanWater], cUnder, tmpC2.copy(OC.deep).lerp(OC.sh, .35).multiplyScalar(Math.exp(-dep*.09)*(ocean.wIn ? .45 : 1)), (OC.dark > .5 ? .14 : .075)*(hasGear('snorkel') ? .65 : 1), OC.fog, .0105*(1 + superK()*5));
     draw(oceanScene);
   }
 }
@@ -4004,7 +4016,7 @@ let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
-  mode = m; paused = false; if (m !== 'ocean') $('mphChip').hidden = true;
+  mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = true; $('speedFx').style.opacity = '0'; }
   if (m === 'title'){ startArmed = false; arrangeTitle(); }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
