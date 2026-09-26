@@ -88,6 +88,14 @@
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
   .chip.boats{background:#c9f0e0;font-family:var(--display);font-size:17px}
+  .speedbar{position:fixed;left:calc(env(safe-area-inset-left,0px) + 14px);top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;gap:6px;
+    background:rgba(247,251,255,.9);border-radius:16px;padding:8px 8px 6px;box-shadow:0 4px 0 rgba(8,43,69,.25);font-family:var(--display);color:var(--ink);touch-action:none}
+  .speedbar .sb-lbl{font-size:11px;letter-spacing:.04em;opacity:.7}
+  .speedbar .sb-val{font-size:12px;opacity:.8;white-space:nowrap}
+  .speedbar .sb-val b{font-size:17px;font-weight:400;opacity:1}
+  .sb-track{position:relative;width:26px;height:min(34vh,210px);border-radius:13px;background:#dbe7ef;cursor:pointer;touch-action:none}
+  .sb-track i{position:absolute;left:0;right:0;bottom:0;border-radius:13px;background:linear-gradient(0deg,#3fb6a8,#ffc53d 70%,#ff6f59)}
+  .sb-track b{position:absolute;left:50%;width:34px;height:14px;margin:-7px 0 0 -17px;border-radius:7px;background:#fff;box-shadow:0 2px 4px rgba(8,43,69,.4)}
   #speedFx{position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;
     background:repeating-conic-gradient(from 0deg at 50% 50%,rgba(255,255,255,.55) 0deg 1.2deg,transparent 1.2deg 9deg);
     -webkit-mask:radial-gradient(circle at 50% 50%,transparent 38%,#000 75%);mask:radial-gradient(circle at 50% 50%,transparent 38%,#000 75%)}
@@ -279,6 +287,7 @@
 <button id="sleepBtn" class="ridebtn" type="button" hidden>Sleep<small>Z</small></button>
 <button id="climbBtn" class="ridebtn" type="button" hidden>Climb the rope<small>R</small></button>
 <div id="speedFx" aria-hidden="true"></div>
+<div id="speedBar" class="speedbar" hidden><span class="sb-lbl">Top speed</span><div class="sb-track" id="sbTrack" role="slider" aria-label="Top speed" aria-valuemin="0" aria-valuemax="100"><i id="sbFill"></i><b id="sbKnob"></b></div><span class="sb-val"><b id="sbVal">0</b> mph</span></div>
 <div id="sleepFade" aria-hidden="true"><div class="moon"></div><div class="zzz">Z<span>z</span><span>z</span></div></div>
 <div id="coach" class="coach" hidden><div class="face" aria-hidden="true">C</div><p><span class="who" id="coachWho">Coach</span><span id="coachTxt"></span></p></div>
 <div id="banner" class="banner" hidden><b id="banTitle"></b><span id="banSub"></span></div>
@@ -645,6 +654,19 @@ const METERS = 40; // world units per meter
 const TOP_MPH = 500, REAL_TOP_MPH = 150, MAX_SPEED = REAL_TOP_MPH/2.23694*METERS;
 const gameMph = v => v <= 60 ? v : 60 + (v - 60)*(TOP_MPH - 60)/(REAL_TOP_MPH - 60);
 // Near top speed a little sea mist and speed streaks come in, and the world rebuilds on a timer so the game stays smooth.
+// The speed bar: pick any top speed from a crawl up to the fastest your gear allows (never past the game's limit). save.speedPct is the share of it.
+const speedPct = () => clamp(save.speedPct ?? 1, .05, 1);
+const ownTop = (base = 100) => Math.min(MAX_SPEED, base*speedMul()*gearFast());   // units a second you could swim at full throttle
+function showSpeedBar(){
+  const o = ocean, V = o && VEH[o.vehicle], full = V ? V.speed*METERS : ownTop(), p = speedPct();
+  $('sbFill').style.height = (p*100) + '%'; $('sbKnob').style.top = ((1 - p)*100) + '%'; $('sbTrack').setAttribute('aria-valuenow', Math.round(p*100));
+  const mph = gameMph(full*p/METERS*2.23694); $('sbVal').textContent = mph < 10 ? mph.toFixed(1) : Math.round(mph).toLocaleString();
+}
+{ const tr = $('sbTrack'); let pid = null;
+  const set = e => { const r = tr.getBoundingClientRect(); save.speedPct = clamp(1 - (e.clientY - r.top)/r.height, .05, 1); showSpeedBar(); };
+  tr.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); pid = e.pointerId; try { tr.setPointerCapture(pid); } catch(_){} set(e); });
+  tr.addEventListener('pointermove', e => { if (e.pointerId === pid) set(e); });
+  for (const ev of ['pointerup', 'pointercancel']) tr.addEventListener(ev, e => { if (e.pointerId === pid){ pid = null; persist(); } }); }
 const SUPER_MPH = 90, superK = () => ocean ? clamp(((ocean.mph || 0) - SUPER_MPH)/55, 0, 1) : 0;
 // Swim toward where the stick points. `base` is cruising speed in units per second (100 = 2.5 m/s) before speed boosts.
 function swimMove(o, dt, base = 100){
@@ -657,7 +679,7 @@ function swimMove(o, dt, base = 100){
   let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
   fwd *= Math.exp(-1.4*dt); lat *= Math.exp(-5*dt);
   o.vx = fx*fwd - fy*lat; o.vy = fy*fwd + fx*lat;
-  { const v = Math.hypot(o.vx, o.vy); if (v > MAX_SPEED){ o.vx *= MAX_SPEED/v; o.vy *= MAX_SPEED/v; } }   // the speed limit: any faster and the world can't be built around you in time
+  { const v = Math.hypot(o.vx, o.vy), lim = ownTop(base)*speedPct(); if (v > lim){ o.vx *= lim/v; o.vy *= lim/v; } }   // your speed bar setting, and never past the game's limit (any faster and the world can't be built around you in time)
   o.x += o.vx*dt; o.y += o.vy*dt;
   const sp = Math.hypot(o.vx,o.vy);
   o.swimPh = (o.swimPh || 0) + dt*(.5 + sp/80);                         // arms and legs keep time with your speed
@@ -1915,7 +1937,7 @@ function leaveVehicle(){
   sfx(180, .35, 'sine', .08, 0, -90); banner('Splash!', 'Tap Boats to get back in');
 }
 function vehicleStep(o, dt){
-  const V = VEH[o.vehicle], w = wantHeading(), top = V.speed*METERS, px = o.x, py = o.y;
+  const V = VEH[o.vehicle], w = wantHeading(), top = V.speed*METERS*speedPct(), px = o.x, py = o.y;
   if (w){ const err = angDiff(w.ang, o.ang); o.ang += clamp(err, -V.turn*dt, V.turn*dt); o.idle = 0;
     const a = top*1.6*w.m*Math.max(.2, Math.cos(err)); o.vx += Math.cos(o.ang)*a*dt; o.vy += Math.sin(o.ang)*a*dt; }
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang); let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
@@ -2097,7 +2119,7 @@ function updOcean(dt){
   o.rideTarget = o.ride || o.onLand || o.vehicle ? null : findDolphin(o);
   { const px = o.mphX ?? o.x, py = o.mphY ?? o.y, v = Math.hypot(o.x - px, o.y - py)/Math.max(dt, 1e-3)/METERS*2.23694;   // how fast you're really going, in miles per hour
     o.mphX = o.x; o.mphY = o.y; o.mph = v > 20000 ? o.mph || 0 : lerp(o.mph || 0, v, Math.min(1, dt*4));   // (ignore teleports)
-    if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; $('mphChip').hidden = false; const gm = gameMph(o.mph); $('mphVal').textContent = gm < 10 ? gm.toFixed(1) : Math.round(gm).toLocaleString(); } }
+    if ((o.mphT = (o.mphT || 0) - dt) <= 0){ o.mphT = .2; showSpeedBar(); $('mphChip').hidden = false; const gm = gameMph(o.mph); $('mphVal').textContent = gm < 10 ? gm.toFixed(1) : Math.round(gm).toLocaleString(); } }
   { const k = superK(), fx = $('speedFx'), op = k ? (.25 + .5*k).toFixed(2) : '0'; if (fx.style.opacity !== op){ fx.style.opacity = op; fx.style.transform = `rotate(${(time*40)%9}deg)`; } }
   { const cb = $('climbBtn'), showC = ropeNear(o) >= 0; if (cb.hidden === showC) cb.hidden = !showC; }
   { const zb = $('sleepBtn'), showZ = nearBed(o); if (zb.hidden === showZ) zb.hidden = !showZ; }
@@ -4028,7 +4050,7 @@ function setMode(m){
   mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = true; $('speedFx').style.opacity = '0'; }
   if (m === 'title'){ startArmed = false; arrangeTitle(); }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
-  $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
+  $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('speedBar').hidden = !(m === 'ocean' || m === 'pool'); if (m === 'ocean' || m === 'pool') showSpeedBar(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
   if (m === 'title'){ syncHouse(); placeLighthouse(); ocean = newOcean(); }   // the title floats over the real ocean, by Pool Island
   ptr.down = false; refreshLevelChip(); resetPick();
