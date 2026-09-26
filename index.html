@@ -87,6 +87,8 @@
   #talkBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 152px)}
   #sleepBtn{background:#e3d6ff}
   #climbBtn{background:#ffd9b8}
+  #grabBtn{background:#d8f5c9;top:calc(env(safe-area-inset-top,0px) + 152px)}
+  #useBtn{background:#ffe7b0;top:calc(env(safe-area-inset-top,0px) + 212px)}
   .chip.boats{background:#c9f0e0;font-family:var(--display);font-size:17px}
   .speedbar{position:fixed;left:calc(env(safe-area-inset-left,0px) + 14px);top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;gap:6px;
     background:rgba(247,251,255,.9);border-radius:16px;padding:8px 8px 6px;box-shadow:0 4px 0 rgba(8,43,69,.25);font-family:var(--display);color:var(--ink);touch-action:none}
@@ -286,6 +288,8 @@
 <button id="talkBtn" class="ridebtn" type="button" hidden>Talk<small>T</small></button>
 <button id="sleepBtn" class="ridebtn" type="button" hidden>Sleep<small>Z</small></button>
 <button id="climbBtn" class="ridebtn" type="button" hidden>Climb the rope<small>R</small></button>
+<button id="grabBtn" class="ridebtn" type="button" hidden>Pick up<small>G</small></button>
+<button id="useBtn" class="ridebtn" type="button" hidden>Use<small>U</small></button>
 <div id="speedFx" aria-hidden="true"></div>
 <div id="speedBar" class="speedbar" hidden><span class="sb-lbl">Top speed</span><div class="sb-track" id="sbTrack" role="slider" aria-label="Top speed" aria-valuemin="0" aria-valuemax="100"><i id="sbFill"></i><b id="sbKnob"></b></div><span class="sb-val"><b id="sbVal">0</b> mph</span></div>
 <div id="sleepFade" aria-hidden="true"><div class="moon"></div><div class="zzz">Z<span>z</span><span>z</span></div></div>
@@ -567,6 +571,8 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 't' && !e.repeat) talkToFriend();
   if (k === 'z' && !e.repeat) goToSleep();
   if (k === 'r' && !e.repeat) startClimb();
+  if (k === 'g' && !e.repeat) grabItem();
+  if (k === 'u' && !e.repeat) useItem();
   if (k === 'v' && !e.repeat && mode === 'ocean' && !paused) boatsButton();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
   if (k === 'c' && playing() && !paused) nextView();
@@ -2003,9 +2009,82 @@ function houseLook(o, dt){
   const near = o && mode === 'ocean' && o.onLand && !building, [lx, lz] = near ? houseLocal(o) : [99, 99];
   const cut = near && o.inHouse && camMode !== 'first' ? 1 : 0; u.cut += (cut - u.cut)*Math.min(1, dt*6);
   u.walls.scale.y = 1 - .7*u.cut; u.tall.visible = u.top.visible = u.cut < .5;
-  const open = Math.abs(lx) < 1.3 && lz > .9 && lz < 3.6 ? -1.7 : 0;   // only while you're in the doorway, so it closes behind you u.hinge.rotation.y += (open - u.hinge.rotation.y)*Math.min(1, dt*5);
-  if (Math.abs(lx) < 6 && Math.abs(lz) < 6) for (const f of u.tankFish){ const a = time*.6 + f.userData.ph; f.position.x = 1.3 + Math.sin(a)*.45; f.rotation.y = Math.cos(a) > 0 ? 0 : Math.PI; }
+  const open = Math.abs(lx) < 1.3 && lz > .9 && lz < 3.6 ? -1.7 : 0;   // only while you're in the doorway, so it closes behind you
+  u.hinge.rotation.y += (open - u.hinge.rotation.y)*Math.min(1, dt*5);
+  const fed = time < (u.feedT || 0);   // fed: they dash up to the food at the top of the tank
+  if (Math.abs(lx) < 6 && Math.abs(lz) < 6) u.tankFish.forEach((f, i) => { const a = time*(fed ? 2.4 : .6) + f.userData.ph; f.position.x = 1.3 + Math.sin(a)*(fed ? .25 : .45); f.rotation.y = Math.cos(a) > 0 ? 0 : Math.PI;
+    f.position.y += ((fed ? 1.36 + Math.sin(time*9 + i)*.03 : 1.05 + i*.12) - f.position.y)*Math.min(1, dt*3); });
 }
+/* Things in your house you can pick up: walk up to one and tap Pick up (or G), then Put down, or use it (U): throw the ball
+   (or just walk into it to kick it), hug the teddy, read the book, feed the fish. Where you leave things is saved.
+   Positions are in the house's frame (like HOUSE_SOLID); y is height above the lawn, r is the thing's radius. */
+const HOUSE_ITEMS = {
+  ball:  { name: 'beach ball', home: [.4, .9],   r: .22, use: 'Throw it' },
+  teddy: { name: 'teddy bear', home: [-1.8, -.9], r: .15, use: 'Hug it' },
+  book:  { name: 'book',       home: [1.72, .72], r: .035, use: 'Read it' },
+  food:  { name: 'fish food',  home: [1.3, .42],  r: .07, use: 'Feed the fish' } };
+const SOLID_TOP = [3, 3, 3, 3, 3, .5, .85, .78, 1.8];   // how tall each HOUSE_SOLID box is (walls, bed, fish tank, table, lamp)
+const TANK = [1.3, -1.6], LAMP = [-.9, -1.6];
+// what's under a spot: the bed and table are shelves, the house has a floor, outside is the lawn
+function surfY(x, z){ if (x > -2.35 && x < -1.25 && z > -1.85 && z < .15) return .5; if (Math.hypot(x - 1.5, z - .6) < .5) return .78;
+  return Math.abs(x) < 2.5 && Math.abs(z) < 2 ? .06 : 0; }
+let hItems = null, heldItem = null;
+function itemsState(){
+  if (hItems) return hItems; hItems = {};
+  for (const id in HOUSE_ITEMS){ const d = HOUSE_ITEMS[id], sv = (save.houseItems || {})[id];
+    hItems[id] = sv ? { x: sv[0], y: sv[1], z: sv[2], vx: 0, vy: 0, vz: 0 } : { x: d.home[0], y: surfY(...d.home) + d.r, z: d.home[1], vx: 0, vy: 0, vz: 0 }; }
+  return hItems; }
+function storeItems(){ save.houseItems = {}; for (const id in hItems){ const t = hItems[id]; save.houseItems[id] = [t.x, t.y, t.z].map(v => Math.round(v*100)/100); } persist(); }
+const houseFwd = o => { const c = Math.cos(o.ang), s = Math.sin(o.ang); return [(c - s)*HOUSE_TURN, (c + s)*HOUSE_TURN]; };   // which way you face, in the house's frame
+function nearItem(o){ if (!o || !o.onLand || o.sleeping || heldItem || mode !== 'ocean') return null; const [lx, lz] = houseLocal(o), st = itemsState(); let best = null, bd = .95;
+  for (const id in st){ const t = st[id], d = Math.hypot(t.x - lx, t.z - lz); if (d < bd && t.y < 1.7){ bd = d; best = id; } } return best; }
+function grabItem(){
+  const o = ocean; if (!o || paused) return;
+  if (heldItem){ const t = itemsState()[heldItem], d = HOUSE_ITEMS[heldItem], [lx, lz] = houseLocal(o), [fx, fz] = houseFwd(o);   // put it down in front of you
+    let x = lx + fx*.55, z = lz + fz*.55; if (HOUSE_SOLID.slice(0, 5).some(([a, b, c, e]) => x > a - .05 && x < c + .05 && z > b - .05 && z < e + .05)){ x = lx; z = lz; }   // not inside a wall
+    Object.assign(t, { x, z, y: surfY(x, z) + d.r, vx: 0, vy: 0, vz: 0 }); heldItem = null; sfx(300, .08, 'triangle', .05); storeItems(); flushCloud(); return; }
+  const id = nearItem(o); if (!id) return; heldItem = id; sfx(660, .08, 'triangle', .05); if (id === 'teddy') sfx(990, .12, 'sine', .04, .08);
+}
+function useItem(){
+  const o = ocean; if (!o || paused || mode !== 'ocean') return; const u = houseGroup?.userData.inside;
+  if (!heldItem){ if (o.onLand && Math.hypot(...houseLocal(o).map((v, i) => v - LAMP[i])) < 1.2 && u){ save.lampOff = !save.lampOff; persist(); sfx(save.lampOff ? 500 : 800, .05, 'square', .03); } return; }   // the lamp switch
+  const t = itemsState()[heldItem], [fx, fz] = houseFwd(o);
+  if (heldItem === 'ball'){ Object.assign(t, { vx: fx*5.5, vz: fz*5.5, vy: 3 }); heldItem = null; t.moving = true; sfx(420, .1, 'triangle', .05, 0, 200); }
+  else if (heldItem === 'teddy'){ banner('Big hug!', 'Your teddy bear loves you too'); [784, 988, 1175].forEach((f, i) => sfx(f, .15, 'sine', .04, i*.1)); }
+  else if (heldItem === 'book'){ const all = ZONES.flatMap(z => z.facts); coach(all[(Math.random()*all.length)|0], 8); sfx(600, .06, 'triangle', .03); }
+  else if (heldItem === 'food'){ const [lx, lz] = houseLocal(o);
+    if (Math.hypot(lx - TANK[0], lz - TANK[1]) < 1.6 && u){ u.feedT = time + 8; banner('Snack time!', 'The fish are eating'); [1200, 1400, 1600].forEach((f, i) => sfx(f, .05, 'sine', .04, i*.08)); }
+    else banner('Take it to the fish tank', 'Walk over to the fish and feed them'); }
+}
+// every frame: carry what you're holding, bounce the ball, kick it, show the buttons
+function houseItems(o, dt){
+  const u = houseGroup?.userData.inside; if (!u || !o) return; const st = itemsState();
+  const here = mode === 'ocean' && o.onLand && !o.onShip && !o.onBoat && Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < HOUSE.r + 40;
+  if (heldItem && !here){ const d = HOUSE_ITEMS[heldItem]; Object.assign(st[heldItem], { x: d.home[0], z: d.home[1], y: surfY(...d.home) + d.r, vx: 0, vy: 0, vz: 0 }); heldItem = null; storeItems(); }   // it goes home if you leave the island
+  const [lx, lz] = here ? houseLocal(o) : [99, 99], [fx, fz] = here ? houseFwd(o) : [0, 0];
+  for (const id in st){ const t = st[id], d = HOUSE_ITEMS[id], m = u.items[id];
+    if (id === heldItem){ const human = curChar().id === 'swimmer'; t.x = lx + fx*.42; t.z = lz + fz*.42; t.y = human ? 1.05 : .45; }
+    else if (t.moving){ t.vy -= 9.8*dt; t.x += t.vx*dt; t.y += t.vy*dt; t.z += t.vz*dt;
+      const fl = surfY(t.x, t.z) + d.r; if (t.y < fl){ t.y = fl; t.vy = Math.abs(t.vy) > 1 ? -t.vy*.55 : 0; const k = Math.exp(-2.5*dt); t.vx *= k; t.vz *= k;
+        if (Math.abs(t.vy) < .01 && Math.hypot(t.vx, t.vz) < .05){ t.moving = false; storeItems(); } else if (t.vy) sfx(200, .05, 'sine', .03); }
+      HOUSE_SOLID.forEach(([a, b, c, e], i) => { if (t.y - d.r > SOLID_TOP[i]) return;   // bounce off walls and furniture
+        if (t.x > a - d.r && t.x < c + d.r && t.z > b - d.r && t.z < e + d.r){ const pen = [[t.x - (a - d.r), -1, 0], [c + d.r - t.x, 1, 0], [t.z - (b - d.r), 0, -1], [e + d.r - t.z, 0, 1]].sort((p, q) => p[0] - q[0])[0];
+          t.x += pen[1]*pen[0]; t.z += pen[2]*pen[0]; if (pen[1]) t.vx = pen[1]*Math.abs(t.vx)*.6; else t.vz = pen[2]*Math.abs(t.vz)*.6; } });
+      const r = Math.hypot(t.x, t.z); if (r > 6.3){ t.x *= 6.3/r; t.z *= 6.3/r; t.vx *= -.5; t.vz *= -.5; } }   // the edge of your lawn
+    if (id === 'ball' && here && id !== heldItem && o.walking && Math.hypot(t.x - lx, t.z - lz) < .5 && t.y < .5){ t.vx = fx*3.5; t.vz = fz*3.5; t.vy = 1.6; t.moving = true; sfx(250, .08, 'triangle', .05); }   // kick!
+    m.position.set(t.x, t.y + (id === 'teddy' ? -.02 : 0), t.z);   // the house frame's floor is the lawn if (id === 'ball' && t.moving) m.rotation.x += Math.hypot(t.vx, t.vz)*dt/d.r;
+    if (id === heldItem) m.rotation.y = -o.ang + Math.PI/4; }
+  if (u.lampShade){ const on = !save.lampOff; if (u.lampShade.material.emissiveIntensity !== (on ? 1.2 : 0)){ u.lampShade.material.emissiveIntensity = on ? 1.2 : 0; u.lampShade.material.color.set(on ? 0xffe08a : 0xb8a878); } }
+  // buttons
+  const near = here ? nearItem(o) : null, gb = $('grabBtn'), ub = $('useBtn');
+  const gt = heldItem ? `Put down the ${HOUSE_ITEMS[heldItem].name}` : near ? `Pick up the ${HOUSE_ITEMS[near].name}` : '';
+  if (gb.hidden === !!gt) gb.hidden = !gt; if (gt && gb.firstChild.textContent !== gt) gb.firstChild.textContent = gt;
+  const lampNear = here && !heldItem && o.inHouse && Math.hypot(lx - LAMP[0], lz - LAMP[1]) < 1.2;
+  const utx = heldItem ? HOUSE_ITEMS[heldItem].use : lampNear ? (save.lampOff ? 'Turn on the lamp' : 'Turn off the lamp') : '';
+  if (ub.hidden === !!utx) ub.hidden = !utx; if (utx && ub.firstChild.textContent !== utx) ub.firstChild.textContent = utx;
+}
+$('grabBtn').onclick = () => { initAudio(); grabItem(); };
+$('useBtn').onclick = () => { initAudio(); useItem(); };
 // where the palms and bushes grow (meters), placed once so the 3D island and the collisions agree
 let plantsCache = null;
 const islandPlants = () => plantsCache || (plantsCache = (() => { const R = mulberry(77), out = [];
@@ -3210,9 +3289,26 @@ function buildHouse(){
   add(H, new THREE.BoxGeometry(1.26, .08, .36), inM(0xe9d8a6, .4), 1.3, .85, -1.6, false);                          // sand in the fish tank
   const tankFish = [0xff7a3d, 0xffd24a, 0x3c78d8].map((c, i) => { const f = add(H, new THREE.ConeGeometry(.05, .16, 6).rotateZ(Math.PI/2), inM(c, .6), 1.3, 1.05 + i*.12, -1.6, false); f.userData.ph = i*2.1; return f; });
   add(H, new THREE.CylinderGeometry(.03, .03, 1.5, 6), std(0x333333, .4, .5), -.9, .75, -1.6, false);
-  add(H, new THREE.ConeGeometry(.28, .3, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xffe08a, emissive: 0xffc040, emissiveIntensity: 1.2, side: THREE.DoubleSide }), -.9, 1.55, -1.6, false);
+  const lampShade = add(H, new THREE.ConeGeometry(.28, .3, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xffe08a, emissive: 0xffc040, emissiveIntensity: 1.2, side: THREE.DoubleSide }), -.9, 1.55, -1.6, false);
   { const pic = add(tall, new THREE.PlaneGeometry(.9, .6), new THREE.MeshBasicMaterial({ map: labelTex('HOME', '#3fb6a8', '#fff', 300, 200, 90) }), -2.34, 1.9, -.9, false); pic.rotation.y = Math.PI/2; }
-  g.userData.inside = { walls, tall, top, hinge, tankFish, cut: 0 };
+  // things you can pick up (see HOUSE_ITEMS)
+  const items = {};
+  { const ball = new THREE.Group(); [0xff4d4d, 0xffffff, 0x3c78d8, 0xffe23d].forEach((c, i) => { const m = new THREE.Mesh(new THREE.SphereGeometry(.22, 16, 12, i*Math.PI/2, Math.PI/2), inM(c, .25)); m.castShadow = true; ball.add(m); }); items.ball = ball; }
+  { const t = new THREE.Group(), fur = inM(0xa0683a, .25), dark = inM(0x2a1a10, .1);
+    const body = new THREE.Mesh(new THREE.SphereGeometry(.13, 14, 10), fur); body.scale.y = 1.15; t.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.09, 14, 10), fur); head.position.y = .19; t.add(head);
+    for (const s of [-1, 1]){ const ear = new THREE.Mesh(new THREE.SphereGeometry(.035, 8, 6), fur); ear.position.set(s*.07, .26, 0); t.add(ear);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(.013, 6, 5), dark); eye.position.set(s*.035, .21, .08); t.add(eye);
+      const arm = new THREE.Mesh(new THREE.SphereGeometry(.045, 8, 6), fur); arm.scale.y = 1.6; arm.position.set(s*.13, .02, .03); t.add(arm); }
+    const snout = new THREE.Mesh(new THREE.SphereGeometry(.035, 8, 6), inM(0xd8b890, .2)); snout.position.set(0, .17, .08); t.add(snout);
+    t.traverse(m => { if (m.isMesh) m.castShadow = true; }); items.teddy = t; }
+  { const b = new THREE.Group(); const cover = new THREE.Mesh(new THREE.BoxGeometry(.3, .07, .22), inM(0x2f6bff, .2)); cover.castShadow = true; b.add(cover);
+    const pages = new THREE.Mesh(new THREE.BoxGeometry(.28, .055, .205), inM(0xfff8e8, .3)); pages.position.x = .012; b.add(pages); items.book = b; }
+  { const f = new THREE.Group(); const jar = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .14, 12), inM(0xffffff, .2)); jar.castShadow = true; f.add(jar);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(.065, .065, .04, 12), inM(0xff7a1a, .3)); lid.position.y = .09; f.add(lid);
+    const label = new THREE.Mesh(new THREE.CylinderGeometry(.061, .061, .06, 12, 1, true), inM(0x3fb6a8, .3)); f.add(label); items.food = f; }
+  for (const id in items) H.add(items[id]);
+  g.userData.inside = { walls, tall, top, hinge, tankFish, cut: 0, items, lampShade };
   // porch and a little dock reaching toward the water
   const plank = std(0x9a7050, .9);
   const dock = new THREE.Mesh(new THREE.BoxGeometry(1.6, .15, 7), plank); dock.position.set(0, .45, R + 1.5); dock.castShadow = true; dock.name = 'dock'; g.add(dock);
@@ -4015,7 +4111,7 @@ function render3D(dt){
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
     drawVehicle(ocean, dt, wy); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
-    houseLook(ocean, dt); camAir = ocean.jumpY || 0;
+    houseLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.jumpY || 0;
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && ocean.inHouse ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (building) buildCamera();
     const cUnder = camera.position.y < waveH(camera.position.x, camera.position.z, OC.amp, 1) - .02;
     WATERU.under.value = cUnder ? 1 : 0; WATERU.tint.value.copy(OC.deep).lerp(OC.sh, .45).multiplyScalar(.9); WATERU.k.value = [.11, .22, .16, .11, .26, .15, .5][ocean.zone] || .15;
@@ -4047,8 +4143,8 @@ let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
-  mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = true; $('speedFx').style.opacity = '0'; }
-  if (m === 'title'){ startArmed = false; arrangeTitle(); }
+  mode = m; paused = false; if (m !== 'ocean'){ $('mphChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = true; $('speedFx').style.opacity = '0'; }
+  if (m === 'title'){ startArmed = false; arrangeTitle(); hItems = null; heldItem = null; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('speedBar').hidden = !(m === 'ocean' || m === 'pool'); if (m === 'ocean' || m === 'pool') showSpeedBar(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
   if (!playing()) coach('');
