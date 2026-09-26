@@ -4999,6 +4999,8 @@ async function checkInbox(){
   if (!socialOn()) return;
   try { const now = Date.now(), all = await fsQuery('voicemsgs', 'to', 'EQUAL', fbAuth.uid);
     for (const m of all) if (m.expireAt <= now) fsDel(`/voicemsgs/${m.id}`).catch(() => {});   // older than a day: gone
+    if (now > (checkInbox.sentT || 0)){ checkInbox.sentT = now + 5*60*1000;   // and clean up old messages you sent that nobody listened to (the free Firebase plan has no automatic cleanup)
+      fsQuery('voicemsgs', 'from', 'EQUAL', fbAuth.uid).then(sent => { for (const m of sent) if (m.expireAt <= now) fsDel(`/voicemsgs/${m.id}`).catch(() => {}); }).catch(() => {}); }
     const before = new Set(inbox.map(m => m.id)); inbox = all.filter(m => m.expireAt > now && !heardMsgs.has(m.id)).sort((a, b) => a.createdAt - b.createdAt);
     const fresh = inbox.filter(m => !before.has(m.id));
     if (fresh.length && inboxReady && playing()){ const m = fresh[fresh.length - 1]; [1318, 1568, 1318, 1568].forEach((f, i) => sfx(f, .12, 'sine', .06, i*.16));   // ring ring
