@@ -1547,7 +1547,7 @@ $('bRemove').onclick = () => { buildRemove = !buildRemove; renderPalette(); };
 $('bZoomIn').onclick = () => { buildZoom = Math.max(7, buildZoom - 3); };
 $('bZoomOut').onclick = () => { buildZoom = Math.min(30, buildZoom + 3); };
 // Menu: jump straight to your island once you've found it
-$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.vehicle = null; o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
+$('homeBtn').onclick = () => { const o = ocean; if (!o) return; closePanel(); o.vehicle = null; o.sitting = null; o.sleeping = null; o.x = HOUSE.x; o.y = HOUSE.y + (HOUSE.r - 110); o.vx = o.vy = 0; o.depth = 0; o.onLand = true; o.homeDone = true;
   o.onShip = false; o.onBoat = null; o.ride = null; o.ang = -Math.PI/2; camInit = false; banner('Welcome home!', 'Press Build to build around your house'); };
 function landY(o){ if (o.onBoat){ const bt = o.onBoat; return waveH(bt.x*U, bt.y*U, OC.amp) - .15 + .27; }
   if (o.onShip){ const [lx, lz] = shipLocal(o.x, o.y); return SHIP.keelY + (shipDeckH(lx, lz) ?? 3); } return groundAt(o.x, o.y) + (o.onLand ? o.blockShow || 0 : 0); }   // standing on your blocks
@@ -1900,7 +1900,7 @@ function houseCollide(o){
 // Sleep in your bed: walk up to it and press Sleep (or Z). You lie down, the night passes, and you wake up in the morning.
 // Move to get out of bed. Positions are in the house's frame, like HOUSE_SOLID.
 const toHouseWorld = (lx, lz) => [HOUSE.x + (lx + lz)*HOUSE_TURN/U, HOUSE.y + (lz - lx)*HOUSE_TURN/U];
-function nearBed(o){ if (!o || !o.onLand || !o.inHouse || o.sleeping) return false; const [lx, lz] = houseLocal(o); return lx < -.55 && lz < .8; }
+function nearBed(o){ if (!o || !o.onLand || !o.inHouse || o.sleeping || o.sitting != null) return false; const [lx, lz] = houseLocal(o); return lx < -.55 && lz < .8; }
 function goToSleep(){
   const o = ocean; if (mode !== 'ocean' || paused || !nearBed(o)) return;
   [o.x, o.y] = toHouseWorld(-1.8, -.85); o.ang = -3*Math.PI/4; o.vx = o.vy = 0; o.walking = false;   // head on the pillow
@@ -2052,7 +2052,7 @@ function itemsState(){
   return hItems; }
 function storeItems(){ save.houseItems = {}; for (const id in hItems){ const t = hItems[id]; save.houseItems[id] = [t.x, t.y, t.z].map(v => Math.round(v*100)/100); } persist(); }
 const houseFwd = o => { const c = Math.cos(o.ang), s = Math.sin(o.ang); return [(c - s)*HOUSE_TURN, (c + s)*HOUSE_TURN]; };   // which way you face, in the house's frame
-function nearItem(o){ if (!o || !o.onLand || o.sleeping || heldItem || mode !== 'ocean') return null; const [lx, lz] = houseLocal(o), st = itemsState(); let best = null, bd = .95;
+function nearItem(o){ if (!o || !o.onLand || o.sleeping || o.sitting != null || heldItem || mode !== 'ocean') return null; const [lx, lz] = houseLocal(o), st = itemsState(); let best = null, bd = .95;
   for (const id in st){ const t = st[id], d = Math.hypot(t.x - lx, t.z - lz); if (d < bd && t.y < 1.7){ bd = d; best = id; } } return best; }
 function grabItem(){
   const o = ocean; if (!o || paused) return;
@@ -2063,6 +2063,8 @@ function grabItem(){
 }
 function useItem(){
   const o = ocean; if (!o || paused || mode !== 'ocean') return; const u = houseGroup?.userData.inside;
+  if (o.sitting != null){ const c = u.chairs[o.sitting]; [o.x, o.y] = toHouseWorld(c.userData.x + c.userData.side*.75, .6); o.sitting = null; return; }
+  if (!heldItem && nearChair(o) >= 0){ sitDown(nearChair(o)); return; }
   if (!heldItem){ if (o.onLand && Math.hypot(...houseLocal(o).map((v, i) => v - LAMP[i])) < 1.2 && u){ save.lampOff = !save.lampOff; persist(); sfx(save.lampOff ? 500 : 800, .05, 'square', .03); } return; }   // the lamp switch
   const t = itemsState()[heldItem], [fx, fz] = houseFwd(o);
   if (heldItem === 'ball'){ Object.assign(t, { vx: fx*5.5, vz: fz*5.5, vy: 3 }); heldItem = null; t.moving = true; sfx(420, .1, 'triangle', .05, 0, 200); }
@@ -2090,15 +2092,27 @@ function houseItems(o, dt){
     if (id === 'ball' && here && id !== heldItem && o.walking && Math.hypot(t.x - lx, t.z - lz) < .5 && t.y < .5){ t.vx = fx*3.5; t.vz = fz*3.5; t.vy = 1.6; t.moving = true; sfx(250, .08, 'triangle', .05); }   // kick!
     m.position.set(t.x, t.y + (id === 'teddy' ? -.02 : 0), t.z);   // the house frame's floor is the lawn if (id === 'ball' && t.moving) m.rotation.x += Math.hypot(t.vx, t.vz)*dt/d.r;
     if (id === heldItem) m.rotation.y = -o.ang + Math.PI/4; }
+  for (const [i, c] of u.chairs.entries()){ const want = c.userData.x + (o.sitting === i ? c.userData.side*.3 : 0); c.position.x += (want - c.position.x)*Math.min(1, dt*8); }   // pull the chair out
   if (u.lampShade){ const on = !save.lampOff; if (u.lampShade.material.emissiveIntensity !== (on ? 1.2 : 0)){ u.lampShade.material.emissiveIntensity = on ? 1.2 : 0; u.lampShade.material.color.set(on ? 0xffe08a : 0xb8a878); } }
   // buttons
   const near = here ? nearItem(o) : null, gb = $('grabBtn'), ub = $('useBtn');
   const gt = heldItem ? `Put down the ${HOUSE_ITEMS[heldItem].name}` : near ? `Pick up the ${HOUSE_ITEMS[near].name}` : '';
   if (gb.hidden === !!gt) gb.hidden = !gt; if (gt && gb.firstChild.textContent !== gt) gb.firstChild.textContent = gt;
   const lampNear = here && !heldItem && o.inHouse && Math.hypot(lx - LAMP[0], lz - LAMP[1]) < 1.2;
-  const utx = heldItem ? HOUSE_ITEMS[heldItem].use : lampNear ? (save.lampOff ? 'Turn on the lamp' : 'Turn off the lamp') : '';
+  const chairNear = here ? nearChair(o) >= 0 : false;
+  const utx = o.sitting != null ? 'Stand up' : heldItem ? HOUSE_ITEMS[heldItem].use : chairNear ? 'Sit on the chair' : lampNear ? (save.lampOff ? 'Turn on the lamp' : 'Turn off the lamp') : '';
   if (ub.hidden === !!utx) ub.hidden = !utx; if (utx && ub.firstChild.textContent !== utx) ub.firstChild.textContent = utx;
 }
+// Chairs: pull one out and sit at the table. Move to get up. o.sitting = which chair.
+function nearChair(o){ const u = houseGroup?.userData.inside; if (!u || !o || !o.onLand || !o.inHouse || o.sitting != null || o.sleeping || heldItem) return -1;
+  const [lx, lz] = houseLocal(o); return u.chairs.findIndex(c => Math.hypot(lx - c.userData.x, lz - .6) < .9); }
+function sitDown(i){
+  const o = ocean, c = houseGroup.userData.inside.chairs[i], d = c.userData.side;
+  o.sitting = i; o.vx = o.vy = 0; o.walking = false; [o.x, o.y] = toHouseWorld(c.userData.x + d*.3, .6); o.ang = d < 0 ? -Math.PI/4 : 3*Math.PI/4;   // facing the table
+  sfx(220, .12, 'triangle', .04); sfx(260, .1, 'triangle', .04, .12);
+}
+function sitStep(o){ o.vx = o.vy = 0; o.air = airMax();
+  if (wantHeading()){ const c = houseGroup.userData.inside.chairs[o.sitting]; [o.x, o.y] = toHouseWorld(c.userData.x + c.userData.side*.75, .6); o.sitting = null; } }   // stand up beside the chair
 $('grabBtn').onclick = () => { initAudio(); grabItem(); };
 $('useBtn').onclick = () => { initAudio(); useItem(); };
 // where the palms and bushes grow (meters), placed once so the 3D island and the collisions agree
@@ -2144,7 +2158,7 @@ function updOcean(dt){
   const o = ocean; o.prevDepth = o.depth || 0;
   if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
-  else if (o.onLand){ if (o.sleeping) sleepStep(o); else walkStep(o, dt); $('airChip').hidden = true;
+  else if (o.onLand){ if (o.sleeping) sleepStep(o); else if (o.sitting != null) sitStep(o); else walkStep(o, dt); $('airChip').hidden = true;
     if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; o.blockH = o.blockShow = 0; }        // walked back into the sea
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
@@ -3299,7 +3313,10 @@ function buildHouse(){
   add(H, new THREE.BoxGeometry(1.1, .9, .1), inM(0x8a5a3a), -1.8, .45, -1.82);                                         // headboard
   add(H, new THREE.CylinderGeometry(1.1, 1.1, .02, 28), inM(0x3fb6a8, .25), 0, .07, .3, false);
   add(H, new THREE.CylinderGeometry(.5, .5, .06, 20), inM(0xc89060), 1.5, .75, .6); add(H, new THREE.CylinderGeometry(.06, .08, .72, 8), inM(0x8a5a3a), 1.5, .38, .6);
-  for (const x of [.85, 2.15]){ add(H, new THREE.BoxGeometry(.4, .06, .4), inM(0xffc53d), x, .45, .6); add(H, new THREE.BoxGeometry(.06, .5, .4), inM(0xffc53d), x + (x < 1.5 ? -.2 : .2), .7, .6); }
+  const chairs = [.85, 2.15].map(x => { const c = new THREE.Group(), side = x < 1.5 ? -1 : 1, wood = inM(0xffc53d); c.position.set(x, 0, .6); H.add(c);   // chairs slide out when you sit
+    add(c, new THREE.BoxGeometry(.4, .06, .4), wood, 0, .45, 0); add(c, new THREE.BoxGeometry(.06, .5, .4), wood, side*.2, .7, 0);
+    for (const [a, b] of [[-.17, -.17], [-.17, .17], [.17, -.17], [.17, .17]]) add(c, new THREE.BoxGeometry(.04, .42, .04), wood, a, .21, b, false);
+    c.userData = { x, side }; return c; });
   add(H, new THREE.BoxGeometry(1.4, .8, .45), inM(0x5a3a2a), 1.3, .4, -1.6);
   add(H, new THREE.BoxGeometry(1.3, .7, .4), new THREE.MeshStandardMaterial({ color: 0x5ec8f0, transparent: true, opacity: .45, roughness: .05, emissive: 0x1a6a90, emissiveIntensity: .5 }), 1.3, 1.16, -1.6, false);
   add(H, new THREE.BoxGeometry(1.26, .08, .36), inM(0xe9d8a6, .4), 1.3, .85, -1.6, false);                          // sand in the fish tank
@@ -3324,7 +3341,7 @@ function buildHouse(){
     const lid = new THREE.Mesh(new THREE.CylinderGeometry(.065, .065, .04, 12), inM(0xff7a1a, .3)); lid.position.y = .09; f.add(lid);
     const label = new THREE.Mesh(new THREE.CylinderGeometry(.061, .061, .06, 12, 1, true), inM(0x3fb6a8, .3)); f.add(label); items.food = f; }
   for (const id in items) H.add(items[id]);
-  g.userData.inside = { walls, tall, top, hinge, tankFish, cut: 0, items, lampShade };
+  g.userData.inside = { walls, tall, top, hinge, tankFish, cut: 0, items, lampShade, chairs };
   // porch and a little dock reaching toward the water
   const plank = std(0x9a7050, .9);
   const dock = new THREE.Mesh(new THREE.BoxGeometry(1.6, .15, 7), plank); dock.position.set(0, .45, R + 1.5); dock.castShadow = true; dock.name = 'dock'; g.add(dock);
@@ -4108,6 +4125,8 @@ function render3D(dt){
       const gy = landY(ocean), human = m.userData.kind === 'swimmer';
       if (ocean.sleeping){ m.position.set(px, gy + ({ swimmer:.62, turtle:.6, otter:.64, dolphin:.76 }[m.userData.kind] || .6), pz);   // lying in bed, the swimmer on their back
         m.rotation.order = 'YXZ'; m.rotation.set(human ? Math.PI : 0, -ocean.ang, 0); poseWalk(m, 0, false); }
+      else if (ocean.sitting != null){ m.position.set(px, gy + (human ? .78 : .5), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // sitting on the chair
+        if (human) for (const l of ['ll', 'rl']){ m.userData.legs[l].hp.rotation.z = 1.5; m.userData.legs[l].kn.rotation.z = -1.5; } }
       else if (ocean.climb){ m.position.set(px, gy + 1.13 + ocean.climb.h, pz); m.rotation.set(0, -ocean.ang, Math.PI/2); if (ocean.climb.h >= ocean.climb.top) poseWalk(m, 0, false); else poseClimb(m, ocean.climb.ph); }   // on the rope ladder, standing up in the lookout at the top
       else { m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0);
       poseWalk(m, ocean.walkPh || 0, ocean.walking); }
