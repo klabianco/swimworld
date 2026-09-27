@@ -2441,7 +2441,7 @@ function useItem(){
   if (!heldItem){ if (o.onLand && Math.hypot(...houseLocal(o).map((v, i) => v - LAMP[i])) < 1.2 && u){ save.lampOff = !save.lampOff; persist(); sfx(save.lampOff ? 500 : 800, .05, 'square', .03); } return; }   // the lamp switch
   const t = itemsState()[heldItem], [fx, fz] = houseFwd(o);
   if (heldItem === 'ball'){ Object.assign(t, { vx: fx*5.5, vz: fz*5.5, vy: 3 }); heldItem = null; t.moving = true; sfx(420, .1, 'triangle', .05, 0, 200); }
-  else if (heldItem === 'teddy'){ banner('Big hug!', 'Your teddy bear loves you too'); [784, 988, 1175].forEach((f, i) => sfx(f, .15, 'sine', .04, i*.1)); }
+  else if (heldItem === 'teddy'){ o.hugT = time + 2.6; heartsAt = time; banner('Big hug!', 'Your teddy bear loves you too'); [784, 988, 1175].forEach((f, i) => sfx(f, .15, 'sine', .04, i*.1)); }
   else if (heldItem === 'book'){ const all = ZONES.flatMap(z => z.facts); coach(all[(Math.random()*all.length)|0], 8); sfx(600, .06, 'triangle', .03); }
   else if (heldItem === 'food'){ const [lx, lz] = houseLocal(o);
     if (Math.hypot(lx - TANK[0], lz - TANK[1]) < 1.6 && u){ u.feedT = time + 8; banner('Snack time!', 'The fish are eating'); [1200, 1400, 1600].forEach((f, i) => sfx(f, .05, 'sine', .04, i*.08)); }
@@ -2454,7 +2454,8 @@ function houseItems(o, dt){
   if (heldItem && !here){ const d = HOUSE_ITEMS[heldItem]; Object.assign(st[heldItem], { x: d.home[0], z: d.home[1], y: surfY(...d.home) + d.r, vx: 0, vy: 0, vz: 0 }); heldItem = null; storeItems(); }   // it goes home if you leave the island
   const [lx, lz] = here ? houseLocal(o) : [99, 99], [fx, fz] = here ? houseFwd(o) : [0, 0];
   for (const id in st){ const t = st[id], d = HOUSE_ITEMS[id], m = u.items[id];
-    if (id === heldItem){ const human = curChar().id === 'swimmer'; t.x = lx + fx*.42; t.z = lz + fz*.42; t.y = human ? 1.05 : .45; }
+    if (id === heldItem){ const human = curChar().id === 'swimmer', hug = id === 'teddy' && o.hugT > time, r = hug ? .24 : .42;   // hugging: pulled in close to your chest
+      t.x = lx + fx*r; t.z = lz + fz*r; t.y = human ? (hug ? 1.22 + Math.sin(time*6)*.02 : 1.05) : hug ? .5 : .45; }
     else if (t.moving){ t.vy -= 9.8*dt; t.x += t.vx*dt; t.y += t.vy*dt; t.z += t.vz*dt;
       const fl = surfY(t.x, t.z) + d.r; if (t.y < fl){ t.y = fl; t.vy = Math.abs(t.vy) > 1 ? -t.vy*.55 : 0; const k = Math.exp(-2.5*dt); t.vx *= k; t.vz *= k;
         if (Math.abs(t.vy) < .01 && Math.hypot(t.vx, t.vz) < .05){ t.moving = false; storeItems(); } else if (t.vy) sfx(200, .05, 'sine', .03); }
@@ -2463,8 +2464,9 @@ function houseItems(o, dt){
           t.x += pen[1]*pen[0]; t.z += pen[2]*pen[0]; if (pen[1]) t.vx = pen[1]*Math.abs(t.vx)*.6; else t.vz = pen[2]*Math.abs(t.vz)*.6; } });
       const r = Math.hypot(t.x, t.z); if (r > 6.3){ t.x *= 6.3/r; t.z *= 6.3/r; t.vx *= -.5; t.vz *= -.5; } }   // the edge of your lawn
     if (id === 'ball' && here && id !== heldItem && o.walking && Math.hypot(t.x - lx, t.z - lz) < .5 && t.y < .5){ t.vx = fx*3.5; t.vz = fz*3.5; t.vy = 1.6; t.moving = true; sfx(250, .08, 'triangle', .05); }   // kick!
-    m.position.set(t.x, t.y + (id === 'teddy' ? -.02 : 0), t.z);   // the house frame's floor is the lawn if (id === 'ball' && t.moving) m.rotation.x += Math.hypot(t.vx, t.vz)*dt/d.r;
-    if (id === heldItem) m.rotation.y = -o.ang + Math.PI/4; }
+    m.position.set(t.x, t.y + (id === 'teddy' ? -.02 : 0), t.z);   // the house frame's floor is the lawn
+    if (id === 'ball' && t.moving) m.rotation.x += Math.hypot(t.vx, t.vz)*dt/d.r;
+    if (id === heldItem) m.rotation.y = -o.ang + Math.PI/4 + (id === 'teddy' && o.hugT > time ? HUG.ty : 0); }   // (a hugged teddy faces you)
   for (const [i, c] of u.chairs.entries()){ const want = c.userData.x + (o.sitting === i ? c.userData.side*.3 : 0); c.position.x += (want - c.position.x)*Math.min(1, dt*8); }   // pull the chair out
   if (u.lampShade){ const on = !save.lampOff; if (u.lampShade.material.emissiveIntensity !== (on ? 1.2 : 0)){ u.lampShade.material.emissiveIntensity = on ? 1.2 : 0; u.lampShade.material.color.set(on ? 0xffe08a : 0xb8a878); } }
   // buttons
@@ -2804,6 +2806,16 @@ const oceanSun = addLights(oceanScene);
 
 /* ---------- Textures drawn on canvases (no image downloads needed) ---------- */
 const MAXANI = renderer.capabilities.getMaxAnisotropy();
+// a hug: arm angles, and little hearts that float up for a moment
+const HUG = { sx: -.35, sy: 0, sz: -2.2, ex: 0, ey: -1.25, ez: 0, ty: Math.PI };   // hugging the teddy: arms down and around it, bear facing you
+let heartsAt = -9, heartSprites = null;
+function drawHearts(x, y, z, dt){
+  if (!heartSprites){ const tex = canvasTex(64, 64, (c, w, h) => { c.font = '48px system-ui, "Apple Color Emoji", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('❤️', w/2, h/2 + 4); }, false);
+    heartSprites = Array.from({ length: 6 }, (_, i) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })); sp.scale.set(.35, .35, 1); sp.userData.ph = i; oceanScene.add(sp); return sp; }); }
+  const k = time - heartsAt;
+  heartSprites.forEach((sp, i) => { const t = (k*.8 + i/6) % 1; sp.visible = k < 2.6; sp.position.set(x + Math.sin(i*2.1 + k*2)*.35, y + t*1.4, z + Math.cos(i*1.7)*.3); sp.material.opacity = 1 - t; });
+}
+function hideHearts(){ if (heartSprites) for (const sp of heartSprites) sp.visible = false; }
 function canvasTex(w, h, draw, repeat = true){
   const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAXANI;
@@ -4619,6 +4631,9 @@ function render3D(dt){
         m.rotation.order = 'YXZ'; m.rotation.set(human ? Math.PI : 0, -ocean.ang, 0); poseWalk(m, 0, false); }
       else if (ocean.sitting != null){ m.position.set(px, gy + (human ? .78 : .5), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // sitting on the chair
         if (human) for (const l of ['ll', 'rl']){ m.userData.legs[l].hp.rotation.z = 1.5; m.userData.legs[l].kn.rotation.z = -1.5; } }
+      else if (ocean.hugT > time && heldItem === 'teddy'){ m.position.set(px, gy + (human ? 1.13 : .12), pz); m.rotation.set(0, -ocean.ang + Math.sin(time*5)*.15, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // hugging the teddy
+        if (human){ const u = m.userData; u.arms.la.sh.rotation.set(HUG.sx, HUG.sy, HUG.sz); u.arms.ra.sh.rotation.set(-HUG.sx, -HUG.sy, HUG.sz); u.arms.la.el.rotation.set(HUG.ex, HUG.ey, HUG.ez); u.arms.ra.el.rotation.set(-HUG.ex, -HUG.ey, HUG.ez); }
+        drawHearts(px, gy + 2, pz, dt); }
       else if (ocean.dancing && !ocean.walking){ m.position.set(px, gy + (human ? 1.13 : .12) + Math.abs(Math.sin(time*6.5))*.08, pz); m.rotation.set(0, -ocean.ang + Math.sin(time*2)*.6, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // dancing
         if (human){ const u = m.userData, a = Math.sin(time*6.5); u.arms.la.sh.rotation.set(0, 0, .4 + a*.5); u.arms.ra.sh.rotation.set(0, 0, -.4 + a*.5); u.legs.ll.hp.rotation.z = a*.3; u.legs.rl.hp.rotation.z = -a*.3; } }
       else if (ocean.bison){ const bb = ocean.bison; m.position.set(px, bb.position.y + (human ? 1.55 : 1.2), pz); m.rotation.set(0, -ocean.ang, human ? Math.PI/2 : 0); poseWalk(m, 0, false);   // riding the bison
@@ -4640,7 +4655,7 @@ function render3D(dt){
       m.position.set(px, (wy + m.userData.float)*(1 - sub) - dep + air, pz);
       m.rotation.set((waveH(px + .5, pz, OC.amp, 1) - waveH(px - .5, pz, OC.amp, 1))*.6*(1 - sub), -ocean.ang, air > 0 ? airPitch : (ocean.pitch || 0)); poseModel(m, swimPose(ocean), ocean.swimPh || 0); }
     if (dep > .45 && Math.random() < dt*2.5) sprayAt(px + Math.cos(ocean.ang)*.6, -dep + .05, pz + Math.sin(ocean.ang)*.6, 0, .3, 0, 1);
-    drawVehicle(ocean, dt, wy); drawGadgets(ocean, px, m.position.y, pz); followSun(oceanSun, px, pz); updSpray(dt, wy);
+    drawVehicle(ocean, dt, wy); drawGadgets(ocean, px, m.position.y, pz); if (!(ocean.hugT > time)) hideHearts(); followSun(oceanSun, px, pz); updSpray(dt, wy);
     fpPitch = ocean.onLand ? -.05 : (ocean.pitch || 0); fpEye = ocean.onLand ? 1.05 : .1; m.visible = camMode !== 'first' && !VEH[ocean.vehicle]?.hide; updateGearLook(m); updDiveLight(ocean.wIn ? 1 : Math.max(OC.dark, 1 - Math.exp(-dep/7)));   // how dark it is around you, 0 to 1
     houseLook(ocean, dt); casinoLook(ocean, dt); houseItems(ocean, dt); camAir = ocean.onLand ? 0 : ocean.jumpY || 0;
     placeCamera(px, ocean.onLand ? landY(ocean) + .6 + (ocean.climb?.h || 0) : wy*.5*(1 - sub) - dep + (ocean.jumpY || 0)*.85, pz,   /* the camera rises with a dolphin's leap */ ocean.ang, dt, mode === 'title' || mode === 'choose' ? 'title' : ocean.onShip || ocean.onBoat ? 'ship' : ocean.vehicle ? 'vehicle' : ocean.onLand && (ocean.inHouse || ocean.inCasino) ? 'house' : 'ocean', ocean.onLand ? 0 : sub, floorY(ocean.x, ocean.y) + .4); if (ocean.onLand) camOutOfBlocks(px, landY(ocean), pz); if (building) buildCamera();
