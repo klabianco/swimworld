@@ -5517,7 +5517,8 @@ async function mpConnect(){
   let tok; try { tok = await fbToken(); } catch(e){ mpRetryT = 10; mpOn = false; return; }
   const src = new EventSource(`${RTDB}/ocean.json?auth=${encodeURIComponent(tok)}`); mpSrc = src;
   const take = (uid, v) => { if (uid === mpKey()) return;
-    if (!v){ const o = others.get(uid); if (o){ dropOther(o); others.delete(uid); } return; }
+    // gone, or silent for over a minute: a game that closed without saying goodbye (common on iPad) leaves its spot behind, so don't announce it
+    if (!v || (v.t && Date.now() - v.t > 60000)){ const o = others.get(uid); if (o){ dropOther(o); others.delete(uid); } return; }
     const o = others.get(uid), fresh = !o;
     const n = o || { sx: v.x, sy: v.y, sw: v.w ?? 0, sa: v.a ?? 0 }; Object.assign(n, v, { seen: performance.now() }); others.set(uid, n);
     if (fresh && v.n && mode === 'ocean') banner(`${v.n} is swimming too!`, 'Look for their name in the water'); };
