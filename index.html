@@ -47,6 +47,7 @@
   .lggoals{display:grid;gap:10px}
   .lggoal{display:flex;gap:12px;align-items:flex-start;background:#eef6fa;border-radius:16px;padding:10px 12px;text-align:left}
   .lggoal.done{background:#dff5e6}
+  .lggoal .btn{font-size:17px;padding:8px 14px;margin-top:8px}
   .lggoal>i{font-style:normal;font-size:28px;line-height:1}
   .lggoal b{display:block;font-family:var(--display);font-weight:400;font-size:20px;color:var(--deep)}
   .lggoal p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--muted);line-height:1.35}
@@ -1747,6 +1748,8 @@ const LEAGUES = [{ name: 'Bronze League', badge: '🥉', goals: [
   { id: 'eel', name: 'Escape the Giant Eel', icon: '🐍', reward: '600 coins, and the Bronze badge 🥉 on your name tag', hint: 'A giant eel lives in a cave off Hawaii. Swim close and it comes out after you. Swim through all 8 glowing rings to escape!' } ],
   next: '🥈 Silver League is coming soon: a Kraken to fight, and new secret places.' }];
 const LEAGUE_AT = { grotto: GROTTO, eaglerock: EAGLE, eel: EEL };
+// which way to swim, in kid words: from where the camera looks, not north/south (Troy didn't know which way northeast is)
+function sideWord(dx, dy){ const d = angDiff(Math.atan2(dy, dx), camHead); return Math.abs(d) < .45 ? 'straight ahead' : Math.abs(d) > 2.4 ? 'behind you' : d > 0 ? 'to your right' : 'to your left'; }
 const leagueDone = id => (save.secrets || []).includes(id) || (save.bosses || []).includes(id);
 const leagueBadge = () => { const b = LEAGUES.filter(L => L.goals.every(g => leagueDone(g.id))).pop(); return b ? b.badge + ' ' : ''; };
 function leagueWin(id){   // a goal is done: save it, and win the league if it was the last one
@@ -1866,9 +1869,9 @@ function leagueStep(o, dt){
   if ((o.lgT = (o.lgT || 0) - dt) > 0) return; o.lgT = .25;
   const chip = $('leagueChip'), L = LEAGUES[0]; let txt;
   if (o.eelChase){ const [rx, ry] = EEL_RINGS[eel.ring]; txt = `ESCAPE! Ring ${eel.ring + 1} of ${EEL_RINGS.length} · ${Math.round(Math.hypot(rx - o.x, ry - o.y)/METERS)} m`; }
-  else { const g = L.goals.find(q => !leagueDone(q.id));
+  else { const g = L.goals.find(q => q.id === leagueTrack && !leagueDone(q.id)) || L.goals.find(q => !leagueDone(q.id));
     if (!g) txt = `${L.badge} ${L.name} done! · Silver soon`;
-    else { const at = LEAGUE_AT[g.id]; txt = `🏆 ${L.goals.filter(q => leagueDone(q.id)).length}/${L.goals.length} · ${g.name} · ${Math.round(Math.hypot(at.x - o.x, at.y - o.y)/METERS)} m ${compassWord(at.x - o.x, at.y - o.y)}`; } }
+    else { const at = LEAGUE_AT[g.id]; txt = `🏆 ${L.goals.filter(q => leagueDone(q.id)).length}/${L.goals.length} · ${g.name} · ${Math.round(Math.hypot(at.x - o.x, at.y - o.y)/METERS)} m ${sideWord(at.x - o.x, at.y - o.y)}`; } }
   chip.classList.toggle('chase', !!o.eelChase); if (chip.textContent !== txt) chip.textContent = txt; chip.hidden = false;
 }
 function renderLeague(){
@@ -1876,15 +1879,31 @@ function renderLeague(){
   $('lgTitle').textContent = `${L.badge} ${L.name}`;
   $('lgExplain').textContent = n === L.goals.length ? 'You did it all! Your badge shows on your name tag.' : `${n} of ${L.goals.length} done. Find the secret places and beat the sea monster to win the badge.`;
   $('lgGoals').innerHTML = L.goals.map(g => { const done = leagueDone(g.id), at = LEAGUE_AT[g.id], m = o ? Math.round(Math.hypot(at.x - o.x, at.y - o.y)/METERS) : 0;
-    return `<div class="lggoal${done ? ' done' : ''}"><i aria-hidden="true">${done ? '✅' : g.icon}</i><div><b>${g.name}</b><p>${done ? 'Done!' : `${g.hint} It's ${m} m ${compassWord(at.x - o.x, at.y - o.y)} of you.`}</p><small>${done ? 'Got it: ' : 'Reward: '}${g.reward}</small></div></div>`; }).join('');
+    return `<div class="lggoal${done ? ' done' : ''}"><i aria-hidden="true">${done ? '✅' : g.icon}</i><div><b>${g.name}</b><p>${done ? 'Done!' : `${g.hint} It's ${m} m away: tap Show me the way and follow the gold arrow.`}</p><small>${done ? 'Got it: ' : 'Reward: '}${g.reward}</small>${done ? '' : `<button class="btn primary" type="button" data-track="${g.id}">Show me the way</button>`}</div></div>`; }).join('');
   $('lgSoon').textContent = L.next;
 }
+// "Show me the way": the League chip follows that goal, and a gold arrow on screen points there until you arrive
+let leagueTrack = null, leagueGuide = false;
+$('lgGoals').addEventListener('click', e => { const b = e.target.closest('[data-track]'); if (!b) return; leagueTrack = b.dataset.track; leagueGuide = true; ocean.lgT = 0; closeLeague(); sfx(700, .08, 'triangle', .05);
+  banner('Follow the gold arrow!', LEAGUES[0].goals.find(g => g.id === leagueTrack).name); });
 function openLeague(){ if (mode !== 'ocean' || paused || !ocean) return; paused = true; ptr.down = false; renderLeague(); $('leaguePanel').hidden = false; resetPick(); }
 function closeLeague(){ $('leaguePanel').hidden = true; paused = false; graceAfterPause(); showPick(); }
 $('leagueChip').onclick = () => { initAudio(); openLeague(); }; $('lgClose').onclick = closeLeague;
+// the gold arrow to the goal you picked with "Show me the way" (it goes away once you're there, or the goal is done)
+function drawGuideArrow(o){
+  if (!leagueGuide || !leagueTrack) return;
+  const at = LEAGUE_AT[leagueTrack], d = Math.hypot(at.x - o.x, at.y - o.y)/METERS;
+  if (leagueDone(leagueTrack) || d < (leagueTrack === 'eel' ? 12 : 8)){ leagueGuide = false; if (!leagueDone(leagueTrack)) banner('You\'re here!', { grotto: 'Look for the door deep under water', eaglerock: 'Get up on top: jump, hook or fly', eel: 'Get closer... if you dare' }[leagueTrack]); return; }
+  const a = Math.atan2(at.y - o.y, at.x - o.x) - camHead, cx = W/2, cy = Math.max(250, H*.3);
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(18, 9); ctx.lineTo(6, 5); ctx.lineTo(6, 23); ctx.lineTo(-6, 23); ctx.lineTo(-6, 5); ctx.lineTo(-18, 9); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+  ctx.font = "900 15px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.lineWidth = 4;
+  const t = `${LEAGUES[0].goals.find(g => g.id === leagueTrack).name} · ${Math.round(d)} m`; ctx.strokeText(t, cx, cy + 46); ctx.fillText(t, cx, cy + 46);
+}
 // during the eel chase: an arrow to the next ring, and red at the edges when the eel is close
 function drawLeagueHud(){
-  const o = ocean; if (!o || !o.eelChase || paused) return;
+  const o = ocean; if (!o || paused) return;
+  if (!o.eelChase){ drawGuideArrow(o); return; }
   const [rx, ry] = EEL_RINGS[eel.ring], a = Math.atan2(ry - o.y, rx - o.x) - camHead, cx = W/2, cy = Math.max(250, H*.3), ed = Math.hypot(eel.x - o.x, eel.y - o.y)/METERS;
   if (ed < 10){ const k = (1 - ed/10)*(.55 + .45*Math.sin(time*10)), g = ctx.createRadialGradient(W/2, H/2, Math.min(W, H)*.3, W/2, H/2, Math.max(W, H)*.72);
     g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, `rgba(255,40,40,${.35*k})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
