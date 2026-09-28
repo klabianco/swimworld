@@ -42,6 +42,16 @@
   @keyframes bump{40%{transform:scale(1.18)}}
   .lvl{display:flex;align-items:center;gap:8px}
   .chip.quest{background:#fff3d6;font-weight:900;font-size:13px;color:#7a4b00;max-width:260px}
+  .chip.league{background:#ffe2a3;font-weight:900;font-size:13px;color:#6b4200;max-width:260px;text-align:left}
+  .chip.league.chase{background:#ff6f59;color:#fff;font-size:15px}
+  .lggoals{display:grid;gap:10px}
+  .lggoal{display:flex;gap:12px;align-items:flex-start;background:#eef6fa;border-radius:16px;padding:10px 12px;text-align:left}
+  .lggoal.done{background:#dff5e6}
+  .lggoal>i{font-style:normal;font-size:28px;line-height:1}
+  .lggoal b{display:block;font-family:var(--display);font-weight:400;font-size:20px;color:var(--deep)}
+  .lggoal p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--muted);line-height:1.35}
+  .lggoal small{display:block;margin-top:4px;font-size:13px;font-weight:900;color:#9a5b00}
+  .lgsoon{background:#f2f2f2;border-radius:16px;padding:10px 12px;font-weight:800;font-size:14px;color:var(--muted)}
   .chip.rank{position:relative;display:flex;flex-direction:column;gap:5px;align-items:stretch}
   .chip.rank .rk{display:flex;gap:8px;justify-content:space-between;align-items:baseline;font-size:12px;font-weight:800;color:var(--muted)}
   .chip.rank .rk b{font-family:var(--display);font-weight:400;font-size:15px;color:var(--deep)}
@@ -167,6 +177,8 @@
   .item .lvl{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:800;color:var(--muted)}
   .item .lvl i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);background:#fff}
   .item .lvl i.on{background:var(--plus);border-color:var(--plus)}
+  .item .lvl i.legend{border-color:var(--gold)}
+  .item .lvl i.legend.on{background:var(--gold)}
   .item .lvl span{margin-left:4px}
   .item p.next{color:var(--deep)}
   #mapCanvas,#worldCanvas{width:100%;max-width:100%;height:auto;border-radius:14px;background:#e9d8b0}
@@ -314,6 +326,7 @@
       <div class="progress" id="hudProg"><i id="hudProgFill"></i></div></div>
     <div class="chip" id="hudSub"></div>
     <div class="chip quest" id="questChip" hidden></div>
+    <button class="chip league" id="leagueChip" type="button" hidden></button>
   </div>
   <div class="hud-col right">
     <div class="chip lvl" id="airChip" hidden><span>Air</span><div class="xpbar"><i id="airFill"></i></div></div>
@@ -521,6 +534,16 @@
   </div>
 </div>
 
+<div id="leaguePanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker">Ocean Leagues</p><h2 id="lgTitle">Bronze League</h2></div>
+    <p class="explain" id="lgExplain"></p>
+    <div class="lggoals" id="lgGoals"></div>
+    <div class="lgsoon" id="lgSoon"></div>
+    <button id="lgClose" class="btn primary" type="button">Back to swimming</button>
+  </div>
+</div>
+
 <div id="results" class="overlay" hidden>
   <div class="panel small">
     <h2 id="resTitle">Finished!</h2>
@@ -599,8 +622,8 @@ function migrate(d){ if (d && d.swimSec == null && d.xp) d.swimSec = d.xp; retur
 function mergeSaves(a, b){
   if (!a) return b; if (!b) return a;
   const xa = a.xp ?? a.dist ?? 0, xb = b.xp ?? b.dist ?? 0, main = xa >= xb ? a : b, m = { ...(main === a ? b : a), ...main };
-  for (const k of ['gear','chests','worlds','landmarks','mapPieces']) m[k] = [...new Set([...(a[k] || []), ...(b[k] || [])])];
-  for (const k of ['coins','xp','dist','swimSec','pearls','races','homeRuns','best','tunnels']) if (a[k] != null || b[k] != null) m[k] = Math.max(a[k] || 0, b[k] || 0);
+  for (const k of ['gear','chests','worlds','landmarks','mapPieces','secrets','bosses']) m[k] = [...new Set([...(a[k] || []), ...(b[k] || [])])];
+  for (const k of ['coins','xp','dist','swimSec','pearls','races','homeRuns','best','tunnels','legend']) if (a[k] != null || b[k] != null) m[k] = Math.max(a[k] || 0, b[k] || 0);
   m.bestTime = Math.min(...[a.bestTime, b.bestTime].filter(t => t > 0), Infinity); if (!isFinite(m.bestTime)) m.bestTime = 0;
   m.gearLv = { ...(a.gearLv || {}) }; for (const k in b.gearLv || {}) m.gearLv[k] = Math.max(m.gearLv[k] || 0, b.gearLv[k]);
   m.houseFound = !!(a.houseFound || b.houseFound); m.tutorialDone = !!(a.tutorialDone || b.tutorialDone);
@@ -693,6 +716,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'u' && !e.repeat){ if (!$('casinoBtn').hidden) casinoAct(); else useItem(); }
   if (k === 'v' && !e.repeat && mode === 'ocean' && !paused) boatsButton();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
+  if (k === 'l' && !e.repeat && mode === 'ocean'){ if ($('leaguePanel').hidden) openLeague(); else closeLeague(); }
   if (k === 'c' && playing() && !paused) nextView();
   if (k === 'j' && !e.repeat) dolphinJump();
   if (/^[1-3]$/.test(k) && !e.repeat && mode === 'ocean' && !paused){ const id = ownedGadgets()[+k - 1]; if (id) holdGadget(id); }
@@ -702,6 +726,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'escape' && !e.repeat){ if (!closeTopWindow() && playing() && !paused) openPanel(); } });
 function closeTopWindow(){
   if (!$('shopPanel').hidden) closeShop();
+  else if (!$('leaguePanel').hidden) closeLeague();
   else if (!$('mapPanel').hidden) closeMap();
   else if (!$('boatPanel').hidden) closeBoats();
   else if (!$('phonePanel').hidden) closePhone();
@@ -717,7 +742,7 @@ function closeTopWindow(){
   else return false;
   return true; }
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
-for (const id of ['shopPanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'phonePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+for (const id of ['shopPanel', 'leaguePanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'phonePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (e.key.toLowerCase() === 'f'){ gadgetHeld = false; $('gadgetUse').classList.remove('on'); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -811,7 +836,7 @@ function swimMove(o, dt, base = 100){
   let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
   fwd *= Math.exp(-1.4*dt); lat *= Math.exp(-5*dt);
   o.vx = fx*fwd - fy*lat; o.vy = fy*fwd + fx*lat;
-  { const v = Math.hypot(o.vx, o.vy), lim = ownTop(base)*speedPct(); if (v > lim){ o.vx *= lim/v; o.vy *= lim/v; } }   // your speed bar setting, and never past the game's limit (any faster and the world can't be built around you in time)
+  { const v = Math.hypot(o.vx, o.vy), lim = o.eelChase ? Math.min(ownTop(base), EEL_CAP) : ownTop(base)*speedPct(); if (v > lim){ o.vx *= lim/v; o.vy *= lim/v; } }   // your speed bar setting, and never past the game's limit (any faster and the world can't be built around you in time). Racing the eel: full speed, but capped so it's fair.
   o.x += o.vx*dt; o.y += o.vy*dt;
   const sp = Math.hypot(o.vx,o.vy);
   o.swimPh = (o.swimPh || 0) + dt*(.5 + sp/80);                         // arms and legs keep time with your speed
@@ -864,8 +889,9 @@ const SHOP = [
   { id:'goldcap',  who:'swimmer', name:'Golden swim cap',  lv:[60],                        say: () => 'Just for looks: shows on the Swimmer. It looks amazing.' },
   { id:'turbotail',who:'dolphin', name:'Turbo Tail',       lv: curve(100, 5), inf: true, say: fastSay },
   { id:'blowhole', who:'dolphin', name:'Big Blowhole',     lv: curve(80, 5), inf: true, say: breathSay },
-  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv: curve(200, 8, 1.4),  say: n => `Jump ${timesTxt(jumpAt(n))} as high. (Only the Dolphin can jump.)` },
-  { id:'sonar',    who:'dolphin', name:'Sonar',            lv: curve(250, 5, 1.5),  say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} second${SONAR_WAIT[n - 1] === 1 ? '' : 's'}.` },
+  { id:'rocketfin',who:'dolphin', name:'Rocket Fin',       lv: curve(200, 8, 1.4), legend: true, say: n => `Jump ${timesTxt(jumpAt(n))} as high. (Dolphins can jump, and so can anyone with Spring Fins.)` },
+  { id:'springfins',who:'all',    name:'Spring Fins',      lv:[0], found: 'the Hidden Sea Cave', say: () => 'Every animal can jump (J), and you jump twice as high!' },
+  { id:'sonar',    who:'dolphin', name:'Sonar',            lv: curve(250, 5, 1.5), legend: true, say: n => `Press Sonar (or P) to ping: nearby pearls and treasure chests show up on your minimap. Recharges in ${SONAR_WAIT[n - 1]} second${SONAR_WAIT[n - 1] === 1 ? '' : 's'}.` },
   { id:'rainbow',  who:'dolphin', name:'Rainbow Stripes',  lv:[120],                        say: () => 'Just for looks: shows on the Dolphin. Very fancy.' },
   { id:'flippers', who:'turtle',  name:'Speed Flippers',   lv: curve(100, 5), inf: true, say: fastSay },
   { id:'lungs',    who:'turtle',  name:'Deep Lungs',       lv: curve(200, 5), inf: true, say: n => `Stay under water ${lungsAt(n)} times longer.` },
@@ -874,22 +900,25 @@ const SHOP = [
   { id:'paws',     who:'otter',   name:'Zoom Paws',        lv: curve(100, 5), inf: true, say: fastSay },
   { id:'bubblefur',who:'otter',   name:'Bubble Fur',       lv: curve(80, 5), inf: true, say: n => `Real otters trap air in their fur. ${breathSay(n)}` },
   { id:'pouch',    who:'otter',   name:'Pearl Pouch',      lv: curve(400, 3, 2),        say: n => `Pearls are worth ${['one and a half times as much', 'double', 'triple'][Math.min(n, 3) - 1]}.` },   // capped: pearls are the main coin source
-  { id:'magnet',   who:'all',     name:'Pearl Magnet',     lv: curve(300, 4, 1.7),  say: n => `Pearls within ${MAGNET_M[Math.min(n, 4) - 1]} m fly to you like a magnet.` },   // capped on purpose: no vacuuming up the whole sea
+  { id:'magnet',   who:'all',     name:'Pearl Magnet',     lv: curve(300, 4, 1.7), legend: true, say: n => `Pearls within ${MAGNET_M[Math.min(n, MAGNET_M.length) - 1]} m fly to you like a magnet.` },   // capped on purpose: no vacuuming up the whole sea
   { id:'kayak',    who:'all', boat: true, name:'Kayak',      lv:[150],  say: () => 'Paddle along at about 8 mph. Swim into the water and tap Boats.' },
   { id:'canoe',    who:'all', boat: true, name:'Canoe',      lv:[300],  say: () => 'A wooden canoe, about 9 mph. Swim into the water and tap Boats.' },
   { id:'sailboat', who:'all', boat: true, name:'Sailboat',   lv:[900],  say: () => 'Sail with the wind at about 16 mph.' },
   { id:'motorboat',who:'all', boat: true, name:'Speedboat',  lv:[1800], say: () => 'Zoom across the waves at about 31 mph!' },
   { id:'sub',      who:'all', boat: true, name:'Submarine',  lv:[3500], say: () => 'Dive all the way to the sea floor with all the air you want. Hold Dive to go down and Up to come back up.' },
   { id:'ship',     who:'all', boat: true, name:'Pirate Ship',lv:[6000], say: () => 'Your very own sailing ship, about 20 mph. Arr!' },
-  { id:'chestmag', who:'all',     name:'Chest Magnet',     lv: curve(400, 5), say: n => `Treasure chests within ${CHEST_M[n - 1]} m fly up to you. No diving needed!` },   // capped too
+  { id:'chestmag', who:'all',     name:'Chest Magnet',     lv: curve(400, 5), legend: true, say: n => `Treasure chests within ${CHEST_M[n - 1]} m fly up to you. No diving needed!` },   // capped too
   { id:'whiskers', who:'otter',   name:'Sniffer Whiskers', lv:[250],                       say: () => 'An arrow points to the nearest treasure chest.' },
   { id:'bowtie',   who:'otter',   name:'Bow Tie',          lv:[60],                        say: () => 'Just for looks: shows on the Otter. Very dapper.' },
 ];
-const SONAR_WAIT = [12, 7, 4, 2, 1], MAGNET_M = [3, 5, 6.5, 8], CHEST_M = [8, 12, 16, 22, 30];
+const SONAR_WAIT = [12, 7, 4, 2, 1, .5], MAGNET_M = [3, 5, 6.5, 8, 10], CHEST_M = [8, 12, 16, 22, 30, 40];   // the last entry of each is its Legend level
+// Legend levels: one more level past the shop's top for gear marked `legend`, unlocked by the secret on Eagle Rock (a league reward, never bought)
+const legendTiers = () => save.legend || 0;
+const maxLv = it => it.inf ? Infinity : it.lv.length + (it.legend ? legendTiers() : 0);
 const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['snorkel', 'blowhole', 'bubblefur'];   // (Deep Lungs multiplies instead)
 // the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
 const SHOP_GROUPS = [['Gadgets', ['paraglider', 'grapple', 'jetpack']], ['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
-  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['magnet', 'chestmag', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
+  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['springfins', 'magnet', 'chestmag', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
   ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']], ['Boats & submarines', ['kayak', 'canoe', 'sailboat', 'motorboat', 'sub', 'ship']]];
 // the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
 const ownedLv = id => Math.max((save.gearLv || {})[id] || 0, (save.gear || []).includes(id) ? 1 : 0);
@@ -922,12 +951,12 @@ function renderShop(){
   for (const [title, ids] of SHOP_GROUPS){
     const h = document.createElement('h3'); h.className = 'shopgroup'; h.textContent = title; box.appendChild(h);
   for (const it of ids.map(id => SHOP.find(i => i.id === id))){
-    const n = ownedLv(it.id), max = it.inf ? Infinity : it.lv.length, full = n >= max, price = priceAt(it, n), d = document.createElement('div'); d.className = 'item' + (n ? (equipped(it.id) ? ' owned' : ' off') : '');
-    d.innerHTML = `<h3>${it.name}</h3>` + (it.inf ? `<div class="lvl"><span>${n ? `Level ${n}` : 'Not yet'} · levels never end!</span></div>` : '') + (max > 1 && !it.many && !it.inf ? `<div class="lvl" aria-label="Level ${n} of ${max}">${it.lv.map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}<span>${n ? `Level ${n}` : 'Not yet'}</span></div>` : '') +
+    const n = ownedLv(it.id), max = maxLv(it), full = n >= max, price = priceAt(it, n), d = document.createElement('div'); d.className = 'item' + (n ? (equipped(it.id) ? ' owned' : ' off') : '');
+    d.innerHTML = `<h3>${it.name}</h3>` + (it.inf ? `<div class="lvl"><span>${n ? `Level ${n}` : 'Not yet'} · levels never end!</span></div>` : '') + (max > 1 && !it.many && !it.inf ? `<div class="lvl" aria-label="Level ${n} of ${max}">${Array.from({ length: max }, (_, i) => `<i class="${i < n ? 'on' : ''}${i >= it.lv.length ? ' legend' : ''}"></i>`).join('')}<span>${n ? `Level ${n}` : 'Not yet'}${max > it.lv.length ? ' · Legend!' : ''}</span></div>` : '') +
       `<p>${it.say(it.many ? n : Math.max(1, n))}</p>` + (n && !full && !it.many ? `<p class="next">Level ${n + 1}: ${it.say(n + 1)}</p>` : '') +
       (max > 1 && !it.many && !it.inf && n + 1 < max ? `<p class="next">Top level ${max}: ${it.say(max)}</p>` : '');   // so you can see what you're saving up for, like twice as fast
     const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (full ? 'secondary' : 'primary');
-    b.textContent = full ? (max > 1 ? 'Top level!' : 'Owned') : n ? `${it.many ? 'Buy another' : 'Upgrade'} for ${price.toLocaleString()}` : `Buy for ${price.toLocaleString()}`; b.disabled = full;
+    b.textContent = full ? (max > 1 ? 'Top level!' : it.found ? 'Found it!' : 'Owned') : it.found ? `Find it in ${it.found}` : n ? `${it.many ? 'Buy another' : 'Upgrade'} for ${price.toLocaleString()}` : `Buy for ${price.toLocaleString()}`; b.disabled = full || !!it.found;
     b.onclick = () => { const k = ownedLv(it.id); if (k >= max || k !== n || performance.now() < shopLock) return;   // already done, or a double tap
       if ((save.coins || 0) < price){ sfx(200, .2, 'square', .04); $('shopNote').textContent = `You need ${price - (save.coins || 0)} more coins for ${n ? `level ${n + 1} ${it.name.toLowerCase()}` : `the ${it.name.toLowerCase()}`}.`; return; }
       shopLock = performance.now() + 500;   // gear first, so coins are never taken without it
@@ -1255,6 +1284,14 @@ const LANDMARKS = [
   { name:'Challenger Deep',          x:0,     y:4000,  kind:'abyss' },
   { name:'Catalina Island',          x:CAT.x, y:CAT.y, kind:'catalina', r: 1250 },
 ];
+/* League 1's places (units; sizes and depths in meters). Two secrets on the Great Barrier Reef side and the Giant Eel off Hawaii.
+   Sea floor depth is fixed around each one (`floor`, flat out to `flat` m) and nothing random grows there. */
+const GROTTO = { x: 2000, y: 900, r: 5, h: 5, floor: 7, doorTop: 3.4, flat: 9 };   // the Hidden Sea Cave: a rock dome, top 2 m under water
+GROTTO.doorAng = Math.atan2(GROTTO.y, GROTTO.x);   // its door faces away from Pool Island, so you have to swim around to find it
+const EAGLE = { x: 2300, y: -1200, r: 2.8, top: 3.3, floor: 7, flat: 7 };   // Eagle Rock: a sea stack 3.3 m tall, too steep to climb
+const EEL = { x: 1800, y: 2100, floor: 6, flat: 6 };   // the Giant Eel's cave, 21 m from the first ring
+EEL.face = Math.atan2(2600 - EEL.y, 1100 - EEL.x);     // it looks out toward the first ring
+const LEAGUE_SPOTS = [GROTTO, EAGLE, EEL];
 function zoneAt(x,y){
   if (Math.abs(x - CAT.x) < 1500 && Math.abs(y - CAT.y) < 1500 && catE(x, y) < 1.6) return 1;   // all of Catalina Island is in the Catalina kelp forest
   let d = Math.hypot(x,y); let a = Math.atan2(y,x);
@@ -1279,6 +1316,7 @@ function depthAt(x, y){
   for (const n of neighbors) dep = Math.min(dep, lerp(3.2, dep, clamp((Math.hypot(x - n.house.x, y - n.house.y)*U - 10)/50, 0, 1)));   // neighbors' shelves
   if (Math.abs(x - CAT.x) < 2200 && Math.abs(y - CAT.y) < 2200) dep = Math.min(dep, lerp(3, dep, clamp((catE(x, y) - 1)/.7, 0, 1)));   // Catalina's shelf
   const gl = Math.hypot(x + 2550, y)*U; if (gl < 40) dep = lerp(14, dep, clamp((gl - 20)/20, 0, 1));   // the wreck rests at 14 m
+  for (const s of LEAGUE_SPOTS){ const g = Math.hypot(x - s.x, y - s.y)*U; if (g < s.flat*2) dep = lerp(s.floor, dep, clamp((g - s.flat)/s.flat, 0, 1)); }   // league places sit on flat sand at a set depth
   return Math.max(2.4, dep);
 }
 const floorY = (x, y) => -depthAt(x, y);
@@ -1301,7 +1339,7 @@ function getChunk(cx,cy){
   const n = 5 + (R()*5|0);
   for (let i=0;i<n;i++){
     const x = X0 + R()*CH, y = Y0 + R()*CH;
-    if (Math.hypot(x,y) < ISL*1.9 || Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 200 || catE(x, y) < 1.2 || neighbors.some(n => Math.hypot(x - n.house.x, y - n.house.y) < HOUSE.r + 200)) continue;
+    if (Math.hypot(x,y) < ISL*1.9 || Math.hypot(x - HOUSE.x, y - HOUSE.y) < HOUSE.r + 200 || catE(x, y) < 1.2 || onLeagueCourse(x, y, 3) || neighbors.some(n => Math.hypot(x - n.house.x, y - n.house.y) < HOUSE.r + 200)) continue;
     const z = zoneAt(x,y), p = R(), it = { x, y, r: R(), rot: R()*TAU, ph: R()*TAU };
     const put = (type, layer='items') => { it.type = type; c[layer].push(it); };
     if (z === 0) put(p<.2?'star':p<.42?'rock':p<.52?'shell':p<.74?'grass':'coral');
@@ -1326,11 +1364,12 @@ function getChunk(cx,cy){
     // treasure on the bottom (more in deep, dark and wrecked places) and fishing boats up top
     if (R() < [.03, .05, .06, .05, .15, .04, .12][mz]){ const deep = mz === 4 || mz === 6;
       c.chests.push({ x:X0 + 40 + R()*(CH - 80), y:Y0 + 40 + R()*(CH - 80), id:'c' + key, v: (deep ? 120 : 50) + ((R()*6)|0)*10, rot:R()*TAU }); }
-    if (mz !== 0 && mz !== 6 && R() < .06 && Math.hypot(mx, my) > 1600) c.boats.push({ x:mx + (R() - .5)*200, y:my + (R() - .5)*200, ang:R()*TAU, id:'b' + key, ph:R()*TAU });
+    if (mz !== 0 && mz !== 6 && R() < .06 && Math.hypot(mx, my) > 1600){ const bt = { x:mx + (R() - .5)*200, y:my + (R() - .5)*200, ang:R()*TAU, id:'b' + key, ph:R()*TAU }; if (!onLeagueCourse(bt.x, bt.y, 9, true)) c.boats.push(bt); }   // (no boats parked in the eel race)
     // jellyfish: moon jellies are harmless; red ones are deadly (none in the Sunny Lagoon)
     const JCH = [.12, .3, .25, .3, .4, .25, 1.1], DEADLY = [0, .35, .3, .35, .4, .3, .6];
     for (let q = JCH[mz]; q > 0; q -= 1) if (R() < Math.min(1, q)){ const deadly = R() < DEADLY[mz];
-      c.jellies.push({ x:X0 + R()*CH, y:Y0 + R()*CH, ph:R()*TAU, wr:40 + R()*80, d0:1 + R()*3.2, deadly, size:.22 + R()*.25, tl: deadly ? 1.4 + R()*1.4 : .35 + R()*.4 }); }
+      const j = { x:X0 + R()*CH, y:Y0 + R()*CH, ph:R()*TAU, wr:40 + R()*80, d0:1 + R()*3.2, deadly, size:.22 + R()*.25, tl: deadly ? 1.4 + R()*1.4 : .35 + R()*.4 };
+      if (!(deadly && onLeagueCourse(j.x, j.y, 7, true))) c.jellies.push(j); }
     for (const [buddy, chance] of ({ 0:[['dolphin',.22]], 1:[['otter',.28], ['whale',.07]], 2:[['penguin',.45]], 3:[['dolphin',.3], ['manta',.22]], 5:[['turtle',.28], ['whale',.15]] })[mz] || [])
       if (R() < chance) c.buddies.push({ id:buddy, bx:mx, by:my, rad:(buddy === 'whale' ? 320 : 90) + R()*110, w:(R()<.5?-1:1)*(buddy === 'whale' ? .06 : .25+R()*.2), ph:R()*TAU });
     if (R() < .5) c.pearls.push({ x:X0+30+R()*(CH-60), y:Y0+30+R()*(CH-60), id:key+'#0' });
@@ -1564,13 +1603,16 @@ function drawGadgets(o, px, py, pz){
     const hx = gr.hit ? lerp(px, gr.hit.x*U, f) : px + gr.fx*25*f, hz = gr.hit ? lerp(pz, gr.hit.y*U, f) : pz + gr.fy*25*f, hy = gr.hit ? lerp(py + .8, gr.hit.h, f) : py + .8;
     const pos = g.rope.geometry.attributes.position; pos.setXYZ(0, px, py + .8, pz); pos.setXYZ(1, hx, hy, hz); pos.needsUpdate = true; g.rope.geometry.computeBoundingSphere(); g.hook.position.set(hx, hy, hz); }
 }
+// dolphins can always jump; Spring Fins (from the Hidden Sea Cave) let everyone jump, and twice as high (√2 the speed = 2× the height)
+const canJump = () => curChar().id === 'dolphin' || hasGear('springfins');
 function dolphinJump(){   // (the Rocket Fin makes the jump about twice as high)
-  const o = ocean; if (mode !== 'ocean' || !o || paused || curChar().id !== 'dolphin' || o.onLand || o.ride || o.jumpY > 0 || (o.depth || 0) > .6) return;
-  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*(gearLv('rocketfin') ? jumpAt(Math.min(8, gearLv('rocketfin'))) : 1); o.jumpY = .01; o.depth = 0; o.vd = 0;
+  const o = ocean; if (mode !== 'ocean' || !o || paused || !canJump() || o.onLand || o.ride || o.vehicle || o.jumpY > 0 || (o.depth || 0) > .6) return;
+  const sp = Math.hypot(o.vx, o.vy)/METERS; o.jumpV = (4.2 + Math.min(3, sp*.9))*(gearLv('rocketfin') ? jumpAt(gearLv('rocketfin')) : 1)*(hasGear('springfins') ? Math.SQRT2 : 1); o.jumpY = .01; o.depth = 0; o.vd = 0;
   sfx(300, .3, 'sine', .06, 0, 320); for (let i=0;i<12;i++) bubble(o.x + (Math.random()-.5)*30, o.y + (Math.random()-.5)*30, (Math.random()-.5)*40, (Math.random()-.5)*40);
 }
 function jumpStep(o, dt){
   if (!(o.jumpY > 0)) return false;
+  const wasY = o.jumpY;
   if (o.glide) o.jumpV += (-1.6 - o.jumpV)*Math.min(1, dt*3);   // paraglider: drift down slowly
   else o.jumpV -= 9.8*dt;
   if (o.jetOn) o.jumpV = Math.min(9, o.jumpV + 24*dt);   // jetpack: up, up and away
@@ -1579,6 +1621,7 @@ function jumpStep(o, dt){
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang); o.x += o.vx*dt; o.y += o.vy*dt;   // sail through the air with no water to slow you
   const w = wantHeading(), steer = o.glide || o.jetOn; if (w) o.ang += clamp(angDiff(w.ang, o.ang), -(steer ? 2.5 : 1.2)*dt, (steer ? 2.5 : 1.2)*dt);
   if (steer){ const sp = w ? (o.glide ? 320 : 360)*w.m : o.glide ? 200 : 0; o.vx += (Math.cos(o.ang)*sp - o.vx)*Math.min(1, dt*2); o.vy += (Math.sin(o.ang)*sp - o.vy)*Math.min(1, dt*2); }
+  eagleWall(o, wasY);   // Eagle Rock's steep sides: you only land on top if you come down from above
   { const gh = groundAt(o.x, o.y); if (gh > -.35 && o.jumpY <= gh){ o.jumpY = 0; o.jumpV = 0; o.glide = false; o.depth = 0; o.vd = 0; o.onLand = true; o.vx *= .3; o.vy *= .3; sfx(120, .2, 'sine', .08); return true; } }   // came down on an island: land on it
   if (o.jumpY <= 0){ o.jumpY = 0; o.jumpV = 0; o.glide = false; o.depth = .5; o.vd = .8; sfx(160, .35, 'sine', .08, 0, -80);
     for (let i=0;i<18;i++) bubble(o.x + fx*20 + (Math.random()-.5)*40, o.y + fy*20 + (Math.random()-.5)*40, (Math.random()-.5)*60, (Math.random()-.5)*60); }
@@ -1609,7 +1652,7 @@ function nearestChest(o){
   WRECK_CHESTS.forEach(look); return best ? { ch: best, d: bd } : null;
 }
 function drawWhiskers(){
-  const o = ocean; if (!o || !hasGear('whiskers') || o.onLand) return; const n = nearestChest(o); if (!n) return;
+  const o = ocean; if (!o || !hasGear('whiskers') || o.onLand || o.eelChase) return; const n = nearestChest(o); if (!n) return;   // (the eel race has its own arrow)
   const a = Math.atan2(n.ch.y - o.y, n.ch.x - o.x) - camHead, cx = W/2, cy = 150;
   ctx.save(); ctx.translate(cx, cy); ctx.rotate(a + Math.PI/2);
   ctx.fillStyle = '#ffc53d'; ctx.strokeStyle = 'rgba(8,43,69,.8)'; ctx.lineWidth = 3;
@@ -1690,6 +1733,165 @@ function drawSharkWarn(){
   ctx.font = "900 16px Nunito, sans-serif"; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(`${PRED[best.k || 'white'].name.split(' ').pop().replace(/^./, c => c.toUpperCase())}! ${Math.round(bd/METERS)} m`, x - 34, y + 1);
   ctx.save(); ctx.translate(x - 56, y); ctx.rotate(a + Math.PI/2); ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(9, 5); ctx.lineTo(3, 3); ctx.lineTo(3, 11); ctx.lineTo(-3, 11); ctx.lineTo(-3, 3); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill(); ctx.restore();
+}
+/* ---------- Ocean Leagues (Troy's idea, 2026-09-28) ----------
+   Leagues you climb one at a time. Each one has secret places to find and a sea monster to beat, and finishing all of it wins
+   the league's badge, which shows on your name tag. Secret places give you things the Dive Shop doesn't sell.
+   League 1, Bronze (places are in GROTTO, EAGLE and EEL, near the top of the file):
+   - the Hidden Sea Cave: a rock dome on the reef whose door is deep under water. Inside: Spring Fins (everyone can jump, twice as high).
+   - Eagle Rock: a sea stack too steep to climb. Jump on top (Spring Fins or the Rocket Fin), hook it, or fly there. On top: Legend levels.
+   - the Giant Eel: swim near its cave off Hawaii and it comes out after you. Escape by swimming through all 8 glowing rings. */
+const LEAGUES = [{ name: 'Bronze League', badge: '🥉', goals: [
+  { id: 'grotto', name: 'Hidden Sea Cave', icon: '🕳️', reward: 'Spring Fins: every animal can jump, twice as high', hint: 'A rock dome sits on the reef. Its door is deep under water, on the far side. Dive down and find the way in!' },
+  { id: 'eaglerock', name: 'Eagle Rock', icon: '🗿', reward: 'Legend levels: the Rocket Fin, Sonar and both magnets go one level past the top', hint: 'Something shines on top of a tall rock, but its sides are too steep to climb. Can you jump that high? (Or fly there, or hook it!)' },
+  { id: 'eel', name: 'Escape the Giant Eel', icon: '🐍', reward: '600 coins, and the Bronze badge 🥉 on your name tag', hint: 'A giant eel lives in a cave off Hawaii. Swim close and it comes out after you. Swim through all 8 glowing rings to escape!' } ],
+  next: '🥈 Silver League is coming soon: a Kraken to fight, and new secret places.' }];
+const LEAGUE_AT = { grotto: GROTTO, eaglerock: EAGLE, eel: EEL };
+const leagueDone = id => (save.secrets || []).includes(id) || (save.bosses || []).includes(id);
+const leagueBadge = () => { const b = LEAGUES.filter(L => L.goals.every(g => leagueDone(g.id))).pop(); return b ? b.badge + ' ' : ''; };
+function leagueWin(id){   // a goal is done: save it, and win the league if it was the last one
+  if (leagueDone(id)) return;
+  if (id === 'eel') save.bosses = [...(save.bosses || []), id]; else save.secrets = [...(save.secrets || []), id];
+  persist(); flushCloud();
+  const L = LEAGUES[0];
+  if (L.goals.every(g => leagueDone(g.id))){ banner(`${L.badge} ${L.name} complete!`, 'Your badge shows on your name tag · +500 coins'); addCoins(500); addXP(300, true);
+    [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => sfx(f, .25, 'triangle', .07, .6 + i*.12)); }
+}
+function secretFound(id){
+  [523, 659, 784, 1047, 1319].forEach((f, i) => sfx(f, .22, 'triangle', .07, i*.1));
+  if (id === 'grotto'){ save.gear = [...new Set([...(save.gear || []), 'springfins'])]; save.gearLv = { ...(save.gearLv || {}), springfins: 1 };
+    banner('Secret place found!', 'The Hidden Sea Cave · you got SPRING FINS');
+    say('Spring Fins', 'Now every animal can jump, twice as high! Swim fast and tap Jump (or J). Up north on the reef, something shines on top of Eagle Rock...', 12); }
+  else { save.legend = Math.max(legendTiers(), 1);
+    banner('Secret place found!', 'Eagle Rock · LEGEND LEVELS unlocked');
+    say('Legend levels', 'The Rocket Fin, Sonar, Pearl Magnet and Chest Magnet can now go one level past the top. Look for the gold dots in the Dive Shop!', 12); }
+  addXP(150); leagueWin(id);
+}
+// Eagle Rock's sides are too steep: below its top you bump off them. `fromY` is how high you were before this frame's move.
+function eagleWall(o, fromY = o.jumpY || 0){
+  if (o.onLand || o.grapple || fromY > EAGLE.top - .05) return;
+  const R = (EAGLE.r + .35)*METERS; if (Math.abs(o.x - EAGLE.x) > R + 120 || Math.abs(o.y - EAGLE.y) > R + 120) return;
+  keepOutCircle(o, EAGLE.x, EAGLE.y, R);
+}
+// The Hidden Sea Cave is a rock dome: slide off its outside, and get in or out only through the door (deeper than doorTop, on the door side).
+const grottoSurf = r => GROTTO.floor - GROTTO.h*Math.sqrt(Math.max(0, 1 - (r/(GROTTO.r*METERS))**2));   // how deep the dome's outside is, r units from its middle
+function grottoCollide(o){
+  const G = GROTTO, dx = o.x - G.x, dy = o.y - G.y, R = G.r*METERS;
+  if (o.onLand || (o.jumpY || 0) > 0 || o.vehicle || o.ride || Math.abs(dx) > R + 200 || Math.abs(dy) > R + 200){ o.inCave = false; return; }
+  const d = Math.hypot(dx, dy) || 1, nx = dx/d, ny = dy/d, dep = o.depth || 0;
+  const door = Math.abs(angDiff(Math.atan2(dy, dx), G.doorAng)) < .36 && dep > G.doorTop;
+  if (o.inCave){
+    if (door && d > R*.55){ if (d > R + 30) o.inCave = false; return; }   // swimming out through the door
+    const Ri = R - 45; if (d > Ri){ o.x = G.x + nx*Ri; o.y = G.y + ny*Ri; const vn = o.vx*nx + o.vy*ny; if (vn > 0){ o.vx -= nx*vn; o.vy -= ny*vn; } }
+    const ceil = grottoSurf(Math.min(d, Ri)) + .85; if (dep < ceil){ o.depth = ceil; if ((o.vd || 0) < 0) o.vd = 0; }   // the roof
+    return; }
+  if (d > R + 70) return;
+  if (door){ if (d < R*.8) o.inCave = true; return; }
+  const top = grottoSurf(Math.min(d, R)) - .4;   // how deep you can be here without touching the rock
+  if (dep <= top) return;
+  if (d > R*.5){ const want = R*Math.sqrt(Math.max(0, 1 - (Math.max(0, G.floor - dep - .4)/G.h)**2)) + 50;   // slide off the dome's side
+    if (d < want){ o.x = G.x + nx*want; o.y = G.y + ny*want; const vn = o.vx*nx + o.vy*ny; if (vn < 0){ o.vx -= nx*vn; o.vy -= ny*vn; } } }
+  else { o.depth = Math.max(0, top); if ((o.vd || 0) > 0) o.vd = 0; }   // resting on its roof
+}
+function leagueCollide(o){
+  eagleWall(o); grottoCollide(o);
+  if (!o.onLand && !(o.jumpY > 0) && Math.abs(o.x - EEL.x) < 300 && Math.abs(o.y - EEL.y) < 300) solidBump(o, EEL.x, EEL.y, 2.3*METERS, -EEL.floor + 2.4);   // the eel's rock
+}
+/* The Giant Eel. It waits with its head out of its cave. Come within 14 m and it bursts out after you: it's a little slower than you,
+   but when it gets close and lines up it lunges (fast, but it can't turn), so swerve. Swim through the 8 rings, in order, to escape.
+   If it catches you there's no penalty: it just goes home, and you can try again. While it chases you everyone has the same top
+   speed (EEL_CAP), so turbo boosters can't skip it, and slow swimmers get a slower eel. */
+const EEL_RINGS = [[1100, 2600], [500, 2750], [-200, 2700], [-800, 2450], [-1200, 1950], [-900, 1500], [-300, 1500], [200, 1250]];
+const EEL_SPD = { burst: .5, chase: .9, lunge: 1.5, recover: .5, lungeAt: 5 };   // eel speeds as a share of yours, and how close (m) it gets before it lunges
+const EEL_CAP = 9*METERS, EEL_SEG = 18, EEL_GAP = .65*METERS, EEL_HOME_D = EEL.floor - 1.2;
+// is (x, y) on a league place, or within m meters of an eel ring (or, with `path`, of the whole route from its cave through the rings)?
+// Random rocks stay off the rings; boats and deadly jellyfish stay off the route, so the eel is the only danger in the race.
+function onLeagueCourse(x, y, m, path){
+  if (LEAGUE_SPOTS.some(s => Math.hypot(x - s.x, y - s.y) < s.flat*METERS)) return true;
+  const R = m*METERS; let [ax, ay] = [EEL.x, EEL.y];
+  for (const [bx, by] of EEL_RINGS){ const dx = bx - ax, dy = by - ay, t = path ? clamp(((x - ax)*dx + (y - ay)*dy)/(dx*dx + dy*dy), 0, 1) : 1;
+    if (Math.hypot(x - ax - dx*t, y - ay - dy*t) < R) return true; ax = bx; ay = by; }
+  return false; }
+const eel = { o: null, st: 'home', x: 0, y: 0, ang: 0, sp: 0, depth: EEL_HOME_D, t: 0, armAt: 0, ring: 0, trail: [], err: 0 };
+const eelMouth = () => [EEL.x + Math.cos(EEL.face)*2.6*METERS, EEL.y + Math.sin(EEL.face)*2.6*METERS];
+function eelHome(){ Object.assign(eel, { st: 'home', t: 0, sp: 0, trail: [], depth: EEL_HOME_D, ang: EEL.face }); [eel.x, eel.y] = eelMouth(); }
+function eelEnd(o, title, sub){ o.eelChase = false; eel.st = 'back'; eel.t = 0; eel.armAt = time + 5; if (title) banner(title, sub); }
+function eelStep(o, dt){
+  if (eel.o !== o){ eel.o = o; eelHome(); eel.armAt = 0; }
+  const top = Math.min(EEL_CAP, ownTop()), dx = o.x - eel.x, dy = o.y - eel.y, d = Math.hypot(dx, dy); eel.t += dt;
+  const steer = (tx, ty, turn, sp) => { const err = angDiff(Math.atan2(ty - eel.y, tx - eel.x), eel.ang); eel.ang += clamp(err, -turn*dt, turn*dt); eel.err = err;
+    eel.sp = lerp(eel.sp, sp, Math.min(1, dt*3)); eel.x += Math.cos(eel.ang)*eel.sp*dt; eel.y += Math.sin(eel.ang)*eel.sp*dt;
+    const last = eel.trail[0]; if (!last || Math.hypot(eel.x - last.x, eel.y - last.y) > 12){ eel.trail.unshift({ x: eel.x, y: eel.y, d: eel.depth }); if (eel.trail.length > 60) eel.trail.length = 60; } };
+  const free = mode === 'ocean' && !o.onLand && !o.vehicle && !o.ride && !o.onShip && !o.onBoat;
+  if (eel.st === 'home'){   // head out of the cave, swaying, watching
+    const [mx, my] = eelMouth(), w = Math.sin(time*.8)*.3*METERS; eel.x = mx + Math.cos(EEL.face)*w; eel.y = my + Math.sin(EEL.face)*w; eel.ang = EEL.face + Math.sin(time*.6)*.35;
+    if (free && time > eel.armAt && Math.hypot(o.x - EEL.x, o.y - EEL.y) < 14*METERS){
+      Object.assign(eel, { st: 'burst', t: 0, ring: 0, trail: [] }); o.eelChase = true; o.hurtT = 0;
+      banner('THE GIANT EEL!', `Escape through all ${EEL_RINGS.length} glowing rings!`); sfx(90, .8, 'sawtooth', .07, 0, -40); sfx(70, .9, 'square', .04, .1, -30);
+      if (!save.eelTold){ save.eelTold = true; persist(); say('Giant Eel', "It's fast, but when it lunges it can't turn: swerve! Follow the arrow at the top to the next ring. Everyone swims at the same top speed in this race.", 10); } }
+    return; }
+  if (eel.st === 'back'){   // slithering home
+    const [mx, my] = eelMouth(); eel.depth += (EEL_HOME_D - eel.depth)*Math.min(1, dt); steer(mx, my, 3, top + 80);
+    if (Math.hypot(mx - eel.x, my - eel.y) < 50) eelHome(); return; }
+  // the chase: 'burst' (coming out), 'chase', 'lunge', 'recover'
+  eel.depth += (clamp(o.depth || 0, .4, 4.5) - eel.depth)*Math.min(1, dt*1.5);
+  const set = s => { eel.st = s; eel.t = 0; };
+  if (eel.st === 'lunge'){ steer(o.x, o.y, .5, top*EEL_SPD.lunge); if (eel.t > .7) set('recover'); }
+  else if (eel.st === 'recover'){ steer(o.x, o.y, 1.4, top*EEL_SPD.recover); if (eel.t > 1) set('chase'); }
+  else { const burst = eel.st === 'burst'; steer(o.x, o.y, burst ? 3 : 1.9, top*(burst ? EEL_SPD.burst : EEL_SPD.chase));   // (it takes 2 seconds to slide out of its cave: your head start)
+    if (burst && eel.t > 2) set('chase');
+    else if (!burst && d < EEL_SPD.lungeAt*METERS && Math.abs(eel.err) < .3){ set('lunge'); sfx(110, .45, 'sawtooth', .06, 0, -50); } }
+  const [rx, ry] = EEL_RINGS[eel.ring];
+  if (Math.hypot(o.x - rx, o.y - ry) < 2.3*METERS && (o.depth || 0) < 2.6 && (o.jumpY || 0) < 2.6){ eel.ring++;
+    sfx(880 + eel.ring*70, .18, 'triangle', .07); sfx(1320 + eel.ring*70, .2, 'triangle', .05, .08);
+    if (eel.ring >= EEL_RINGS.length){
+      [523, 659, 784, 1047, 1319].forEach((f, i) => sfx(f, .22, 'triangle', .07, i*.1));
+      if (!leagueDone('eel')){ eelEnd(o, 'You escaped the Giant Eel!', `+600 coins · +200 XP`); addCoins(600); addXP(200, true); leagueWin('eel'); }
+      else { eelEnd(o, 'Escaped again!', '+50 coins'); addCoins(50); }
+      return; } }
+  if (eel.st !== 'burst' && !(o.jumpY > 1) && Math.abs((o.depth || 0) - eel.depth) < 1.4 && bodyPoints(o).some(([px, py]) => Math.hypot(px - eel.x, py - eel.y) < 64)){   // caught!
+    o.hurtT = 1; o.vx += dx/(d || 1)*220; o.vy += dy/(d || 1)*220; sfx(120, .35, 'sawtooth', .07, 0, -60);
+    eelEnd(o, 'The eel got you!', 'Swim back to its cave to try again');
+    say('Coach', eel.ring === 0 ? 'Head straight for the first glowing ring. The arrow at the top of the screen shows the way.' : 'When the eel lunges it can\'t turn. Wait until it\'s close, then swerve hard to the side!', 9); return; }
+  if (!free) return eelEnd(o, 'The eel went back to its cave', 'Swim near it again for a rematch');
+  if (d > 70*METERS) return eelEnd(o, 'The eel gave up', 'But it only counts if you swim through all the rings!');
+  o.beatT -= dt; if (o.beatT <= 0){ o.beatT = d < 8*METERS ? .45 : .75; sfx(65, .14, 'sine', .14); sfx(62, .14, 'sine', .11, .2); }
+}
+function leagueStep(o, dt){
+  eelStep(o, dt); if (mode !== 'ocean') return;
+  if (!leagueDone('grotto') && o.inCave && Math.hypot(o.x - GROTTO.x, o.y - GROTTO.y) < 1.8*METERS && (o.depth || 0) > 4.4) secretFound('grotto');
+  if (!leagueDone('eaglerock') && o.onLand && Math.hypot(o.x - EAGLE.x, o.y - EAGLE.y) < 1.4*METERS) secretFound('eaglerock');
+  if (!save.leagueIntro && save.tutorialDone && (o.tripT || 0) > 14 && time > sayUntil){ save.leagueIntro = true; persist();
+    say('New: Ocean Leagues!', 'Find 2 secret places and escape the Giant Eel to win the Bronze badge 🥉. Tap the League button at the top left to see your goals.', 11); }
+  if ((o.lgT = (o.lgT || 0) - dt) > 0) return; o.lgT = .25;
+  const chip = $('leagueChip'), L = LEAGUES[0]; let txt;
+  if (o.eelChase){ const [rx, ry] = EEL_RINGS[eel.ring]; txt = `ESCAPE! Ring ${eel.ring + 1} of ${EEL_RINGS.length} · ${Math.round(Math.hypot(rx - o.x, ry - o.y)/METERS)} m`; }
+  else { const g = L.goals.find(q => !leagueDone(q.id));
+    if (!g) txt = `${L.badge} ${L.name} done! · Silver soon`;
+    else { const at = LEAGUE_AT[g.id]; txt = `🏆 ${L.goals.filter(q => leagueDone(q.id)).length}/${L.goals.length} · ${g.name} · ${Math.round(Math.hypot(at.x - o.x, at.y - o.y)/METERS)} m ${compassWord(at.x - o.x, at.y - o.y)}`; } }
+  chip.classList.toggle('chase', !!o.eelChase); if (chip.textContent !== txt) chip.textContent = txt; chip.hidden = false;
+}
+function renderLeague(){
+  const L = LEAGUES[0], o = ocean, n = L.goals.filter(g => leagueDone(g.id)).length;
+  $('lgTitle').textContent = `${L.badge} ${L.name}`;
+  $('lgExplain').textContent = n === L.goals.length ? 'You did it all! Your badge shows on your name tag.' : `${n} of ${L.goals.length} done. Find the secret places and beat the sea monster to win the badge.`;
+  $('lgGoals').innerHTML = L.goals.map(g => { const done = leagueDone(g.id), at = LEAGUE_AT[g.id], m = o ? Math.round(Math.hypot(at.x - o.x, at.y - o.y)/METERS) : 0;
+    return `<div class="lggoal${done ? ' done' : ''}"><i aria-hidden="true">${done ? '✅' : g.icon}</i><div><b>${g.name}</b><p>${done ? 'Done!' : `${g.hint} It's ${m} m ${compassWord(at.x - o.x, at.y - o.y)} of you.`}</p><small>${done ? 'Got it: ' : 'Reward: '}${g.reward}</small></div></div>`; }).join('');
+  $('lgSoon').textContent = L.next;
+}
+function openLeague(){ if (mode !== 'ocean' || paused || !ocean) return; paused = true; ptr.down = false; renderLeague(); $('leaguePanel').hidden = false; resetPick(); }
+function closeLeague(){ $('leaguePanel').hidden = true; paused = false; graceAfterPause(); showPick(); }
+$('leagueChip').onclick = () => { initAudio(); openLeague(); }; $('lgClose').onclick = closeLeague;
+// during the eel chase: an arrow to the next ring, and red at the edges when the eel is close
+function drawLeagueHud(){
+  const o = ocean; if (!o || !o.eelChase || paused) return;
+  const [rx, ry] = EEL_RINGS[eel.ring], a = Math.atan2(ry - o.y, rx - o.x) - camHead, cx = W/2, cy = Math.max(250, H*.3), ed = Math.hypot(eel.x - o.x, eel.y - o.y)/METERS;
+  if (ed < 10){ const k = (1 - ed/10)*(.55 + .45*Math.sin(time*10)), g = ctx.createRadialGradient(W/2, H/2, Math.min(W, H)*.3, W/2, H/2, Math.max(W, H)*.72);
+    g.addColorStop(0, 'rgba(255,40,40,0)'); g.addColorStop(1, `rgba(255,40,40,${.35*k})`); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.fillStyle = '#ffd23f';   // (drawn pointing up = straight ahead; the camera looks along camHead) ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(18, 9); ctx.lineTo(6, 5); ctx.lineTo(6, 23); ctx.lineTo(-6, 23); ctx.lineTo(-6, 5); ctx.lineTo(-18, 9); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+  ctx.font = "900 15px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.lineWidth = 4;
+  const t = `Ring ${eel.ring + 1} of ${EEL_RINGS.length} · ${Math.round(Math.hypot(rx - o.x, ry - o.y)/METERS)} m`; ctx.strokeText(t, cx, cy + 46); ctx.fillText(t, cx, cy + 46);
 }
 /* ---------- Building on your home island (like Minecraft) ----------
    Once you've found your house, stand on its island and press Build. Place blocks on a 1 m grid around your house:
@@ -2062,7 +2264,7 @@ function updSharks(o, dt){
     const zz = zoneAt(x, y); if (zz !== 0){ const k = predFor(zz, curChar().id); o.sharks.push({ k, x, y, cx:x, cy:y, depth: k === 'squid' ? 6 : 1.6, dT: k === 'squid' ? 6 : 1.6, ang:Math.random()*TAU, state:'patrol', t:0, pa:Math.random()*TAU, ph:Math.random()*TAU }); } }
   let chasing = false;
   for (const s of o.sharks){
-    const dx = o.x - s.x, dy = o.y - s.y, d = Math.hypot(dx, dy), safe = o.zone === 0 || !!o.onLand || !!o.vehicle || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 1500;
+    const dx = o.x - s.x, dy = o.y - s.y, d = Math.hypot(dx, dy), safe = o.zone === 0 || !!o.onLand || !!o.vehicle || !!o.eelChase || Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 1500;   // (one monster at a time: sharks back off while the eel chases you)
     s.t += dt;
     const set = st => { s.state = st; s.t = 0; };
     if (s.state === 'patrol'){
@@ -2123,6 +2325,7 @@ function groundAt(x, y){
   if (d1 < R1) g = Math.max(g, -1 + 1.6*Math.sqrt(1 - (d1/R1)**2), d1 < HOUSE.r*U - 2 ? .65 : -99);
   for (const n of neighbors){ const d = Math.hypot(x - n.house.x, y - n.house.y)*U; if (d < R1) g = Math.max(g, -1 + 1.6*Math.sqrt(1 - (d/R1)**2), d < HOUSE.r*U - 2 ? .65 : -99); }   // neighbors' islands
   if (Math.abs(x - CAT.x) < 1200 && Math.abs(y - CAT.y) < 1200){ const e = catE(x, y); if (e < 1.02) g = Math.max(g, catH(...catLocal(x, y))); }   // Catalina Island
+  if (Math.abs(x - EAGLE.x) < 200 && Math.abs(y - EAGLE.y) < 200 && Math.hypot(x - EAGLE.x, y - EAGLE.y) < EAGLE.r*METERS) g = Math.max(g, EAGLE.top);   // the flat top of Eagle Rock
   return g;
 }
 // trees, the hut and the house are solid on land (x, y, radius in units)
@@ -2540,7 +2743,8 @@ function updOcean(dt){
   else if (o.onShip){ shipWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onBoat){ boatWalk(o, dt); $('airChip').hidden = true; }
   else if (o.onLand){ if (o.sleeping) sleepStep(o); else if (o.sitting != null) sitStep(o); else if (o.bison) bisonStep(o, dt); else walkStep(o, dt); $('airChip').hidden = true;
-    if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; o.blockH = o.blockShow = 0; }        // walked back into the sea
+    if (groundAt(o.x, o.y) < -.45){ o.onLand = false; o.idle = 0; o.vx *= .5; o.vy *= .5; o.blockH = o.blockShow = 0;         // walked back into the sea
+      if (Math.hypot(o.x - EAGLE.x, o.y - EAGLE.y) < (EAGLE.r + 1.5)*METERS){ o.jumpY = EAGLE.top; o.jumpV = 1.5; } }         // (off the edge of Eagle Rock: fall, then splash)
     if (Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) < 118 + 40 && o.wentFar){ madeItHome(o); return; }
   }
   else if (o.vehicle){ vehicleStep(o, dt); $('airChip').hidden = true; }
@@ -2550,6 +2754,7 @@ function updOcean(dt){
     const cur = currentAt(o.x, o.y, time);
     o.x += cur[0]*.3*dt; o.y += cur[1]*.3*dt; o.cur = cur;
   }
+  leagueCollide(o);
   const cur = o.cur || [0, 0];
   o.dx = (o.dx || 0) + cur[0]*dt*1.6; o.dy = (o.dy || 0) + cur[1]*dt*1.6;
   if (o.teach && !o.onLand && time > sayUntil){
@@ -2600,6 +2805,7 @@ function updOcean(dt){
   updSharks(o, dt); if (mode === 'dead') return;
   updCannons(o, dt); if (mode === 'dead') return;
   questStep(o, dt);
+  leagueStep(o, dt);
   mpTick(dt);
   o.tripT = (o.tripT || 0) + dt;
   if (!o.wentFar && Math.hypot(o.x - HOUSE.x, o.y - HOUSE.y) > 300*METERS){ o.wentFar = true; o.homeDone = false; }   // a real trip: coming back home counts
@@ -2621,7 +2827,7 @@ function updOcean(dt){
   { const bb = $('boatBtn'), showBt = !!o.vehicle || (canBoard(o) && ownedBoats().length > 0); if (bb.hidden === showBt) bb.hidden = !showBt;
     const bt = o.vehicle ? 'Get out' : 'Boats'; if (bb.textContent !== bt) bb.textContent = bt;
     const ub = $('upBtn'), showU = !!VEH[o.vehicle]?.sub; if (ub.hidden === showU) ub.hidden = !showU; }
-  { const jb = $('jumpBtn'), showJ = curChar().id === 'dolphin' && !o.onLand && !o.ride && !o.vehicle; if (jb.hidden === showJ) jb.hidden = !showJ;
+  { const jb = $('jumpBtn'), showJ = canJump() && !o.onLand && !o.ride && !o.vehicle; if (jb.hidden === showJ) jb.hidden = !showJ;
     const sb = $('sonarBtn'), showS = !o.onLand && !o.ride && !o.vehicle && hasGear('sonar'); if (sb.hidden === showS) sb.hidden = !showS; }
   const rb = $('rideBtn'), ladder = !o.vehicle && shipLadderNear(o), boat = !ladder && !o.vehicle && boatNear(o), bis = !o.bison && bisonNear(o), showRide = !!(o.ride || o.rideTarget || ladder || boat || o.onShip || o.onBoat || o.bison || bis);
   if (rb.hidden === showRide) rb.hidden = !showRide;
@@ -2642,7 +2848,7 @@ function updOcean(dt){
     save.landmarks.push(L.name); addCoins(75); addXP(40, true); banner(`Found: ${L.name}`, `${save.landmarks.length} of ${LANDMARKS.length} special spots · +75 coins · +40 XP`); sfx(784,.3,'triangle',.07); } }
   const tooFast = Math.hypot(o.vx, o.vy)/METERS*2.23694 > PEARL_MPH;   // zooming past: pearls can't be grabbed (or pulled) above 30 mph
   if (tooFast && !o.fastTold && !o.onLand && !o.vehicle){ o.fastTold = true; coach('Too fast to grab pearls! Slow down (use the speed bar on the left) to scoop them up.', 7); }
-  const pcx = Math.floor(o.x/CH), pcy = Math.floor(o.y/CH), mag = !tooFast && gearLv('magnet') ? MAGNET_M[Math.min(4, gearLv('magnet')) - 1]*METERS : 0, K = mag > CH ? 2 : 1;
+  const pcx = Math.floor(o.x/CH), pcy = Math.floor(o.y/CH), mag = !tooFast && gearLv('magnet') ? MAGNET_M[Math.min(MAGNET_M.length, gearLv('magnet')) - 1]*METERS : 0, K = mag > CH ? 2 : 1;
   for (let a=-K;a<=K;a++) for (let b=-K;b<=K;b++){
     for (const p of getChunk(pcx+a,pcy+b).pearls){ if (taken.has(p.id)) continue;
       if (mag){ const dx = o.x - p.x, dy = o.y - p.y, d = Math.hypot(dx, dy);   // Pearl Magnet: nearby pearls fly to you
@@ -3977,6 +4183,83 @@ function buildLandmarks(){
     for (let i=0;i<14;i++){ const a = i/14*TAU; const t = new THREE.Mesh(new THREE.CylinderGeometry(.06, .02, 7, 5), m); t.position.set(Math.cos(a)*2.8, -6, Math.sin(a)*2.8); g.add(t); }
     g.userData.bell = bell; at(byKind('abyss'), g); }
 }
+/* League 1 in 3D: the Hidden Sea Cave, Eagle Rock, the eel's cave, the Giant Eel and its 8 rings (see Ocean Leagues) */
+let leagueGroup = null;
+function buildEel(){
+  const skin = canvasTex(256, 128, (g, w, h) => { g.fillStyle = '#6f8a2c'; g.fillRect(0, 0, w, h);   // a moray's yellow-green skin with dark spots
+    for (let i = 0; i < 170; i++){ g.fillStyle = i%3 ? 'rgba(28,38,10,.7)' : 'rgba(235,225,95,.5)'; g.beginPath(); g.arc(Math.random()*w, Math.random()*h, 3 + Math.random()*7, 0, TAU); g.fill(); } });
+  const mat = new THREE.MeshStandardMaterial({ map: skin, roughness: .45 }), head = new THREE.Group();   // the head faces +x, like the other animals
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(.5, 20, 14), mat); skull.scale.set(1.5, .8, .85); skull.castShadow = true; head.add(skull);
+  const mouth = new THREE.Mesh(new THREE.SphereGeometry(.4, 14, 8), new THREE.MeshBasicMaterial({ color: 0x3a0a0a })); mouth.scale.set(1.2, .25, .6); mouth.position.set(.2, -.2, 0); head.add(mouth);
+  const jaw = new THREE.Mesh(new THREE.SphereGeometry(.45, 16, 10), mat); jaw.scale.set(1.3, .45, .75); jaw.position.set(.1, -.28, 0); head.add(jaw);
+  for (let i = 0; i < 6; i++) for (const s of [-1, 1]){ const t = new THREE.Mesh(new THREE.ConeGeometry(.035, .13, 5), std(0xfffbe8, .3)); t.position.set(.62 - i*.1, -.15, s*(.2 - i*.012)); t.rotation.x = Math.PI; head.add(t); }
+  for (const s of [-1, 1]){ const e = new THREE.Mesh(new THREE.SphereGeometry(.1, 12, 10), new THREE.MeshStandardMaterial({ color: 0xfff3a0, emissive: 0xffd040, emissiveIntensity: .9, roughness: .2 })); e.position.set(.38, .2, s*.3); head.add(e);
+    const p = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 8), std(0x0b0b0b, .2)); p.position.set(.45, .21, s*.36); head.add(p); }
+  head.scale.setScalar(1.5);   // it's a GIANT eel
+  const segGeo = new THREE.SphereGeometry(1, 14, 10), segs = [];
+  for (let i = 0; i < EEL_SEG; i++){ const s = new THREE.Mesh(segGeo, mat), r = .6*(1 - i/EEL_SEG*.78); s.scale.set(.52, r, r*1.1); s.castShadow = true; s.userData.r = r; segs.push(s); }
+  return { head, jaw, segs };
+}
+function buildLeague(){
+  const g = leagueGroup = new THREE.Group(), u = g.userData; oceanWorld.add(g);
+  const rockM = new THREE.MeshStandardMaterial({ color: 0x6e6a5e, roughness: 1, flatShading: true, side: THREE.DoubleSide });
+  const lumpy = (geo, amt) => { const p = geo.attributes.position;   // bumpy rock (the same bump for points that meet, so no cracks)
+    for (let i = 0; i < p.count; i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + amt*Math.sin(x*1.9 + z*.7)*Math.cos(y*2.3 - z*1.4); p.setXYZ(i, x*k, y, z*k); } return geo; };
+  { // the Hidden Sea Cave: a hollow rock dome with its door cut out of the side, glowing crystals and a treasure chest inside
+    const G = GROTTO, src = lumpy(new THREE.SphereGeometry(G.r, 44, 14, 0, TAU, 0, Math.PI/2).toNonIndexed().scale(1, G.h/G.r, 1), .06).attributes.position.array, keep = [], doorH = G.floor - G.doorTop;
+    for (let i = 0; i < src.length; i += 9){ const cx = (src[i] + src[i + 3] + src[i + 6])/3, cy = (src[i + 1] + src[i + 4] + src[i + 7])/3, cz = (src[i + 2] + src[i + 5] + src[i + 8])/3;
+      if (Math.abs(angDiff(Math.atan2(cz, cx), G.doorAng)) < .36 && cy < doorH) continue; for (let k = 0; k < 9; k++) keep.push(src[i + k]); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(keep, 3)); geo.computeVertexNormals();
+    const dome = new THREE.Mesh(geo, rockM); dome.castShadow = dome.receiveShadow = true; dome.position.set(G.x*U, -G.floor, G.y*U); g.add(dome);
+    const cry = [new THREE.MeshStandardMaterial({ color: 0x7af0ff, emissive: 0x2fc8ff, emissiveIntensity: 1.6, roughness: .2 }), new THREE.MeshStandardMaterial({ color: 0xd9a2ff, emissive: 0xa050ff, emissiveIntensity: 1.6, roughness: .2 })];
+    const crystal = (a, r, s, m) => { const c = new THREE.Mesh(new THREE.ConeGeometry(.16*s, .9*s, 5), m); c.position.set(G.x*U + Math.cos(a)*r, -G.floor + .4*s, G.y*U + Math.sin(a)*r); c.rotation.set(Math.sin(a*3)*.4, a, Math.cos(a*2)*.4); g.add(c); };
+    for (let i = 0; i < 12; i++){ const a = i/12*TAU; if (Math.abs(angDiff(a, G.doorAng)) > .7) crystal(a, 2.3 + (i%3)*.6, 1 + (i%4)*.35, cry[i%2]); }
+    for (const s of [-1, 1]) crystal(G.doorAng + s*.5, G.r + .5, 1.3, cry[0]);   // two outside the door: the only clue where it is
+    const ch = buildChest(); ch.position.set(G.x*U, -G.floor + .02, G.y*U); ch.rotation.y = -G.doorAng - Math.PI/2; g.add(ch); u.chest = ch; }
+  { // Eagle Rock: a sea stack with a grassy top and something golden on it
+    const E = EAGLE, hgt = E.top + E.floor, geo = new THREE.CylinderGeometry(E.r, E.r*1.2, hgt, 16, 8), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i); if (y > hgt/2 - .01) continue; const k = 1 + .08*Math.sin(Math.atan2(z, x)*5 + y*1.3) + .05*Math.sin(y*3.1); p.setXYZ(i, x*k, y, z*k); }
+    geo.computeVertexNormals();
+    const rock = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x857a68, roughness: 1, flatShading: true })); rock.position.set(E.x*U, E.top - hgt/2, E.y*U); rock.castShadow = rock.receiveShadow = true; g.add(rock);
+    const grass = new THREE.Mesh(new THREE.CylinderGeometry(E.r*.97, E.r*.97, .1, 16), std(0x5d9b3a, .9)); grass.position.set(E.x*U, E.top + .01, E.y*U); grass.receiveShadow = true; g.add(grass);
+    const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(.35, 1), new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0xffa000, emissiveIntensity: 1.4, metalness: .6, roughness: .25 }));
+    const glow = sprite(dotTex, 2.6, 2.6); glow.material.color.set(0xffd66b); glow.material.blending = THREE.AdditiveBlending; orb.add(glow);
+    orb.position.set(E.x*U, E.top + .9, E.y*U); g.add(orb); u.orb = orb; }
+  { // the eel's cave: a rock mound with a dark hole facing the first ring
+    const m = new THREE.Mesh(lumpy(new THREE.DodecahedronGeometry(1, 1), .1), new THREE.MeshStandardMaterial({ color: 0x5c5a52, roughness: 1, flatShading: true }));
+    m.scale.set(2.4, 1.9, 2.4); m.position.set(EEL.x*U, -EEL.floor + .6, EEL.y*U); m.castShadow = m.receiveShadow = true; g.add(m);
+    const hole = new THREE.Mesh(new THREE.CircleGeometry(.75, 20), new THREE.MeshBasicMaterial({ color: 0x050807 }));
+    hole.position.set(EEL.x*U + Math.cos(EEL.face)*2.45, -EEL_HOME_D, EEL.y*U + Math.sin(EEL.face)*2.45); hole.rotation.y = Math.atan2(Math.cos(EEL.face), Math.sin(EEL.face)); g.add(hole); }
+  u.eel = buildEel(); g.add(u.eel.head); for (const s of u.eel.segs) g.add(s);
+  { // the rings: big hoops half out of the water, each with its number
+    const geo = new THREE.TorusGeometry(2, .16, 10, 40); u.ringNext = new THREE.MeshBasicMaterial({ color: 0xffd23f }); u.ringLater = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .45 });
+    u.rings = EEL_RINGS.map(([x, y], i) => { const [px, py] = i ? EEL_RINGS[i - 1] : [EEL.x, EEL.y], r = new THREE.Mesh(geo, u.ringLater);
+      r.position.set(x*U, 0, y*U); r.rotation.y = Math.atan2(x - px, y - py); r.visible = false;
+      const num = sprite(labelTex(String(i + 1), '#ff6f59', '#fff', 256, 256, 170), 1.1, 1.1); num.position.set(x*U, 2.8, y*U); num.visible = false; g.add(num); r.userData.num = num; g.add(r); return r; }); }
+}
+function drawLeague(o, t){
+  if (!leagueGroup) buildLeague();
+  if (eel.o !== o){ eel.o = o; eelHome(); eel.armAt = 0; }
+  const u = leagueGroup.userData, cave = leagueDone('grotto');
+  u.chest.userData.lid.rotation.x = cave ? -1.9 : 0; u.chest.userData.glow.visible = !cave;
+  u.orb.visible = !leagueDone('eaglerock'); if (u.orb.visible){ u.orb.position.y = EAGLE.top + .9 + Math.sin(t*2)*.12; u.orb.rotation.y = t*1.5; }
+  // the eel: its head, then its body laid along the path it swam (and back into its cave)
+  const E = u.eel, chasing = !['home', 'back'].includes(eel.st);
+  E.head.position.set(eel.x*U, -eel.depth, eel.y*U); E.head.rotation.set(0, -eel.ang, 0);
+  const open = eel.st === 'lunge' ? 1 : chasing ? .45 + .25*Math.sin(t*6) : .15 + .15*Math.sin(t*1.5); E.jaw.position.y = -.28 - open*.14; E.jaw.rotation.z = -open*.35;
+  const pts = [{ x: eel.x, y: eel.y, d: eel.depth }, ...eel.trail, { x: EEL.x, y: EEL.y, d: EEL_HOME_D }];
+  let j = 0, sx = pts[0].x, sy = pts[0].y, sd = pts[0].d, lx = sx, ly = sy;
+  for (let i = 0; i < EEL_SEG; i++){ let rem = EEL_GAP;
+    while (j < pts.length - 1){ const b = pts[j + 1], L = Math.hypot(b.x - sx, b.y - sy);
+      if (L >= rem){ const f = rem/L; sx += (b.x - sx)*f; sy += (b.y - sy)*f; sd += (b.d - sd)*f; rem = 0; break; }
+      rem -= L; sx = b.x; sy = b.y; sd = b.d; j++; }
+    const s = E.segs[i], a = Math.atan2(ly - sy, lx - sx), wig = Math.sin(t*(chasing ? 8 : 2) - i*.7)*.2*Math.min(1, i/4)*METERS;
+    s.visible = !(Math.hypot(sx - EEL.x, sy - EEL.y) < 2.2*METERS && sd > EEL.floor - 2.6);   // the part still inside its cave
+    s.position.set((sx - Math.sin(a)*wig)*U, -sd, (sy + Math.cos(a)*wig)*U); s.rotation.set(0, -a, 0); lx = sx; ly = sy; }
+  u.rings.forEach((r, i) => { const on = !!o.eelChase && i >= eel.ring; r.visible = r.userData.num.visible = on; if (!on) return;
+    const next = i === eel.ring; r.material = next ? u.ringNext : u.ringLater; r.scale.setScalar(next ? 1 + Math.sin(t*5)*.06 : 1);
+    r.position.y = waveH(r.position.x, r.position.z, OC.amp, 1)*.5; r.userData.num.position.y = 2.8 + Math.sin(t*2 + i)*.1; });
+}
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3(), _e = new THREE.Euler();
 function setInst(mesh, i, x, y, z, sx, sy, sz, ry = 0, rx = 0, rz = 0){ _p.set(x, y, z); _q.setFromEuler(_e.set(rx, ry, rz)); _s.set(sx, sy, sz); _m.compose(_p, _q, _s); mesh.setMatrixAt(i, _m); }
 
@@ -4396,7 +4679,7 @@ function updOceanWorld(o){
     const fast = s.state === 'lunge' ? 16 : s.state === 'chase' ? 11 : 6, w = Math.sin(time*fast + s.ph);
     m.userData.tail.rotation.y = w*.45; m.userData.body.rotation.y = -w*.07; m.userData.body.rotation.x = clamp((s.turnRate || 0)*-.25, -.35, .35); });
   if (others.size) drawOthers(time);
-  drawQuest(time);
+  drawQuest(time); drawLeague(o, time);
   if (houseGroup && (!blockGroup || (!building && (save.build || '') !== blocksFrom))) drawBlocks();
   if (afloatShip){ const [plx, plz] = shipLocal(o.x, o.y), near = Math.hypot(plx, plz) < 60;   // the crew watches you when you come close
     for (const p of PIRATES) if (p.model){ const m = p.model, [x, z] = pirateSpot(p), h = shipDeckH(x, z) ?? 3; m.visible = true;
@@ -4708,7 +4991,7 @@ let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
-  mode = m; paused = false; renderGadgetBar(); if (m !== 'ocean'){ $('mphChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
+  mode = m; paused = false; renderGadgetBar(); if (m !== 'ocean'){ $('mphChip').hidden = $('leagueChip').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
   if (m === 'title'){ startArmed = false; arrangeTitle(); hItems = null; heldItem = null; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('speedBar').hidden = !(m === 'ocean' || m === 'pool'); if (m === 'ocean' || m === 'pool') showSpeedBar(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
@@ -4811,7 +5094,7 @@ function limbsNow(){ return mode === 'race' ? race && race.limbs : mode === 'poo
 
 /* ---------- Keyboard menus: up/down to choose, Space or Enter to press ---------- */
 let pick = 0;
-function menuEl(){ for (const id of ['loginPanel','gatePanel','movePanel','shopPanel','mapPanel','panel','results','choose','title']) if (!$(id).hidden) return $(id); return null; }
+function menuEl(){ for (const id of ['loginPanel','gatePanel','movePanel','shopPanel','leaguePanel','mapPanel','panel','results','choose','title']) if (!$(id).hidden) return $(id); return null; }
 function menuBtns(){ const el = menuEl(); return el ? [...el.querySelectorAll('.btn')].filter(b => !b.disabled) : []; }
 function showPick(){ const bs = menuBtns(); bs.forEach((b,i) => b.classList.toggle('picked', i === pick)); }
 function resetPick(){ pick = 0; showPick(); }
@@ -5259,7 +5542,7 @@ function mpTick(dt){
   if (!mpSrc){ if ((mpRetryT -= dt) <= 0) mpConnect(); return; }
   if ((mpSendT -= dt) > 0) return; mpSendT = .2;   // five times a second
   const o = ocean, m = player; if (!m) return;
-  const me = { n: (save.label || fbAuth.name).slice(0, 20), c: curChar().id, g: LOOK_GEAR.filter(id => hasGear(id)).join(',').slice(0, 60),
+  const me = { n: (leagueBadge() + (save.label || fbAuth.name)).slice(0, 20),   // your league badge shows on your name tag c: curChar().id, g: LOOK_GEAR.filter(id => hasGear(id)).join(',').slice(0, 60),
     x: Math.round(o.x), y: Math.round(o.y), w: +m.position.y.toFixed(2), a: +o.ang.toFixed(2), p: +m.rotation.z.toFixed(2),
     l: o.onShip ? 2 : o.onBoat ? 3 : o.onLand ? 1 : 0, d: +(o.depth || 0).toFixed(2) };
   const key = JSON.stringify(me); if (key === mpLast && (mpSendT = .2, (o.mpIdle = (o.mpIdle || 0) + .2) < 4)) return;   // still: resend only now and then so you don't vanish
@@ -5374,7 +5657,7 @@ function frame(now){
     const mw = W*.9, mh = H*.8, r = Math.min(W, H)*.18; ctx.roundRect ? ctx.roundRect((W - mw)/2, (H - mh)/2, mw, mh, r) : ctx.rect((W - mw)/2, (H - mh)/2, mw, mh);
     ctx.fill('evenodd'); ctx.restore(); }
   if ((mode === 'race' || mode === 'results') && race){ drawRaceOverlay(); drawBeat(); }
-  else if (mode === 'ocean' && ocean){ drawMinimap(); drawWhiskers(); drawSharkWarn(); }
+  else if (mode === 'ocean' && ocean){ drawMinimap(); drawWhiskers(); drawSharkWarn(); drawLeagueHud(); }
   if (!account && playing() && !paused && (guestT += dt) > GUEST_SECS){ if (STANDALONE) openLogin(true); else openGate(); }
   chipT -= dt; if (chipT <= 0){ chipT = .5; refreshLevelChip(); $('coinVal').textContent = save.coins || 0; }
   requestAnimationFrame(frame);
