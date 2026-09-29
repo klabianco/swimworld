@@ -837,7 +837,7 @@ function swimMove(o, dt, base = 100){
   let fwd = o.vx*fx + o.vy*fy, lat = -o.vx*fy + o.vy*fx;
   fwd *= Math.exp(-1.4*dt); lat *= Math.exp(-5*dt);
   o.vx = fx*fwd - fy*lat; o.vy = fy*fwd + fx*lat;
-  { const v = Math.hypot(o.vx, o.vy), lim = o.eelChase ? Math.min(ownTop(base), EEL_CAP) : ownTop(base)*speedPct(); if (v > lim){ o.vx *= lim/v; o.vy *= lim/v; } }   // your speed bar setting, and never past the game's limit (any faster and the world can't be built around you in time). Racing the eel: full speed, but capped so it's fair.
+  { const v = Math.hypot(o.vx, o.vy), lim = ownTop(base)*speedPct(); if (v > lim){ o.vx *= lim/v; o.vy *= lim/v; } }   // your speed bar setting, and never past the game's limit (any faster and the world can't be built around you in time)
   o.x += o.vx*dt; o.y += o.vy*dt;
   const sp = Math.hypot(o.vx,o.vy);
   o.swimPh = (o.swimPh || 0) + dt*(.5 + sp/80);                         // arms and legs keep time with your speed
@@ -918,8 +918,8 @@ const legendTiers = () => save.legend || 0;
 const maxLv = it => it.inf ? Infinity : it.lv.length + (it.legend ? legendTiers() : 0);
 const SPEED_GEAR = ['fins', 'turbotail', 'flippers', 'paws'], BREATH_GEAR = ['snorkel', 'blowhole', 'bubblefur'];   // (Deep Lungs multiplies instead)
 // the shop is grouped by what gear does (all of it works for every animal); `who` only says which animal's model shows looks-only gear
-const SHOP_GROUPS = [['Gadgets', ['paraglider', 'grapple', 'jetpack']], ['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
-  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['springfins', 'magnet', 'chestmag', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
+const SHOP_GROUPS = [['Found in secret places', ['springfins']], ['Gadgets', ['paraglider', 'grapple', 'jetpack']], ['Boosters', ['turbo']], ['Go faster', ['fins', 'turbotail', 'flippers', 'paws']],
+  ['Hold your breath longer', ['snorkel', 'blowhole', 'bubblefur', 'lungs', 'scuba']], ['Special powers', ['magnet', 'chestmag', 'pouch', 'armor', 'sonar', 'light', 'whiskers', 'rocketfin']],
   ['Just for looks', ['goldcap', 'rainbow', 'crown', 'bowtie']], ['Boats & submarines', ['kayak', 'canoe', 'sailboat', 'motorboat', 'sub', 'ship']]];
 // the level you own (0 = not bought); older saves only listed gear in save.gear, which counts as level 1
 const ownedLv = id => Math.max((save.gearLv || {})[id] || 0, (save.gear || []).includes(id) ? 1 : 0);
@@ -1617,7 +1617,7 @@ function jumpStep(o, dt){
   if (o.glide) o.jumpV += (-1.6 - o.jumpV)*Math.min(1, dt*3);   // paraglider: drift down slowly
   else o.jumpV -= 9.8*dt;
   if (o.jetOn) o.jumpV = Math.min(9, o.jumpV + 24*dt);   // jetpack: up, up and away
-  if (o.jumpY > 60 && o.jumpV > 0) o.jumpV = 0;   // the sky has a ceiling
+  if (o.jumpY > (hasGear('springfins') ? 120 : 60) && o.jumpV > 0) o.jumpV = 0;   // the sky has a ceiling (Spring Fins double it, so they double even a maxed Rocket Fin jump)
   o.jumpY += o.jumpV*dt; o.idle = 0; o.depth = 0; o.vd = 0;
   const fx = Math.cos(o.ang), fy = Math.sin(o.ang); o.x += o.vx*dt; o.y += o.vy*dt;   // sail through the air with no water to slow you
   const w = wantHeading(), steer = o.glide || o.jetOn; if (w) o.ang += clamp(angDiff(w.ang, o.ang), -(steer ? 2.5 : 1.2)*dt, (steer ? 2.5 : 1.2)*dt);
@@ -1800,13 +1800,14 @@ function leagueCollide(o){
   eagleWall(o); grottoCollide(o);
   if (!o.onLand && !(o.jumpY > 0) && Math.abs(o.x - EEL.x) < 300 && Math.abs(o.y - EEL.y) < 300) solidBump(o, EEL.x, EEL.y, 2.3*METERS, -EEL.floor + 2.4);   // the eel's rock
 }
-/* The Giant Eel. It waits with its head out of its cave. Come within 14 m and it bursts out after you: it's a little slower than you,
-   but when it gets close and lines up it lunges (fast, but it can't turn), so swerve. Swim through the 8 rings, in order, to escape.
-   If it catches you there's no penalty: it just goes home, and you can try again. While it chases you everyone has the same top
-   speed (EEL_CAP), so turbo boosters can't skip it, and slow swimmers get a slower eel. */
+/* The Giant Eel. It waits with its head out of its cave. Come within 14 m and it bursts out after you. You race at your own speed and
+   the eel is always a little slower (EEL_SPD), so it only gets you if you stop or swim into it. Swim through the 8 rings, in order,
+   to escape. If it catches you there's no penalty: it just goes home, and you can try again. */
 const EEL_RINGS = [[1100, 2600], [500, 2750], [-200, 2700], [-800, 2450], [-1200, 1950], [-900, 1500], [-300, 1500], [200, 1250]];
-const EEL_SPD = { burst: .5, chase: .9, lunge: 1.5, recover: .5, lungeAt: 5 };   // eel speeds as a share of yours, and how close (m) it gets before it lunges
-const EEL_CAP = 9*METERS, EEL_SEG = 18, EEL_GAP = .65*METERS, EEL_HOME_D = EEL.floor - 1.2;
+// Eel speeds as a share of YOUR top speed (with your speed bar), and how close (m) it gets before it snaps. Troy's rule (2026-09-28): it's always
+// a little slower than you and turns worse, so it only gets you if you stop or swim into it. The snap is scary but never faster than you.
+const EEL_SPD = { burst: .5, chase: .85, lunge: .98, recover: .6, lungeAt: 4, turn: 1.5 };
+const EEL_SEG = 18, EEL_GAP = .65*METERS, EEL_HOME_D = EEL.floor - 1.2;
 // is (x, y) on a league place, or within m meters of an eel ring (or, with `path`, of the whole route from its cave through the rings)?
 // Random rocks stay off the rings; boats and deadly jellyfish stay off the route, so the eel is the only danger in the race.
 function onLeagueCourse(x, y, m, path){
@@ -1821,7 +1822,7 @@ function eelHome(){ Object.assign(eel, { st: 'home', t: 0, sp: 0, trail: [], dep
 function eelEnd(o, title, sub){ o.eelChase = false; eel.st = 'back'; eel.t = 0; eel.armAt = time + 5; if (title) banner(title, sub); }
 function eelStep(o, dt){
   if (eel.o !== o){ eel.o = o; eelHome(); eel.armAt = 0; }
-  const top = Math.min(EEL_CAP, ownTop()), dx = o.x - eel.x, dy = o.y - eel.y, d = Math.hypot(dx, dy); eel.t += dt;
+  const top = ownTop()*speedPct(), dx = o.x - eel.x, dy = o.y - eel.y, d = Math.hypot(dx, dy); eel.t += dt;
   const steer = (tx, ty, turn, sp) => { const err = angDiff(Math.atan2(ty - eel.y, tx - eel.x), eel.ang); eel.ang += clamp(err, -turn*dt, turn*dt); eel.err = err;
     eel.sp = lerp(eel.sp, sp, Math.min(1, dt*3)); eel.x += Math.cos(eel.ang)*eel.sp*dt; eel.y += Math.sin(eel.ang)*eel.sp*dt;
     const last = eel.trail[0]; if (!last || Math.hypot(eel.x - last.x, eel.y - last.y) > 12){ eel.trail.unshift({ x: eel.x, y: eel.y, d: eel.depth }); if (eel.trail.length > 60) eel.trail.length = 60; } };
@@ -1831,7 +1832,7 @@ function eelStep(o, dt){
     if (free && time > eel.armAt && Math.hypot(o.x - EEL.x, o.y - EEL.y) < 14*METERS){
       Object.assign(eel, { st: 'burst', t: 0, ring: 0, trail: [] }); o.eelChase = true; o.hurtT = 0;
       banner('THE GIANT EEL!', `Escape through all ${EEL_RINGS.length} glowing rings!`); sfx(90, .8, 'sawtooth', .07, 0, -40); sfx(70, .9, 'square', .04, .1, -30);
-      if (!save.eelTold){ save.eelTold = true; persist(); say('Giant Eel', "It's fast, but when it lunges it can't turn: swerve! Follow the arrow at the top to the next ring. Everyone swims at the same top speed in this race.", 10); } }
+      if (!save.eelTold){ save.eelTold = true; persist(); say('Giant Eel', "It's a little slower than you, so DON'T STOP, and don't swim into it! Follow the gold arrow to the next ring. Going too fast to steer? Slide your speed bar down.", 10); } }
     return; }
   if (eel.st === 'back'){   // slithering home
     const [mx, my] = eelMouth(); eel.depth += (EEL_HOME_D - eel.depth)*Math.min(1, dt); steer(mx, my, 3, top + 80);
@@ -1841,7 +1842,7 @@ function eelStep(o, dt){
   const set = s => { eel.st = s; eel.t = 0; };
   if (eel.st === 'lunge'){ steer(o.x, o.y, .5, top*EEL_SPD.lunge); if (eel.t > .7) set('recover'); }
   else if (eel.st === 'recover'){ steer(o.x, o.y, 1.4, top*EEL_SPD.recover); if (eel.t > 1) set('chase'); }
-  else { const burst = eel.st === 'burst'; steer(o.x, o.y, burst ? 3 : 1.9, top*(burst ? EEL_SPD.burst : EEL_SPD.chase));   // (it takes 2 seconds to slide out of its cave: your head start)
+  else { const burst = eel.st === 'burst'; steer(o.x, o.y, burst ? 3 : EEL_SPD.turn, top*(burst ? EEL_SPD.burst : EEL_SPD.chase));   // (it takes 2 seconds to slide out of its cave: your head start)
     if (burst && eel.t > 2) set('chase');
     else if (!burst && d < EEL_SPD.lungeAt*METERS && Math.abs(eel.err) < .3){ set('lunge'); sfx(110, .45, 'sawtooth', .06, 0, -50); } }
   const [rx, ry] = EEL_RINGS[eel.ring];
@@ -1855,7 +1856,7 @@ function eelStep(o, dt){
   if (eel.st !== 'burst' && !(o.jumpY > 1) && Math.abs((o.depth || 0) - eel.depth) < 1.4 && bodyPoints(o).some(([px, py]) => Math.hypot(px - eel.x, py - eel.y) < 64)){   // caught!
     o.hurtT = 1; o.vx += dx/(d || 1)*220; o.vy += dy/(d || 1)*220; sfx(120, .35, 'sawtooth', .07, 0, -60);
     eelEnd(o, 'The eel got you!', 'Swim back to its cave to try again');
-    say('Coach', eel.ring === 0 ? 'Head straight for the first glowing ring. The arrow at the top of the screen shows the way.' : 'When the eel lunges it can\'t turn. Wait until it\'s close, then swerve hard to the side!', 9); return; }
+    say('Coach', eel.ring === 0 ? 'Head straight for the first glowing ring. The arrow at the top of the screen shows the way.' : 'Keep swimming and don\'t stop! The eel is a little slower than you. If you keep missing rings, slide your speed bar down a bit.', 9); return; }
   if (!free) return eelEnd(o, 'The eel went back to its cave', 'Swim near it again for a rematch');
   if (d > 70*METERS) return eelEnd(o, 'The eel gave up', 'But it only counts if you swim through all the rings!');
   o.beatT -= dt; if (o.beatT <= 0){ o.beatT = d < 8*METERS ? .45 : .75; sfx(65, .14, 'sine', .14); sfx(62, .14, 'sine', .11, .2); }
