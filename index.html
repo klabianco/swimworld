@@ -1682,13 +1682,13 @@ function whaleTalk(o, b){
     say('Humpback whale', q.kind === 'calf' ? "My baby! You found her! Thank you, brave little dolphin. Come back any time. I'll have more to ask." : 'Ooooooooo... My song is whole again! Listen to it echo across the whole ocean. Thank you, friend!', 9); return; }
   if (q && q.whale === b){ const tgt = q.kind === 'calf' ? (q.state === 'find' ? q.calf : { x: wx, y: wy }) : (q.shells.find(s => !s.got) || { x: wx, y: wy });
     const d = Math.round(Math.hypot(tgt.x - o.x, tgt.y - o.y)/METERS);
-    say('Humpback whale', q.kind === 'calf' ? (q.state === 'find' ? `Please hurry! My baby is somewhere to the ${compassWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away.` : 'Bring her close to me!')
-      : `You have ${q.got} of 3 song shells. The next one glows to the ${compassWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away.`, 8); return; }
+    say('Humpback whale', q.kind === 'calf' ? (q.state === 'find' ? `Please hurry! My baby is ${sideWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away. Follow the gold arrow!` : 'Bring her close to me!')
+      : `You have ${q.got} of 3 song shells. The next one glows ${sideWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away. Follow the gold arrow!`, 8); return; }
   if (q){ say('Humpback whale', 'You look busy helping someone else already. Finish that first, little one!', 6); return; }
   const kind = (save.whaleQuests || 0) % 2 === 0 ? 'calf' : 'song', R = mulberry((Math.random()*1e9)|0);
   if (kind === 'calf'){ const a = R()*TAU, d = (120 + R()*100)*METERS, calf = { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d };
     o.quest = { kind, whale: b, state: 'find', calf, calfAng: 0 };
-    say('Humpback whale', `Oh, little dolphin, please help! My baby wandered off to the ${compassWord(calf.x - o.x, calf.y - o.y)}. Find her and lead her back to me! She'll show on your map.`, 10); }
+    say('Humpback whale', `Oh, little dolphin, please help! My baby wandered off ${sideWord(calf.x - o.x, calf.y - o.y)}. Find her and lead her back to me! Follow the gold arrow.`, 10); }
   else { const shells = [0, 1, 2].map(i => { const a = R()*TAU, d = (50 + R()*110)*METERS; return { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d, got: false }; });
     o.quest = { kind, whale: b, state: 'collect', shells, got: 0 };
     say('Humpback whale', 'Ooooo... my song broke into three glowing shells and they floated away. Could you bring them back to me? Look for the golden glow, and watch your map!', 10); }
@@ -1700,11 +1700,11 @@ function questStep(o, dt){
   const [wx, wy] = whaleSpot(q.whale); let txt;
   if (q.kind === 'calf'){
     if (q.state === 'find'){ if (Math.hypot(q.calf.x - o.x, q.calf.y - o.y) < 5*METERS){ q.state = 'lead'; banner('You found the baby whale!', 'Lead her back to her mom. She will follow you.'); sfx(784, .2, 'triangle', .06); }
-      txt = `Find the baby whale · ${Math.round(Math.hypot(q.calf.x - o.x, q.calf.y - o.y)/METERS)} m ${compassWord(q.calf.x - o.x, q.calf.y - o.y)}`; }
+      txt = `Find the baby whale · ${Math.round(Math.hypot(q.calf.x - o.x, q.calf.y - o.y)/METERS)} m ${sideWord(q.calf.x - o.x, q.calf.y - o.y)}`; }
     else if (q.state === 'lead'){ const bx = o.x - Math.cos(o.ang)*4*METERS, by = o.y - Math.sin(o.ang)*4*METERS;   // she swims along behind you
       const k = Math.min(1, dt*1.5); q.calf.x += (bx - q.calf.x)*k; q.calf.y += (by - q.calf.y)*k; q.calfAng = Math.atan2(o.y - q.calf.y, o.x - q.calf.x);
       if (Math.hypot(q.calf.x - wx, q.calf.y - wy) < 14*METERS){ q.state = 'done'; banner('Reunited!', 'Talk to the whale (T) for your reward'); }
-      txt = `Lead her home · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${compassWord(wx - o.x, wy - o.y)}`; }
+      txt = `Lead her home · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${sideWord(wx - o.x, wy - o.y)}`; }
     else txt = 'Talk to the whale for your reward!';
   } else {
     for (const sh of q.shells) if (!sh.got && Math.hypot(sh.x - o.x, sh.y - o.y) < 3*METERS && (o.depth || 0) < 2.5){ sh.got = true; q.got++; sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1);
@@ -1712,7 +1712,7 @@ function questStep(o, dt){
     if (q.got === 3 && q.state === 'collect'){ q.state = 'return'; }
     if (q.state === 'return' && Math.hypot(wx - o.x, wy - o.y) < 16*METERS) q.state = 'done';
     const next = q.shells.find(s => !s.got);
-    txt = q.state === 'done' ? 'Talk to the whale for your reward!' : next ? `Song shells ${q.got}/3 · next ${Math.round(Math.hypot(next.x - o.x, next.y - o.y)/METERS)} m ${compassWord(next.x - o.x, next.y - o.y)}` : `Back to the whale · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${compassWord(wx - o.x, wy - o.y)}`;
+    txt = q.state === 'done' ? 'Talk to the whale for your reward!' : next ? `Song shells ${q.got}/3 · next ${Math.round(Math.hypot(next.x - o.x, next.y - o.y)/METERS)} m ${sideWord(next.x - o.x, next.y - o.y)}` : `Back to the whale · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${sideWord(wx - o.x, wy - o.y)}`;
   }
   chip.hidden = false; if (chip.textContent !== txt) chip.textContent = txt;
 }
@@ -1769,7 +1769,7 @@ const leagueOf = id => LEAGUES.find(L => L.goals.some(g => g.id === id));
 const curLeague = () => LEAGUES.find(L => !L.goals.every(g => leagueDone(g.id))) || LEAGUES[LEAGUES.length - 1];
 const goalOpen = g => !leagueDone(g.id) && (!g.need || leagueDone(g.need));
 // which way to swim, in kid words: from where the camera looks, not north/south (Troy didn't know which way northeast is)
-function sideWord(dx, dy){ const d = angDiff(Math.atan2(dy, dx), camHead); return Math.abs(d) < .45 ? 'straight ahead' : Math.abs(d) > 2.4 ? 'behind you' : d > 0 ? 'to your right' : 'to your left'; }
+function sideWord(dx, dy){ const d = angDiff(Math.atan2(dy, dx), camHead); return Math.abs(d) < .45 ? 'straight ahead' : Math.abs(d) > 2.4 ? 'back behind you' : d > 0 ? 'to your right' : 'to your left'; }
 const leagueDone = id => (save.secrets || []).includes(id) || (save.bosses || []).includes(id);
 const leagueBadge = () => { const b = LEAGUES.filter(L => L.goals.every(g => leagueDone(g.id))).pop(); return b ? b.badge + ' ' : ''; };
 function leagueWin(id){   // a goal is done: save it, and win the league if it was the last one
@@ -1990,15 +1990,27 @@ $('krakenBtn').addEventListener('pointerdown', e => { e.preventDefault(); initAu
 // the gold arrow to the goal you picked with "Show me the way" (it goes away once you're there, or the goal is done)
 const GUIDE_HERE = { grotto: [8, 'Look for the door deep under water'], eaglerock: [8, 'Get up on top: jump, hook or fly'], eel: [12, 'Get closer... if you dare'],
   trenchhouse: [8, 'It\'s at the very bottom. Dive, dive, dive!'], junkyard: [8, 'Look on the sea floor'], kraken: [KRAKEN.reach + 10, 'Careful... watch for tentacles!'] };
+// what the gold arrow points at: your whale quest's next step (always, while you have one), then home (after someone gives you directions),
+// then the league goal you picked
+let homeGuide = false;
 function drawGuideArrow(o){
+  const q = o.quest;
+  if (q && curChar().id === 'dolphin'){ const [wx, wy] = whaleSpot(q.whale), w = { x: wx, y: wy };
+    const [t, label] = q.kind === 'calf' ? (q.state === 'find' ? [q.calf, 'Baby whale'] : q.state === 'lead' ? [w, 'Her mom'] : [w, 'Talk to the whale'])
+      : (q.shells.find(sh => !sh.got) ? [q.shells.find(sh => !sh.got), `Song shell ${q.got + 1} of 3`] : [w, q.state === 'done' ? 'Talk to the whale' : 'Back to the whale']);
+    return arrowTo(o, t.x, t.y, label); }
+  if (homeGuide){ if (Math.hypot(HOUSE.x - o.x, HOUSE.y - o.y) < 20*METERS || o.onLand && onHome(o)){ homeGuide = false; return; } return arrowTo(o, HOUSE.x, HOUSE.y, 'Your house'); }
   if (!leagueGuide || !leagueTrack) return;
   const at = LEAGUE_AT[leagueTrack], d = Math.hypot(at.x - o.x, at.y - o.y)/METERS, [near, msg] = GUIDE_HERE[leagueTrack];
   if (leagueDone(leagueTrack) || d < near){ leagueGuide = false; if (!leagueDone(leagueTrack)) banner('You\'re here!', msg); return; }
-  const a = Math.atan2(at.y - o.y, at.x - o.x) - camHead, cx = W/2, cy = Math.max(250, H*.3);
+  arrowTo(o, at.x, at.y, goalOf(leagueTrack).name);
+}
+function arrowTo(o, x, y, label){
+  const a = Math.atan2(y - o.y, x - o.x) - camHead, cx = W/2, cy = Math.max(250, H*.3);
   ctx.save(); ctx.translate(cx, cy); ctx.rotate(a); ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(18, 9); ctx.lineTo(6, 5); ctx.lineTo(6, 23); ctx.lineTo(-6, 23); ctx.lineTo(-6, 5); ctx.lineTo(-18, 9); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
   ctx.font = "900 15px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.lineWidth = 4;
-  const t = `${goalOf(leagueTrack).name} · ${Math.round(d)} m`; ctx.strokeText(t, cx, cy + 46); ctx.fillText(t, cx, cy + 46);
+  const t = `${label} · ${Math.round(Math.hypot(x - o.x, y - o.y)/METERS)} m`; ctx.strokeText(t, cx, cy + 46); ctx.fillText(t, cx, cy + 46);
 }
 // during the eel chase: an arrow to the next ring, and red at the edges when the eel is close
 function drawLeagueHud(){
@@ -2178,10 +2190,6 @@ function friendNear(o){
     if (Math.hypot(tt.x - o.x, tt.y - o.y) < 900) for (let i=0;i<6;i++) check({ id:'turtle', bx:tt.x, by:tt.y, rad:330, w:.12, ph:i/6*TAU, town:true }); }
   return best;
 }
-function compassWord(dx, dy){   // north is up on every map (toward -y)
-  const deg = (Math.atan2(dx, -dy)*180/Math.PI + 360) % 360;
-  return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(deg/45) % 8];
-}
 let sayUntil = 0;
 function say(who, text, secs){ sayUntil = time + secs; coach.keepWho = true; $('coachWho').textContent = who; coach(text, secs); coach.keepWho = false; }
 const talked = new Set();
@@ -2191,20 +2199,21 @@ function talkToFriend(){
   const b = friendNear(o); if (!b) return;
   if (b.id === 'whale'){ whaleTalk(o, b); return; }
   const [bx, by] = b.person ? [b.bx, b.by] : buddyPos(b), dx = HOUSE.x - bx, dy = HOUSE.y - by, m = Math.hypot(dx, dy)/METERS;
-  const dir = compassWord(dx, dy), far = m > 550 ? 'very, very far away' : m > 300 ? 'a long swim from here' : m > 120 ? 'not too far now' : 'really close';
+  const dir = sideWord(dx, dy), far = m > 550 ? 'very, very far away' : m > 300 ? 'a long swim from here' : m > 120 ? 'not too far now' : 'really close';
   const who = b.person ? ({ keeper:'Lighthouse keeper', captain:'Pirate captain', gunner:'Pirate gunner', lookout:'Pirate lookout', deckhand:'Pirate deckhand' }[b.person] || 'Fisherman') : SPECIES_NAME[b.id], key = b.person ? b.key : `${b.bx},${b.by},${b.ph.toFixed(3)}`;
   const hints = {
-    turtle:  [`Hmm... your house? The old currents say it lies somewhere to the ${dir}, ${far}.`, `Slow and steady, little one. Head ${dir}. It's ${far}.`],
-    otter:   [`Ooh, a house! I think I saw one to the ${dir}... ${far}!`, `Race you! Your house is off to the ${dir}, ${far}.`],
+    turtle:  [`Hmm... your house? The old currents say it lies somewhere ${dir}, ${far}.`, `Slow and steady, little one. Head ${dir}. It's ${far}.`],
+    otter:   [`Ooh, a house! I think I saw one ${dir}... ${far}!`, `Race you! Your house is off ${dir}, ${far}.`],
     dolphin: [`*click click* Your home? Swim ${dir}. It's ${far}.`, `We dolphins hear everything. Your house is ${dir}, ${far}.`],
-    fisher:  [`Ahoy there! A little house with a yellow flag? I've sailed past it, off to the ${dir}. It's ${far}.`, `Lost your way home? Head ${dir}, ${far}. Watch out for sharks!`],
-    captain: [`Arr! Ye've got nerve, boardin' me ship! Yer house? Me spyglass spied it to the ${dir}, ${far}. Now keep yer hands off me treasure!`, `Ye again? Fine. Sail ${dir}, it's ${far}. And stop bothering me crew!`, `A captain never tells... Oh, alright. ${dir.charAt(0).toUpperCase() + dir.slice(1)}. ${far.charAt(0).toUpperCase() + far.slice(1)}. Now walk the plank! Just kidding. Mostly.`],
-    gunner:  [`BOOM! Oh, it's you. Your house? I aim me cannons by the stars, and your house be to the ${dir}, ${far}.`, `Cover yer ears, matey! Heh. Head ${dir} if ye want home. It's ${far}.`, `I've fired a thousand cannonballs and hit a whole lot of nothing. Your house is ${dir}, ${far}. Now stand back!`],
-    lookout: [`Land ho! Oh wait, that's just a whale. Your house, eh? From up here I can see it off to the ${dir}, ${far}.`, `I've got the sharpest eyes on the seven seas! Swim ${dir}. It's ${far}.`, `Keep yer eyes on the horizon, little one. Your house is ${dir}, ${far}.`],
+    fisher:  [`Ahoy there! A little house with a yellow flag? I've sailed past it, off ${dir}. It's ${far}.`, `Lost your way home? Head ${dir}, ${far}. Watch out for sharks!`],
+    captain: [`Arr! Ye've got nerve, boardin' me ship! Yer house? Me spyglass spied it ${dir}, ${far}. Now keep yer hands off me treasure!`, `Ye again? Fine. Sail ${dir}, it's ${far}. And stop bothering me crew!`, `A captain never tells... Oh, alright. ${dir.charAt(0).toUpperCase() + dir.slice(1)}. ${far.charAt(0).toUpperCase() + far.slice(1)}. Now walk the plank! Just kidding. Mostly.`],
+    gunner:  [`BOOM! Oh, it's you. Your house? I aim me cannons by the stars, and your house be ${dir}, ${far}.`, `Cover yer ears, matey! Heh. Head ${dir} if ye want home. It's ${far}.`, `I've fired a thousand cannonballs and hit a whole lot of nothing. Your house is ${dir}, ${far}. Now stand back!`],
+    lookout: [`Land ho! Oh wait, that's just a whale. Your house, eh? From up here I can see it off ${dir}, ${far}.`, `I've got the sharpest eyes on the seven seas! Swim ${dir}. It's ${far}.`, `Keep yer eyes on the horizon, little one. Your house is ${dir}, ${far}.`],
     deckhand:[`Swab the deck, swab the deck... Oh! Hello! Your house? The captain said it's ${dir}, ${far}. Don't tell him I told ye!`, `Arrr, landlubber! Yer home be ${dir}, ${far}. Now scram before the captain sees ye!`, `I've been mopping this deck for three years. Your house is ${dir}, ${far}. Want a mop?`],
-    keeper:  [`From the top of my lighthouse I can see for miles. Your house is to the ${dir}, ${far}. Keep my light behind you!`] }[b.person || b.id];
+    keeper:  [`From the top of my lighthouse I can see for miles. Your house is ${dir}, ${far}. Keep my light behind you!`] }[b.person || b.id];
   const said = talkCount[key] = (talkCount[key] || 0) + 1;   // each friend moves on to their next thing to say
-  let line = hints[b.person ? (said - 1) % hints.length : (talked.size + (b.ph*10|0)) % hints.length];
+  let line = hints[b.person ? (said - 1) % hints.length : (talked.size + (b.ph*10|0)) % hints.length] + ' Follow the gold arrow!';
+  homeGuide = true;   // (the gold arrow points you home until you get there)
   const have = save.mapPieces || (save.mapPieces = []);
   if (!talked.has(key) && have.length < MAP_N){
     const missing = [...Array(MAP_N).keys()].filter(i => !have.includes(i)), piece = missing[(Math.random()*missing.length)|0];
