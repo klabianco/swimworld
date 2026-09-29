@@ -1674,23 +1674,30 @@ function drawWhiskers(){
    Finishing a quest pays coins and XP. One quest at a time; a quest stays with you until you finish it or leave the ocean. */
 const QUEST_PAY = { calf: [250, 120], song: [200, 100] };
 function whaleSpot(b){ const [x, y] = buddyPos(b); return [x, y]; }
+// A quest is saved with your swimmer (save.quest is the same object as ocean.quest), so reloading the page keeps it. After a reload the
+// whale is a copy of the one you talked to, so whales are matched by where they live rather than by object.
+const sameWhale = (a, b) => !!a && !!b && a.bx === b.bx && a.by === b.by && a.ph === b.ph;
+// quest done: the reward comes right away, when the baby is back with her mom or the shells are back (no hunting for the right whale to talk to)
+function questReward(o){
+  const q = o.quest; if (!q) return;
+  { const [c, xp] = QUEST_PAY[q.kind]; save.whaleQuests = (save.whaleQuests || 0) + 1; o.quest = null; delete save.quest;
+    addCoins(c, 'Quest complete!'); addXP(xp); persist(); flushCloud(); [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
+    say('Humpback whale', q.kind === 'calf' ? "My baby! You found her! Thank you, brave little dolphin. Come back any time. I'll have more to ask." : 'Ooooooooo... My song is whole again! Listen to it echo across the whole ocean. Thank you, friend!', 9); }
+}
 function whaleTalk(o, b){
   const q = o.quest, [wx, wy] = whaleSpot(b);
-  if (q && q.whale === b && q.state === 'done'){
-    const [c, xp] = QUEST_PAY[q.kind]; save.whaleQuests = (save.whaleQuests || 0) + 1; o.quest = null;
-    addCoins(c, 'Quest complete!'); addXP(xp); persist(); flushCloud(); [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
-    say('Humpback whale', q.kind === 'calf' ? "My baby! You found her! Thank you, brave little dolphin. Come back any time. I'll have more to ask." : 'Ooooooooo... My song is whole again! Listen to it echo across the whole ocean. Thank you, friend!', 9); return; }
-  if (q && q.whale === b){ const tgt = q.kind === 'calf' ? (q.state === 'find' ? q.calf : { x: wx, y: wy }) : (q.shells.find(s => !s.got) || { x: wx, y: wy });
+  if (q && sameWhale(q.whale, b) && q.state === 'done'){ questReward(o); return; }
+  if (q && sameWhale(q.whale, b)){ const tgt = q.kind === 'calf' ? (q.state === 'find' ? q.calf : { x: wx, y: wy }) : (q.shells.find(s => !s.got) || { x: wx, y: wy });
     const d = Math.round(Math.hypot(tgt.x - o.x, tgt.y - o.y)/METERS);
     say('Humpback whale', q.kind === 'calf' ? (q.state === 'find' ? `Please hurry! My baby is ${sideWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away. Follow the gold arrow!` : 'Bring her close to me!')
       : `You have ${q.got} of 3 song shells. The next one glows ${sideWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away. Follow the gold arrow!`, 8); return; }
   if (q){ say('Humpback whale', 'You look busy helping someone else already. Finish that first, little one!', 6); return; }
   const kind = (save.whaleQuests || 0) % 2 === 0 ? 'calf' : 'song', R = mulberry((Math.random()*1e9)|0);
   if (kind === 'calf'){ const a = R()*TAU, d = (120 + R()*100)*METERS, calf = { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d };
-    o.quest = { kind, whale: b, state: 'find', calf, calfAng: 0 };
+    save.quest = o.quest = { kind, whale: b, state: 'find', calf, calfAng: 0 }; persist();
     say('Humpback whale', `Oh, little dolphin, please help! My baby wandered off ${sideWord(calf.x - o.x, calf.y - o.y)}. Find her and lead her back to me! Follow the gold arrow.`, 10); }
   else { const shells = [0, 1, 2].map(i => { const a = R()*TAU, d = (50 + R()*110)*METERS; return { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d, got: false }; });
-    o.quest = { kind, whale: b, state: 'collect', shells, got: 0 };
+    save.quest = o.quest = { kind, whale: b, state: 'collect', shells, got: 0 }; persist();
     say('Humpback whale', 'Ooooo... my song broke into three glowing shells and they floated away. Could you bring them back to me? Look for the golden glow, and watch your map!', 10); }
   banner('New quest!', kind === 'calf' ? 'Find the lost baby whale' : 'Collect 3 song shells'); sfx(660, .2, 'triangle', .06); sfx(990, .25, 'triangle', .06, .12);
 }
@@ -1703,14 +1710,14 @@ function questStep(o, dt){
       txt = `Find the baby whale · ${Math.round(Math.hypot(q.calf.x - o.x, q.calf.y - o.y)/METERS)} m ${sideWord(q.calf.x - o.x, q.calf.y - o.y)}`; }
     else if (q.state === 'lead'){ const bx = o.x - Math.cos(o.ang)*4*METERS, by = o.y - Math.sin(o.ang)*4*METERS;   // she swims along behind you
       const k = Math.min(1, dt*1.5); q.calf.x += (bx - q.calf.x)*k; q.calf.y += (by - q.calf.y)*k; q.calfAng = Math.atan2(o.y - q.calf.y, o.x - q.calf.x);
-      if (Math.hypot(q.calf.x - wx, q.calf.y - wy) < 14*METERS){ q.state = 'done'; banner('Reunited!', 'Talk to the whale (T) for your reward'); }
+      if (Math.hypot(q.calf.x - wx, q.calf.y - wy) < 14*METERS){ banner('Reunited!', 'The baby whale is back with her mom'); questReward(o); return; }
       txt = `Lead her home · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${sideWord(wx - o.x, wy - o.y)}`; }
     else txt = 'Talk to the whale for your reward!';
   } else {
     for (const sh of q.shells) if (!sh.got && Math.hypot(sh.x - o.x, sh.y - o.y) < 3*METERS && (o.depth || 0) < 2.5){ sh.got = true; q.got++; sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1);
       banner(`Song shell ${q.got} of 3!`, q.got === 3 ? 'Bring them back to the whale' : 'Find the next golden glow'); }
     if (q.got === 3 && q.state === 'collect'){ q.state = 'return'; }
-    if (q.state === 'return' && Math.hypot(wx - o.x, wy - o.y) < 16*METERS) q.state = 'done';
+    if (q.state === 'return' && Math.hypot(wx - o.x, wy - o.y) < 16*METERS){ questReward(o); return; }
     const next = q.shells.find(s => !s.got);
     txt = q.state === 'done' ? 'Talk to the whale for your reward!' : next ? `Song shells ${q.got}/3 · next ${Math.round(Math.hypot(next.x - o.x, next.y - o.y)/METERS)} m ${sideWord(next.x - o.x, next.y - o.y)}` : `Back to the whale · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${sideWord(wx - o.x, wy - o.y)}`;
   }
@@ -2145,6 +2152,8 @@ const newOcean = () => ({ x:HOUSE.x, y:HOUSE.y + HOUSE.r - 110, vx:0, vy:0, ang:
 function startOcean(){
   updShipChest();
   syncHouse(); placeLighthouse(); ocean = newOcean(); save.houseFound = true;
+  ocean.quest = save.quest || null;   // a whale quest you were on picks up where you left it
+  if (ocean.quest?.state === 'lead'){ ocean.quest.calf.x = ocean.x; ocean.quest.calf.y = ocean.y + 4*METERS; }   // (the baby whale you were leading is right behind you)
   parts = []; setMode('ocean'); $('airChip').hidden = true;
   banner('Your island!', 'Press Build to build, or swim out and explore the oceans of the world');
   ocean.tripT = 0;
