@@ -41,7 +41,7 @@
   .bump{animation:bump .35s ease}
   @keyframes bump{40%{transform:scale(1.18)}}
   .lvl{display:flex;align-items:center;gap:8px}
-  .chip.quest{background:#fff3d6;font-weight:900;font-size:13px;color:#7a4b00;max-width:260px}
+  .chip.quest{background:#fff3d6;font-weight:900;font-size:13px;color:#7a4b00;max-width:260px;text-align:left}
   .chip.league{background:#ffe2a3;font-weight:900;font-size:13px;color:#6b4200;max-width:260px;text-align:left}
   .chip.league.chase{background:#ff6f59;color:#fff;font-size:15px}
   .lggoals{display:grid;gap:10px}
@@ -327,7 +327,7 @@
     <div class="chip"><div class="lbl" id="hudLbl">Points</div><div class="big" id="hudVal">50</div>
       <div class="progress" id="hudProg"><i id="hudProgFill"></i></div></div>
     <div class="chip" id="hudSub"></div>
-    <div class="chip quest" id="questChip" hidden></div>
+    <button class="chip quest" id="questChip" type="button" hidden></button>
     <button class="chip league" id="leagueChip" type="button" hidden></button>
     <div class="chip quest" id="holdChip" hidden></div>
   </div>
@@ -538,6 +538,15 @@
   </div>
 </div>
 
+<div id="questPanel" class="overlay" hidden>
+  <div class="panel small">
+    <div><p class="kicker">Quests</p><h2>Your 3 quests</h2></div>
+    <p class="explain" id="qpExplain"></p>
+    <div class="lggoals" id="qpList"></div>
+    <button id="qpClose" class="btn primary" type="button">Back to swimming</button>
+  </div>
+</div>
+
 <div id="leaguePanel" class="overlay" hidden>
   <div class="panel small">
     <div><p class="kicker">Ocean Leagues</p><h2 id="lgTitle">Bronze League</h2></div>
@@ -627,7 +636,7 @@ function mergeSaves(a, b){
   if (!a) return b; if (!b) return a;
   const xa = a.xp ?? a.dist ?? 0, xb = b.xp ?? b.dist ?? 0, main = xa >= xb ? a : b, m = { ...(main === a ? b : a), ...main };
   for (const k of ['gear','chests','worlds','landmarks','mapPieces','secrets','bosses']) m[k] = [...new Set([...(a[k] || []), ...(b[k] || [])])];
-  for (const k of ['coins','xp','dist','swimSec','pearls','races','homeRuns','best','tunnels','legend']) if (a[k] != null || b[k] != null) m[k] = Math.max(a[k] || 0, b[k] || 0);
+  for (const k of ['coins','xp','dist','swimSec','pearls','races','homeRuns','best','tunnels','legend','questsDone']) if (a[k] != null || b[k] != null) m[k] = Math.max(a[k] || 0, b[k] || 0);
   m.bestTime = Math.min(...[a.bestTime, b.bestTime].filter(t => t > 0), Infinity); if (!isFinite(m.bestTime)) m.bestTime = 0;
   m.gearLv = { ...(a.gearLv || {}) }; for (const k in b.gearLv || {}) m.gearLv[k] = Math.max(m.gearLv[k] || 0, b.gearLv[k]);
   m.houseFound = !!(a.houseFound || b.houseFound); m.tutorialDone = !!(a.tutorialDone || b.tutorialDone);
@@ -720,6 +729,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
   if (k === 'u' && !e.repeat){ if (!$('krakenBtn').hidden) useOnKraken(); else if (!$('casinoBtn').hidden) casinoAct(); else useItem(); }
   if (k === 'v' && !e.repeat && mode === 'ocean' && !paused) boatsButton();
   if (k === 'm' && !e.repeat && mode === 'ocean'){ if ($('mapPanel').hidden) openMap(); else closeMap(); }
+  if (k === 'q' && !e.repeat && mode === 'ocean'){ if ($('questPanel').hidden) openQuests(); else closeQuests(); }
   if (k === 'l' && !e.repeat && mode === 'ocean'){ if ($('leaguePanel').hidden) openLeague(); else closeLeague(); }
   if (k === 'c' && playing() && !paused) nextView();
   if (k === 'j' && !e.repeat) dolphinJump();
@@ -731,6 +741,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT' 
 function closeTopWindow(){
   if (!$('shopPanel').hidden) closeShop();
   else if (!$('leaguePanel').hidden) closeLeague();
+  else if (!$('questPanel').hidden) closeQuests();
   else if (!$('mapPanel').hidden) closeMap();
   else if (!$('boatPanel').hidden) closeBoats();
   else if (!$('phonePanel').hidden) closePhone();
@@ -746,7 +757,7 @@ function closeTopWindow(){
   else return false;
   return true; }
 // tap anywhere outside a window (on the dark backdrop around it) to close it, like Escape
-for (const id of ['shopPanel', 'leaguePanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'phonePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
+for (const id of ['shopPanel', 'leaguePanel', 'questPanel', 'mapPanel', 'boatPanel', 'arcadePanel', 'phonePanel', 'clonePanel', 'codePanel', 'swimPanel', 'loginPanel', 'movePanel', 'panel', 'choose'])
   $(id).addEventListener('click', e => { if (e.target === e.currentTarget) closeTopWindow(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; if (e.key.toLowerCase() === 'f'){ gadgetHeld = false; $('gadgetUse').classList.remove('on'); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -1668,71 +1679,109 @@ function drawWhiskers(){
   ctx.font = "900 13px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(8,43,69,.8)'; ctx.lineWidth = 3;
   const t = `Treasure ${Math.round(n.d/METERS)} m`; ctx.strokeText(t, cx, cy + 40); ctx.fillText(t, cx, cy + 40);
 }
-/* Whale quests (for dolphins). Talk to a humpback whale (T) and she asks for help:
-   - Lost calf: her baby wandered off. Find it (it shows on your minimap) and lead it back; it follows you.
-   - Scattered song: three glowing song shells floated away. Collect them and bring them back.
-   Finishing a quest pays coins and XP. One quest at a time; a quest stays with you until you finish it or leave the ocean. */
-const QUEST_PAY = { calf: [250, 120], song: [200, 100] };
-function whaleSpot(b){ const [x, y] = buddyPos(b); return [x, y]; }
-// A quest is saved with your swimmer (save.quest is the same object as ocean.quest), so reloading the page keeps it. After a reload the
-// whale is a copy of the one you talked to, so whales are matched by where they live rather than by object.
-const sameWhale = (a, b) => !!a && !!b && a.bx === b.bx && a.by === b.by && a.ph === b.ph;
-// quest done: the reward comes right away, when the baby is back with her mom or the shells are back (no hunting for the right whale to talk to)
-function questReward(o){
-  const q = o.quest; if (!q) return;
-  { const [c, xp] = QUEST_PAY[q.kind]; save.whaleQuests = (save.whaleQuests || 0) + 1; o.quest = null; delete save.quest;
-    addCoins(c, 'Quest complete!'); addXP(xp); persist(); flushCloud(); [523,659,784,1047,1319].forEach((f,i) => sfx(f,.22,'triangle',.07,i*.12));
-    say('Humpback whale', q.kind === 'calf' ? "My baby! You found her! Thank you, brave little dolphin. Come back any time. I'll have more to ask." : 'Ooooooooo... My song is whole again! Listen to it echo across the whole ocean. Thank you, friend!', 9); }
+/* ---------- Quest board (Troy, 2026-09-28) ----------
+   Three quests at a time, for every animal. Finish one and a new quest of a different kind takes its place, so it never loops.
+   The quest chip (top left) shows the one the gold arrow points at; tap it (or Q) to see all three and pick. Quests save with your
+   swimmer (save.board), so reloading keeps them. (This replaced the whale quests, which just alternated baby whale / song shells.) */
+const QUEST_KIND = { calf: { icon: '🐋', pay: [250, 120] }, shells: { icon: '🐚', pay: [200, 100] }, treasure: { icon: '💰', pay: [250, 100] },
+  bottle: { icon: '🍾', pay: [120, 60] }, pearls: { icon: '⚪', pay: [150, 60] }, place: { icon: '🗺️', pay: [150, 80] }, deep: { icon: '🤿', pay: [150, 80] } };
+const BOTTLE_NOTES = ['"Help, I\'m stuck on a desert island! ...Just kidding, I\'m on vacation." (a pirate)', '"Whoever finds this: the best snack in the ocean is kelp chips." (an otter)',
+  '"I bet you can\'t swim to the Mariana Trench and back." (a shark)', '"If you\'re reading this, you are awesome." (the lighthouse keeper)',
+  '"Roses are red, the sea is blue, the Kraken is big, and so are you!" (a whale)', '"The treasure is buried under... oh no, the ink ran." (a very old captain)'];
+function questSpot(o, minM, maxM, test, strict){   // a random spot in open water, minM to maxM meters from you (strict: null if there's none)
+  for (let k = 0; k < 40; k++){ const a = Math.random()*TAU, d = (minM + Math.random()*(maxM - minM))*METERS, x = o.x + Math.cos(a)*d, y = o.y + Math.sin(a)*d;
+    if (groundAt(x, y) < -1.5 && !onLeagueCourse(x, y, 6) && Math.hypot(x - KRAKEN.x, y - KRAKEN.y) > 70*METERS && (!test || test(x, y))) return { x, y }; }
+  return strict ? null : { x: o.x + 60*METERS, y: o.y };
 }
-function whaleTalk(o, b){
-  const q = o.quest, [wx, wy] = whaleSpot(b);
-  if (q && sameWhale(q.whale, b) && q.state === 'done'){ questReward(o); return; }
-  if (q && sameWhale(q.whale, b)){ const tgt = q.kind === 'calf' ? (q.state === 'find' ? q.calf : { x: wx, y: wy }) : (q.shells.find(s => !s.got) || { x: wx, y: wy });
-    const d = Math.round(Math.hypot(tgt.x - o.x, tgt.y - o.y)/METERS);
-    say('Humpback whale', q.kind === 'calf' ? (q.state === 'find' ? `Please hurry! My baby is ${sideWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away. Follow the gold arrow!` : 'Bring her close to me!')
-      : `You have ${q.got} of 3 song shells. The next one glows ${sideWord(tgt.x - o.x, tgt.y - o.y)}, about ${d} m away. Follow the gold arrow!`, 8); return; }
-  if (q){ say('Humpback whale', 'You look busy helping someone else already. Finish that first, little one!', 6); return; }
-  const kind = (save.whaleQuests || 0) % 2 === 0 ? 'calf' : 'song', R = mulberry((Math.random()*1e9)|0);
-  if (kind === 'calf'){ const a = R()*TAU, d = (120 + R()*100)*METERS, calf = { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d };
-    save.quest = o.quest = { kind, whale: b, state: 'find', calf, calfAng: 0 }; persist();
-    say('Humpback whale', `Oh, little dolphin, please help! My baby wandered off ${sideWord(calf.x - o.x, calf.y - o.y)}. Find her and lead her back to me! Follow the gold arrow.`, 10); }
-  else { const shells = [0, 1, 2].map(i => { const a = R()*TAU, d = (50 + R()*110)*METERS; return { x: wx + Math.cos(a)*d, y: wy + Math.sin(a)*d, got: false }; });
-    save.quest = o.quest = { kind, whale: b, state: 'collect', shells, got: 0 }; persist();
-    say('Humpback whale', 'Ooooo... my song broke into three glowing shells and they floated away. Could you bring them back to me? Look for the golden glow, and watch your map!', 10); }
-  banner('New quest!', kind === 'calf' ? 'Find the lost baby whale' : 'Collect 3 song shells'); sfx(660, .2, 'triangle', .06); sfx(990, .25, 'triangle', .06, .12);
+function newQuest(o, not = []){
+  const kinds = Object.keys(QUEST_KIND).filter(k => !not.includes(k)), kind = kinds[(Math.random()*kinds.length)|0];
+  if (kind === 'calf'){ const c = questSpot(o, 50, 130), m = questSpot(o, 40, 110); return { kind, state: 'find', x: c.x, y: c.y, mx: m.x, my: m.y }; }
+  if (kind === 'shells'){ const c = questSpot(o, 40, 110); return { kind, got: 0, shells: [0, 1, 2].map(() => { const a = Math.random()*TAU, d = (8 + Math.random()*25)*METERS; return { x: c.x + Math.cos(a)*d, y: c.y + Math.sin(a)*d, got: false }; }) }; }
+  if (kind === 'treasure'){ const c = questSpot(o, 50, 140, (x, y) => depthAt(x, y) < 16); return { kind, x: c.x, y: c.y }; }
+  if (kind === 'bottle'){ const c = questSpot(o, 60, 160); return { kind, x: c.x, y: c.y, note: BOTTLE_NOTES[(Math.random()*BOTTLE_NOTES.length)|0] }; }
+  if (kind === 'pearls') return { kind, need: 10, start: save.pearls || 0 };
+  if (kind === 'place'){ const ls = LANDMARKS.filter(l => l.kind !== 'catalina' && Math.hypot(l.x - o.x, l.y - o.y) > 40*METERS).sort((p, q) => Math.hypot(p.x - o.x, p.y - o.y) - Math.hypot(q.x - o.x, q.y - o.y)).slice(0, 3), L = ls[(Math.random()*ls.length)|0]; return { kind, name: L.name, x: L.x, y: L.y }; }   // one of the 3 nearest
+  for (const [lo, hi] of [[30, 150], [150, 400]]) for (const need of [[8, 11, 14][(Math.random()*3)|0], 8, 5]){   // deep enough water, close by if at all possible (a shallower dive beats a long swim)
+    const c = questSpot(o, lo, hi, (x, y) => depthAt(x, y) > need + 3, true);
+    if (c) return { kind: 'deep', need, x: c.x, y: c.y }; }
+  return newQuest(o, [...not, 'deep']);
+}
+function questText(q){
+  return { calf: q.state === 'find' ? 'Find the lost baby whale' : 'Bring the baby whale to her mom', shells: `Collect 3 glowing song shells (${q.got}/3)`,
+    treasure: 'Find the hidden treasure on the sea floor', bottle: 'Grab the message in a bottle', pearls: `Grab ${q.need} pearls (${Math.min(q.need, (save.pearls || 0) - q.start)}/${q.need})`,
+    place: `Swim to ${q.name}`, deep: `Dive ${q.need} m deep in deep water (hold Dive)` }[q.kind];
+}
+function questTarget(q){   // where the gold arrow points (null: anywhere will do)
+  if (q.kind === 'calf') return q.state === 'find' ? { x: q.x, y: q.y, label: 'Baby whale' } : { x: q.mx, y: q.my, label: 'Her mom' };
+  if (q.kind === 'shells'){ const sh = q.shells.find(v => !v.got); return sh && { x: sh.x, y: sh.y, label: `Song shell ${q.got + 1} of 3` }; }
+  if (q.kind === 'treasure') return { x: q.x, y: q.y, label: 'Hidden treasure' };
+  if (q.kind === 'bottle') return { x: q.x, y: q.y, label: 'Message in a bottle' };
+  if (q.kind === 'place') return { x: q.x, y: q.y, label: q.name };
+  if (q.kind === 'deep' && q.x != null && depthAt(ocean.x, ocean.y) < q.need + 1) return { x: q.x, y: q.y, label: 'Deep water' };   // (points the way only while the water here is too shallow)
+  return null;
+}
+let questPick = 0;   // which quest the chip and the gold arrow show
+function boardFix(o){
+  if (!Array.isArray(save.board)) save.board = [];
+  if (save.quest) delete save.quest;   // (a quest from the old whale system)
+  while (save.board.length < 3) save.board.push(newQuest(o, save.board.map(q => q.kind)));
+}
+function questDone(o, i){
+  const q = save.board[i], [c, xp] = QUEST_KIND[q.kind].pay; save.questsDone = (save.questsDone || 0) + 1;
+  save.board.splice(i, 1, newQuest(o, [...save.board.map(v => v.kind), q.kind]));   // a new quest, of a kind you don't already have
+  addCoins(c, `Quest complete! ${QUEST_KIND[q.kind].icon}`); addXP(xp); persist(); flushCloud(); [523, 659, 784, 1047, 1319].forEach((f, k) => sfx(f, .22, 'triangle', .07, k*.12));
+  banner('New quest!', `${QUEST_KIND[save.board[i].kind].icon} ${questText(save.board[i])}`); o.qT = 0;
 }
 function questStep(o, dt){
-  const q = o.quest, chip = $('questChip');
-  if (!q || curChar().id !== 'dolphin'){ if (!chip.hidden) chip.hidden = true; return; }
-  const [wx, wy] = whaleSpot(q.whale); let txt;
-  if (q.kind === 'calf'){
-    if (q.state === 'find'){ if (Math.hypot(q.calf.x - o.x, q.calf.y - o.y) < 5*METERS){ q.state = 'lead'; banner('You found the baby whale!', 'Lead her back to her mom. She will follow you.'); sfx(784, .2, 'triangle', .06); }
-      txt = `Find the baby whale · ${Math.round(Math.hypot(q.calf.x - o.x, q.calf.y - o.y)/METERS)} m ${sideWord(q.calf.x - o.x, q.calf.y - o.y)}`; }
-    else if (q.state === 'lead'){ const bx = o.x - Math.cos(o.ang)*4*METERS, by = o.y - Math.sin(o.ang)*4*METERS;   // she swims along behind you
-      const k = Math.min(1, dt*1.5); q.calf.x += (bx - q.calf.x)*k; q.calf.y += (by - q.calf.y)*k; q.calfAng = Math.atan2(o.y - q.calf.y, o.x - q.calf.x);
-      if (Math.hypot(q.calf.x - wx, q.calf.y - wy) < 14*METERS){ banner('Reunited!', 'The baby whale is back with her mom'); questReward(o); return; }
-      txt = `Lead her home · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${sideWord(wx - o.x, wy - o.y)}`; }
-    else txt = 'Talk to the whale for your reward!';
-  } else {
-    for (const sh of q.shells) if (!sh.got && Math.hypot(sh.x - o.x, sh.y - o.y) < 3*METERS && (o.depth || 0) < 2.5){ sh.got = true; q.got++; sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1);
-      banner(`Song shell ${q.got} of 3!`, q.got === 3 ? 'Bring them back to the whale' : 'Find the next golden glow'); }
-    if (q.got === 3 && q.state === 'collect'){ q.state = 'return'; }
-    if (q.state === 'return' && Math.hypot(wx - o.x, wy - o.y) < 16*METERS){ questReward(o); return; }
-    const next = q.shells.find(s => !s.got);
-    txt = q.state === 'done' ? 'Talk to the whale for your reward!' : next ? `Song shells ${q.got}/3 · next ${Math.round(Math.hypot(next.x - o.x, next.y - o.y)/METERS)} m ${sideWord(next.x - o.x, next.y - o.y)}` : `Back to the whale · ${Math.round(Math.hypot(wx - o.x, wy - o.y)/METERS)} m ${sideWord(wx - o.x, wy - o.y)}`;
-  }
+  boardFix(o);
+  const dep = o.depth || 0, near = (x, y, m) => Math.hypot(x - o.x, y - o.y) < m*METERS;
+  for (let i = 0; i < 3; i++){ const q = save.board[i]; let done = false;
+    if (q.kind === 'calf'){
+      if (q.state === 'find' && near(q.x, q.y, 5)){ q.state = 'lead'; questPick = i; banner('You found the baby whale!', 'Bring her to her mom: follow the gold arrow'); sfx(784, .2, 'triangle', .06); }
+      else if (q.state === 'lead'){ const bx = o.x - Math.cos(o.ang)*4*METERS, by = o.y - Math.sin(o.ang)*4*METERS, k = Math.min(1, dt*1.5); q.x += (bx - q.x)*k; q.y += (by - q.y)*k; q.ang = Math.atan2(o.y - q.y, o.x - q.x);
+        if (Math.hypot(q.x - q.mx, q.y - q.my) < 14*METERS){ banner('Reunited!', 'The baby whale is back with her mom'); done = true; } } }
+    else if (q.kind === 'shells'){ for (const sh of q.shells) if (!sh.got && near(sh.x, sh.y, 3) && dep < 2.5){ sh.got = true; q.got++; sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1); if (q.got < 3) banner(`Song shell ${q.got} of 3!`, 'Find the next golden glow'); } done = q.got >= 3; }
+    else if (q.kind === 'treasure') done = near(q.x, q.y, 1.8) && dep > depthAt(q.x, q.y) - 2.2;
+    else if (q.kind === 'bottle'){ done = near(q.x, q.y, 2.2) && dep < 1.5; if (done) say('Message in a bottle', q.note, 9); }
+    else if (q.kind === 'pearls') done = (save.pearls || 0) - q.start >= q.need;
+    else if (q.kind === 'place') done = near(q.x, q.y, 22);
+    else if (q.kind === 'deep') done = dep >= q.need;
+    if (done){ questDone(o, i); return; } }
+  if ((o.qT = (o.qT || 0) - dt) > 0) return; o.qT = .25;
+  const chip = $('questChip'); questPick = Math.min(questPick, 2); const q = save.board[questPick], t = questTarget(q);
+  const txt = `${QUEST_KIND[q.kind].icon} ${questText(q)}${t ? ` · ${Math.round(Math.hypot(t.x - o.x, t.y - o.y)/METERS)} m ${sideWord(t.x - o.x, t.y - o.y)}` : ''}`;
   chip.hidden = false; if (chip.textContent !== txt) chip.textContent = txt;
 }
-let calfModel = null; const shellGlow = [];
+function renderQuests(){
+  const o = ocean; boardFix(o);
+  $('qpExplain').textContent = `Finish one and a new quest takes its place. Tap Show me the way to follow a quest with the gold arrow.${save.questsDone ? ` Quests done so far: ${save.questsDone}.` : ''}`;
+  $('qpList').innerHTML = save.board.map((q, i) => { const t = questTarget(q), [c] = QUEST_KIND[q.kind].pay;
+    return `<div class="lggoal${i === questPick ? ' done' : ''}"><i aria-hidden="true">${QUEST_KIND[q.kind].icon}</i><div><b>${htmlText(questText(q))}</b><p>${t ? `${Math.round(Math.hypot(t.x - o.x, t.y - o.y)/METERS)} m away.` : 'You can do this one anywhere.'}${i === questPick ? ' The gold arrow is showing this one.' : ''}</p><small>Reward: ${c} coins</small>${t && i !== questPick ? `<button class="btn primary" type="button" data-quest="${i}">Show me the way</button>` : ''}</div></div>`; }).join('');
+}
+function openQuests(){ if (mode !== 'ocean' || paused || !ocean) return; paused = true; ptr.down = false; renderQuests(); $('questPanel').hidden = false; resetPick(); }
+function closeQuests(){ $('questPanel').hidden = true; paused = false; graceAfterPause(); showPick(); }
+$('questChip').onclick = () => { initAudio(); openQuests(); }; $('qpClose').onclick = closeQuests;
+$('qpList').addEventListener('click', e => { const b = e.target.closest('[data-quest]'); if (!b) return; questPick = +b.dataset.quest; leagueGuide = false; homeGuide = false; ocean.qT = 0; closeQuests();
+  sfx(700, .08, 'triangle', .05); banner('Follow the gold arrow!', questText(save.board[questPick])); });
+// talking to a whale: she points you to your quests
+function whaleTalk(o, b){ say('Humpback whale', 'Ooooooo... Hello, little one! Tap your quests at the top left. Maybe a baby whale somewhere needs your help!', 8); }
+// the quest things you can see: the baby whale and her mom, song shells, the treasure chest, the bottle
+let calfModel = null, momModel = null, qChest = null, qBottle = null; const shellGlow = [];
 function drawQuest(t){
-  const o = ocean, q = o && o.quest, calfOn = q && q.kind === 'calf' && q.state !== 'done';
-  if (calfOn && !calfModel){ calfModel = buildWhale(); calfModel.scale.setScalar(.32); oceanWorld.add(calfModel); }
-  if (calfModel){ calfModel.visible = !!calfOn || !!(q && q.kind === 'calf');
-    if (calfModel.visible){ const x = q.calf.x*U, z = q.calf.y*U; calfModel.position.set(x, waveH(x, z, OC.amp, 1) - .35, z); calfModel.rotation.y = -(q.calfAng || t*.3); poseModel(calfModel, null, t*1.6); } }
-  const shells = q && q.kind === 'song' ? q.shells : [];
-  shells.forEach((sh, i) => { let m = shellGlow[i]; if (!m){ m = new THREE.Mesh(new THREE.SphereGeometry(.3, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffd76a, emissive: 0xffb020, emissiveIntensity: 2.2, roughness: .3 })); shellGlow.push(m); oceanWorld.add(m); }
-    m.visible = !sh.got; const x = sh.x*U, z = sh.y*U; m.position.set(x, waveH(x, z, OC.amp, 1) - .2 + Math.sin(t*2 + i)*.15, z); m.scale.setScalar(1 + Math.sin(t*4 + i)*.12); });
+  const board = save.board || [], find = k => board.find(q => q.kind === k), calf = find('calf'), sh = find('shells'), tr = find('treasure'), bo = find('bottle');
+  if (calf && !calfModel){ calfModel = buildWhale(); calfModel.scale.setScalar(.32); oceanWorld.add(calfModel); momModel = buildWhale(); oceanWorld.add(momModel); }
+  if (calfModel){ calfModel.visible = momModel.visible = !!calf;
+    if (calf){ let x = calf.x*U, z = calf.y*U; calfModel.position.set(x, waveH(x, z, OC.amp, 1) - .35, z); calfModel.rotation.y = -(calf.ang ?? t*.3); poseModel(calfModel, null, t*1.6);
+      const a = t*.15; x = calf.mx*U + Math.cos(a)*3; z = calf.my*U + Math.sin(a)*3; momModel.position.set(x, waveH(x, z, OC.amp, 1) - 1.1, z); momModel.rotation.y = -(a + Math.PI/2); poseModel(momModel, null, t*1.2); } }
+  const shells = sh ? sh.shells : [];
+  shells.forEach((v, i) => { let m = shellGlow[i]; if (!m){ m = new THREE.Mesh(new THREE.SphereGeometry(.3, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffd76a, emissive: 0xffb020, emissiveIntensity: 2.2, roughness: .3 })); shellGlow.push(m); oceanWorld.add(m); }
+    m.visible = !v.got; const x = v.x*U, z = v.y*U; m.position.set(x, waveH(x, z, OC.amp, 1) - .2 + Math.sin(t*2 + i)*.15, z); m.scale.setScalar(1 + Math.sin(t*4 + i)*.12); });
   for (let i = shells.length; i < shellGlow.length; i++) shellGlow[i].visible = false;
+  if (tr && !qChest){ qChest = buildChest(); oceanWorld.add(qChest); }
+  if (qChest){ qChest.visible = !!tr; if (tr){ qChest.position.set(tr.x*U, floorY(tr.x, tr.y) + .02, tr.y*U); qChest.userData.glow.material.opacity = .45 + .25*Math.sin(t*3); } }
+  if (bo && !qBottle){ qBottle = new THREE.Group(); const b = new THREE.Mesh(new THREE.CapsuleGeometry(.16, .45, 4, 10), new THREE.MeshStandardMaterial({ color: 0x9fe8c0, emissive: 0x40d090, emissiveIntensity: .9, transparent: true, opacity: .85 }));
+    b.rotation.z = Math.PI/2; qBottle.add(b); const g = sprite(dotTex, 1.8, 1.8); g.material.color.set(0x9dffd0); g.material.blending = THREE.AdditiveBlending; qBottle.add(g); oceanWorld.add(qBottle); }
+  if (qBottle){ qBottle.visible = !!bo; if (bo){ const x = bo.x*U, z = bo.y*U; qBottle.position.set(x, waveH(x, z, OC.amp, 1) + .05, z); qBottle.rotation.y = t*.4; } }
 }
 /* Shark warning: when a shark is hunting you (or cruising close by), a red warning with an arrow shows where it is. */
 function drawSharkWarn(){
@@ -1997,17 +2046,11 @@ $('krakenBtn').addEventListener('pointerdown', e => { e.preventDefault(); initAu
 // the gold arrow to the goal you picked with "Show me the way" (it goes away once you're there, or the goal is done)
 const GUIDE_HERE = { grotto: [8, 'Look for the door deep under water'], eaglerock: [8, 'Get up on top: jump, hook or fly'], eel: [12, 'Get closer... if you dare'],
   trenchhouse: [8, 'It\'s at the very bottom. Dive, dive, dive!'], junkyard: [8, 'Look on the sea floor'], kraken: [KRAKEN.reach + 10, 'Careful... watch for tentacles!'] };
-// what the gold arrow points at: your whale quest's next step (always, while you have one), then home (after someone gives you directions),
-// then the league goal you picked
+// what the gold arrow points at: home (after someone gives you directions), else the league goal you picked, else the quest the quest chip shows
 let homeGuide = false;
 function drawGuideArrow(o){
-  const q = o.quest;
-  if (q && curChar().id === 'dolphin'){ const [wx, wy] = whaleSpot(q.whale), w = { x: wx, y: wy };
-    const [t, label] = q.kind === 'calf' ? (q.state === 'find' ? [q.calf, 'Baby whale'] : q.state === 'lead' ? [w, 'Her mom'] : [w, 'Talk to the whale'])
-      : (q.shells.find(sh => !sh.got) ? [q.shells.find(sh => !sh.got), `Song shell ${q.got + 1} of 3`] : [w, q.state === 'done' ? 'Talk to the whale' : 'Back to the whale']);
-    return arrowTo(o, t.x, t.y, label); }
   if (homeGuide){ if (Math.hypot(HOUSE.x - o.x, HOUSE.y - o.y) < 20*METERS || o.onLand && onHome(o)){ homeGuide = false; return; } return arrowTo(o, HOUSE.x, HOUSE.y, 'Your house'); }
-  if (!leagueGuide || !leagueTrack) return;
+  if (!leagueGuide || !leagueTrack){ const qt = save.board?.[questPick] && questTarget(save.board[questPick]); if (qt) arrowTo(o, qt.x, qt.y, qt.label); return; }   // otherwise: the quest you're on
   const at = LEAGUE_AT[leagueTrack], d = Math.hypot(at.x - o.x, at.y - o.y)/METERS, [near, msg] = GUIDE_HERE[leagueTrack];
   if (leagueDone(leagueTrack) || d < near){ leagueGuide = false; if (!leagueDone(leagueTrack)) banner('You\'re here!', msg); return; }
   arrowTo(o, at.x, at.y, goalOf(leagueTrack).name);
@@ -2152,8 +2195,7 @@ const newOcean = () => ({ x:HOUSE.x, y:HOUSE.y + HOUSE.r - 110, vx:0, vy:0, ang:
 function startOcean(){
   updShipChest();
   syncHouse(); placeLighthouse(); ocean = newOcean(); save.houseFound = true;
-  ocean.quest = save.quest || null;   // a whale quest you were on picks up where you left it
-  if (ocean.quest?.state === 'lead'){ ocean.quest.calf.x = ocean.x; ocean.quest.calf.y = ocean.y + 4*METERS; }   // (the baby whale you were leading is right behind you)
+  boardFix(ocean); for (const q of save.board) if (q.kind === 'calf' && q.state === 'lead'){ q.x = ocean.x; q.y = ocean.y + 4*METERS; }   // (the baby whale you were leading is right behind you)
   parts = []; setMode('ocean'); $('airChip').hidden = true;
   banner('Your island!', 'Press Build to build, or swim out and explore the oceans of the world');
   ocean.tripT = 0;
@@ -3036,8 +3078,8 @@ function buildMinimap(){
 }
 buildMinimap();
 function drawMinimap(){
-  // hidden most of the time (the Map is in the phone); it pops up by itself for a Sonar ping or a quest
-  if (!(time < sonarUntil || ocean.quest)){ mmHit.r = 0; return; }
+  // hidden most of the time (the Map is in the phone); it pops up by itself for a Sonar ping
+  if (!(time < sonarUntil)){ mmHit.r = 0; return; }
   const size = Math.min(130, Math.min(W,H)*.28), x = W - size - 16, y = H - size - 120;
   mmHit.x = x + size/2; mmHit.y = y + size/2; mmHit.r = size/2 + 6;
   const drawNSEW = () => { ctx.font = "900 12px Nunito, sans-serif"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,43,69,.85)'; ctx.fillStyle = '#fff';
@@ -3050,9 +3092,6 @@ function drawMinimap(){
   const d = Math.hypot(ocean.x, ocean.y), k = Math.min(1, WORLD_R/Math.max(d, 1)) * .96;
   const px = x + size/2 + ocean.x/WORLD_R*k*size/2, py = y + size/2 + ocean.y/WORLD_R*k*size/2;
   drawNSEW();
-  { const q = ocean.quest; if (q){ const pts = q.kind === 'calf' ? [q.state === 'find' ? q.calf : { x: whaleSpot(q.whale)[0], y: whaleSpot(q.whale)[1] }] : q.state === 'collect' ? q.shells.filter(s2 => !s2.got) : [{ x: whaleSpot(q.whale)[0], y: whaleSpot(q.whale)[1] }];
-    for (const tp of pts){ const hd = Math.hypot(tp.x, tp.y), hk = Math.min(1, WORLD_R/Math.max(hd, 1))*.96, sx = x + size/2 + tp.x/WORLD_R*hk*size/2, sy = y + size/2 + tp.y/WORLD_R*hk*size/2;
-      ctx.fillStyle = '#ffd23f'; ctx.strokeStyle = 'rgba(8,43,69,.9)'; ctx.lineWidth = 2; ctx.beginPath(); for (let i=0;i<10;i++){ const rr = i%2 ? 2.4 : 5.5, aa = -Math.PI/2 + i*Math.PI/5; ctx.lineTo(sx + Math.cos(aa)*rr, sy + Math.sin(aa)*rr); } ctx.closePath(); ctx.stroke(); ctx.fill(); } } }
   if (time < sonarUntil) for (const h of sonarHits){ const hd = Math.hypot(h.x, h.y), hk = Math.min(1, WORLD_R/Math.max(hd, 1))*.96, sx = x + size/2 + h.x/WORLD_R*hk*size/2, sy = y + size/2 + h.y/WORLD_R*hk*size/2;
     if (h.k === 'chest'){ ctx.fillStyle = '#ffc53d'; ctx.fillRect(sx - 3, sy - 3, 6, 6); } else { ctx.fillStyle = '#fff'; circ(ctx, sx, sy, 2.2); } }
   for (const f of others.values()){ const fd = Math.hypot(f.x, f.y), fk = Math.min(1, WORLD_R/Math.max(fd, 1))*.96;
@@ -5171,7 +5210,7 @@ let mode = 'title', time = 0, paused = false;
 const MODE = () => mode;
 function setMode(m){
   if (m !== 'ocean' && m !== 'dead' && typeof mpLeave === 'function') mpLeave();
-  mode = m; paused = false; renderGadgetBar(); if (m !== 'ocean'){ $('mphChip').hidden = $('leagueChip').hidden = $('holdChip').hidden = $('krakenBtn').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
+  mode = m; paused = false; renderGadgetBar(); if (m !== 'ocean'){ $('mphChip').hidden = $('questChip').hidden = $('leagueChip').hidden = $('holdChip').hidden = $('krakenBtn').hidden = $('grabBtn').hidden = $('useBtn').hidden = $('casinoBtn').hidden = true; $('speedFx').style.opacity = '0'; }
   if (m === 'title'){ startArmed = false; arrangeTitle(); hItems = null; heldItem = null; }
   $('title').hidden = m !== 'title'; $('choose').hidden = m !== 'choose'; $('results').hidden = m !== 'results' && m !== 'dead'; $('panel').hidden = true;
   $('hud').hidden = !playing(); $('limbs').hidden = !playing(); $('speedBar').hidden = !(m === 'ocean' || m === 'pool'); if (m === 'ocean' || m === 'pool') showSpeedBar(); $('strokeBtn').hidden = m !== 'race'; $('diveBtn').hidden = m === 'race'; if (m !== 'ocean') $('jumpBtn').hidden = $('sonarBtn').hidden = true; diveBtnHeld = false; if (m !== 'ocean') $('talkBtn').hidden = true; if (m !== 'ocean') $('rideBtn').hidden = true;
@@ -5274,7 +5313,7 @@ function limbsNow(){ return mode === 'race' ? race && race.limbs : mode === 'poo
 
 /* ---------- Keyboard menus: up/down to choose, Space or Enter to press ---------- */
 let pick = 0;
-function menuEl(){ for (const id of ['loginPanel','gatePanel','movePanel','shopPanel','leaguePanel','mapPanel','panel','results','choose','title']) if (!$(id).hidden) return $(id); return null; }
+function menuEl(){ for (const id of ['loginPanel','gatePanel','movePanel','shopPanel','leaguePanel','questPanel','mapPanel','panel','results','choose','title']) if (!$(id).hidden) return $(id); return null; }
 function menuBtns(){ const el = menuEl(); return el ? [...el.querySelectorAll('.btn')].filter(b => !b.disabled) : []; }
 function showPick(){ const bs = menuBtns(); bs.forEach((b,i) => b.classList.toggle('picked', i === pick)); }
 function resetPick(){ pick = 0; showPick(); }
