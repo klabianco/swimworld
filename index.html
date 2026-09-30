@@ -2920,9 +2920,20 @@ function bumpAnimals(o){
 }
 // Surfing uses the same traveling swell as the water shader, in world meters.
 const SURF = { dx:.9396926208, dz:.3420201433, k:Math.PI*2/32, speed:4.6 };
+// A quiet strip outside every island, followed by a gradual 12 m swell fade.
+// Use conservative island bounds so even low beaches stay above the water.
+function shoreFactor(x, z){
+  let distance = Math.hypot(x, z) - ISL*U*1.2;
+  distance = Math.min(distance, Math.hypot(x-HOUSE.x*U, z-HOUSE.y*U) - (HOUSE.r*U+1.5));
+  for (const n of neighbors) distance = Math.min(distance, Math.hypot(x-n.house.x*U, z-n.house.y*U) - (HOUSE.r*U+1.5));
+  const [a,b] = catLocal(x/U,z/U);
+  distance = Math.min(distance, (Math.hypot(a/CAT.A,b/CAT.B)-1)*Math.min(CAT.A,CAT.B), Math.hypot(x-EAGLE.x*U,z-EAGLE.y*U)-EAGLE.r);
+  const q = clamp((distance-2)/12,0,1);
+  return q*q*(3-2*q);
+}
 function swellAt(x, z, t = time){
   const phase = SURF.k*(SURF.dx*x + SURF.dz*z - SURF.speed*t);
-  const a = 1.25, c = Math.cos(phase), sn = Math.sin(phase);
+  const a = 1.25*shoreFactor(x,z), c = Math.cos(phase), sn = Math.sin(phase);
   return { height:a*(sn + .22*Math.sin(2*phase)), slope:a*SURF.k*(c + .44*Math.cos(2*phase)), phase };
 }
 function canSurf(o){ return !!o && !o.onLand && !o.vehicle && !o.ride && !o.grapple && !(o.jumpY > 0) && (o.depth || 0) < .4; }
@@ -2940,7 +2951,7 @@ function surfStep(o, dt){
   // The falling, forward face catches the board. Heading back through the crest releases it.
   if (!o.surfCaught && a.slope < -.055 && a.height > -.3 && facing > .2){
     o.surfCaught = true; o.surfTime = 0; coach('You caught a wave! Steer left or right to carve along it.', 5); }
-  if (o.surfCaught && (a.slope > .08 || a.height < -.65 || facing < -.25)) o.surfCaught = false;
+  if (o.surfCaught && (shoreFactor(o.x*U,o.y*U) < .35 || a.slope > .08 || a.height < -.65 || facing < -.25)) o.surfCaught = false;
   let tx, ty;
   if (o.surfCaught){
     const carve = Math.cos(o.ang)*-SURF.dz + Math.sin(o.ang)*SURF.dx;
@@ -3314,6 +3325,7 @@ const GW_GLSL = `const vec4 GWD[8] = vec4[8](${GW.map(g => `vec4(${f3(g.dx)},${f
 const vec2 GWP[8] = vec2[8](${GW.map(g => `vec2(${f3(g.w)},${f3(g.ph)})`).join(',')});`;
 const WATER_VS = `
 uniform float uTime, uAmp, uChop, uSurf;
+attribute float aShore;
 varying vec3 vW; varying vec3 vN; varying float vH; varying float vJ; varying float vBreak;
 ${GW_GLSL}
 void main(){
@@ -3328,7 +3340,9 @@ void main(){
   // Keep ocean XZ fixed so rendered wave height and floating bodies agree exactly.
   d.xz *= 1. - uSurf; d.y += swell;
   n = mix(n, vec3(n.x - .9396926208*slope, 1., n.z - .3420201433*slope), uSurf);
-  vBreak = smoothstep(.65, 1.12, swell)*uSurf;
+  float shore = mix(1., aShore, uSurf);
+  d.y *= shore; n.xz *= shore;
+  vBreak = smoothstep(.65, 1.12, swell*shore)*uSurf;
   w.xyz += d; vH = d.y; vJ = jac; vN = normalize(n); vW = w.xyz;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
@@ -3405,7 +3419,7 @@ const oceanWater = waterMat({ surf:1, amp:.3, chop:1, rip:1, alpha:.62, deep:0x0
 // JS copy of the wave height so things float on the ocean (same waves as the shader)
 function waveH(x, z, amp){
   let h = 0; for (const g of GW) h += g.a*amp*Math.sin(g.k*(g.dx*x + g.dz*z) - g.w*time + g.ph);
-  return h + swellAt(x, z).height;
+  return h*shoreFactor(x,z) + swellAt(x, z).height;
 }
 
 /* Caustics: the dancing light on the floor under clear water */
@@ -4174,6 +4188,7 @@ function buildOcean(){
     for (let i=0;i<p.count;i++){ const x=p.getX(i)/130, y=p.getY(i)/130;
       p.setXY(i, Math.sign(x)*x*x*130, Math.sign(y)*y*y*130); }
     p.needsUpdate = true; }
+  oceanWaterMesh.geometry.setAttribute('aShore', new THREE.BufferAttribute(new Float32Array(oceanWaterMesh.geometry.attributes.position.count),1));
   oceanWaterMesh.renderOrder = 2; oceanWorld.add(oceanWaterMesh);
   const sandMap = rep(sandTex, 40, 40);
   { const g = new THREE.PlaneGeometry(260, 260, 110, 110); g.rotateX(-Math.PI/2);
@@ -4883,6 +4898,14 @@ function updOceanWorld(o){
   renderer.toneMappingExposure = EXPO*(1 - OC.dark*.72*clamp((o.depth || 0)/8, 0, 1));
   const gx = Math.round(px/4)*4, gz = Math.round(pz/4)*4;
   oceanWaterMesh.position.set(gx, 0, gz);
+  const coastKey = `${gx},${gz},${HOUSE.x},${HOUSE.y},${neighborsSig}`;
+  if (oceanWaterMesh.userData.coastKey !== coastKey){
+    oceanWaterMesh.userData.coastKey = coastKey;
+    const positions=oceanWaterMesh.geometry.attributes.position, shore=oceanWaterMesh.geometry.attributes.aShore;
+    // PlaneGeometry is rotated -PI/2: its local Y becomes negative world Z.
+    for(let i=0;i<positions.count;i++) shore.setX(i,shoreFactor(gx+positions.getX(i),gz-positions.getY(i)));
+    shore.needsUpdate=true;
+  }
   const fast = superK() > 0, due = time > (seaFloor.userData.t || 0);
   if ((seaFloor.userData.gx !== gx || seaFloor.userData.gz !== gz) && (!fast || due)){   // reshape the bottom around you (less often at super speed)
     seaFloor.userData.t = time + (fast ? .25 : 0);
