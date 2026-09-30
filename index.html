@@ -4263,7 +4263,8 @@ function buildHouse(own = true, at = HOUSE, label = 'YOUR HOUSE'){
   const add = (parent, geo, mat, x, y, z, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = shadow; m.receiveShadow = true; parent.add(m); return m; };
   const walls = new THREE.Group(), tall = new THREE.Group(), top = new THREE.Group(); H.add(walls, tall, top);   // when you're inside, the walls shrink and `tall` and `top` hide
   const wallIn = inM(0xf3e2b3, .15);
-  add(H, new THREE.BoxGeometry(5, .06, 4), inM(0xb98553, .25), 0, .03, 0, false);                                   // wooden floor
+  // Recess the floor edges inside the walls: coplanar exterior faces flicker as the camera moves.
+  add(H, new THREE.BoxGeometry(4.8, .06, 3.8), inM(0xb98553, .25), 0, .03, 0, false);                                   // wooden floor
   add(walls, new THREE.BoxGeometry(5, 3, .15), wallIn, 0, 1.5, -1.925); add(walls, new THREE.BoxGeometry(.15, 3, 4), wallIn, -2.425, 1.5, 0);
   add(walls, new THREE.BoxGeometry(.15, 3, 4), wallIn, 2.425, 1.5, 0);
   for (const x of [-1.625, 1.625]) add(walls, new THREE.BoxGeometry(1.75, 3, .15), wallIn, x, 1.5, 1.925);                // front wall, with a gap for the door
