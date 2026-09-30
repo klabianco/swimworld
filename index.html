@@ -3331,7 +3331,8 @@ ${GW_GLSL}
 void main(){
   vec4 w = modelMatrix * vec4(position, 1.0); vec2 p = w.xz;
   vec3 d = vec3(0.), n = vec3(0., 1., 0.); float jac = 1., q = uChop*.8;
-  for (int i = 0; i < 8; i++){ vec4 g = GWD[i]; float a = g.w*uAmp, ph = g.z*dot(g.xy, p) - GWP[i].x*uTime + GWP[i].y, c = cos(ph), s = sin(ph);
+  for (int i = 0; i < 8; i++){ vec4 g = GWD[i]; float detail = 1. - smoothstep(12./g.z, 28./g.z, length(p-cameraPosition.xz));
+    float a = g.w*uAmp*mix(1., detail, uSurf), ph = g.z*dot(g.xy, p) - GWP[i].x*uTime + GWP[i].y, c = cos(ph), s = sin(ph);
     d.x += q*a*g.x*c; d.z += q*a*g.y*c; d.y += a*s;
     n.x -= g.x*g.z*a*c; n.z -= g.y*g.z*a*c; n.y -= q*g.z*a*s; jac -= q*g.z*a*s; }
   float ph = .19634954*(dot(vec2(.9396926208, .3420201433), p) - 4.6*uTime);
@@ -3378,7 +3379,7 @@ void main(){
   foam = max(foam, vBreak*smoothstep(.18, .7, m1.x*.4 + m2.y*.3 + .5)*exp(-length(cameraPosition-vW)*.009));
   col += uShallow*vBreak*.35;
   col = mix(col, vec3(.94, .97, 1.), foam*.8); a = max(a, foam*.95);
-  if (cameraPosition.y < vW.y){   // looking up from under water: a bright window of sky, dark mirror outside it
+  if (!gl_FrontFacing){   // looking up from under water: a bright window of sky, dark mirror outside it
     float up = clamp(-V.y, 0., 1.);
     float win = smoothstep(.6, .7, up);
     vec3 skyIn = skyCol(normalize(vec3(-V.x*.7, up, -V.z*.7)))*.85 + uShallow*.25;
@@ -3976,7 +3977,7 @@ function updRaceWorld(r){
    OCEAN WORLD
    ================================================================= */
 const oceanWorld = new THREE.Group(); oceanScene.add(oceanWorld);
-let oceanBuilt = false, oceanWaterMesh, seaFloor, oceanCaustic, lastChunkKey = '';
+let oceanBuilt = false, oceanWaterMesh, oceanWaterDepth, seaFloor, oceanCaustic, lastChunkKey = '';
 const ZONE_LOOK = [   // water deep/shallow, floor tint, fog, wave amp, water alpha
   { deep:0x03759a, sh:0x08c2cf, floor:0xe8d6aa, fog:0xa9d6e8, amp:.18, a:.62 },
   { deep:0x0b4a4a, sh:0x2f8f7c, floor:0x7a7650, fog:0x9ec9bf, amp:.3,  a:.62 },
@@ -4183,12 +4184,22 @@ function moveClouds(list, cx, cz){ for (const s of list){ s.visible = !realSky; 
 
 function buildOcean(){
   oceanBuilt = true;
-  oceanWaterMesh = new THREE.Mesh(new THREE.PlaneGeometry(260, 260, 200, 200), oceanWater); oceanWaterMesh.rotation.x = -Math.PI/2;
+  oceanWaterMesh = new THREE.Mesh(new THREE.PlaneGeometry(256, 256, 256, 256), oceanWater); oceanWaterMesh.rotation.x = -Math.PI/2;
   { const p = oceanWaterMesh.geometry.attributes.position;
-    for (let i=0;i<p.count;i++){ const x=p.getX(i)/130, y=p.getY(i)/130;
-      p.setXY(i, Math.sign(x)*x*x*130, Math.sign(y)*y*y*130); }
+    for (let i=0;i<p.count;i++){ const stretch = v => Math.sign(v)*(.5*Math.abs(v) + 1936*Math.pow(Math.max(0,Math.abs(v)-96)/32,3));
+      p.setXY(i, stretch(p.getX(i)), stretch(p.getY(i))); }
     p.needsUpdate = true; }
   oceanWaterMesh.geometry.setAttribute('aShore', new THREE.BufferAttribute(new Float32Array(oceanWaterMesh.geometry.attributes.position.count),1));
+  oceanWaterMesh.geometry.computeBoundingSphere();
+  // Write the nearest surface to depth before blending water. Otherwise the back
+  // and front of a swell blend in triangle order, exposing straight polygon edges.
+  const waterDepth = new THREE.ShaderMaterial({vertexShader:WATER_VS,
+    fragmentShader:'void main(){gl_FragColor=vec4(0.);}', uniforms:oceanWater.uniforms,
+    side:THREE.DoubleSide, colorWrite:false, depthWrite:true});
+  oceanWaterDepth = new THREE.Mesh(oceanWaterMesh.geometry,waterDepth);
+  oceanWaterDepth.rotation.copy(oceanWaterMesh.rotation); oceanWaterDepth.renderOrder=1;
+  oceanWorld.add(oceanWaterDepth);
+  oceanWater.forceSinglePass=true;
   oceanWaterMesh.renderOrder = 2; oceanWorld.add(oceanWaterMesh);
   const sandMap = rep(sandTex, 40, 40);
   { const g = new THREE.PlaneGeometry(260, 260, 110, 110); g.rotateX(-Math.PI/2);
@@ -4891,13 +4902,14 @@ function updOceanWorld(o){
   OC.deep.lerp(tmpC.set(look.deep), k); OC.sh.lerp(tmpC.set(look.sh), k); OC.floor.lerp(tmpC.set(look.floor), k);
   OC.fog.lerp(realSky && DARK[z] < .5 ? tmpC.set(look.fog).lerp(HORIZON, .75) : tmpC.set(look.fog), k);
   OC.amp = lerp(OC.amp, look.amp, k); OC.a = lerp(OC.a, look.a, k); OC.dark = lerp(OC.dark, DARK[z], k);
-  const u = oceanWater.uniforms; u.uDeep.value.copy(OC.deep); u.uShallow.value.copy(OC.sh); u.uFog.value.copy(OC.fog); u.uAmp.value = OC.amp; u.uAlpha.value = Math.max(.8, OC.a);
+  const u = oceanWater.uniforms; u.uDeep.value.copy(OC.deep); u.uShallow.value.copy(OC.sh); u.uFog.value.copy(OC.fog); u.uAmp.value = OC.amp; // Deep water absorbs the bottom instead of exposing rectangular terrain/chunk edges through waves.
+  u.uAlpha.value = 1 - (1 - OC.a)*Math.exp(-depthAt(o.x,o.y)*.22);
   oceanScene.fog.color.copy(OC.fog); seaFloor.material.color.copy(OC.floor);
   oceanCaustic.material.uniforms.uI.value = .55*(1 - OC.dark);
   // Deep regions darken as you dive; sunlight still reaches the ocean surface.
   renderer.toneMappingExposure = EXPO*(1 - OC.dark*.72*clamp((o.depth || 0)/8, 0, 1));
   const gx = Math.round(px/4)*4, gz = Math.round(pz/4)*4;
-  oceanWaterMesh.position.set(gx, 0, gz);
+  oceanWaterMesh.position.set(gx, 0, gz); oceanWaterDepth.position.copy(oceanWaterMesh.position);
   const coastKey = `${gx},${gz},${HOUSE.x},${HOUSE.y},${neighborsSig}`;
   if (oceanWaterMesh.userData.coastKey !== coastKey){
     oceanWaterMesh.userData.coastKey = coastKey;
