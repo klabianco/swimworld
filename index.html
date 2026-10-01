@@ -545,6 +545,7 @@
   <div class="panel small">
     <div><p class="kicker">Quests</p><h2>Your 3 quests</h2></div>
     <p class="explain" id="qpExplain"></p>
+    <div class="lggoals" id="qpWhale"></div>
     <div class="lggoals" id="qpList"></div>
     <button id="qpClose" class="btn primary" type="button">Back to swimming</button>
   </div>
@@ -643,6 +644,7 @@ function mergeSaves(a, b){
   m.bestTime = Math.min(...[a.bestTime, b.bestTime].filter(t => t > 0), Infinity); if (!isFinite(m.bestTime)) m.bestTime = 0;
   m.gearLv = { ...(a.gearLv || {}) }; for (const k in b.gearLv || {}) m.gearLv[k] = Math.max(m.gearLv[k] || 0, b.gearLv[k]);
   m.houseFound = !!(a.houseFound || b.houseFound); m.tutorialDone = !!(a.tutorialDone || b.tutorialDone);
+  if (a.whaleQuest || b.whaleQuest){ m.whaleQuest = {}; for (const k of ['started','calf','shells','reward']) m.whaleQuest[k] = !!(a.whaleQuest?.[k] || b.whaleQuest?.[k]); }
   return m;
 }
 /* Moving a swimmer between devices: the whole save rides along in a link, https://klabianco.github.io/swimworld/#save=... */
@@ -1697,8 +1699,8 @@ function questSpot(o, minM, maxM, test, strict){   // a random spot in open wate
     if (groundAt(x, y) < -1.5 && !onLeagueCourse(x, y, 6) && Math.hypot(x - KRAKEN.x, y - KRAKEN.y) > 70*METERS && (!test || test(x, y))) return { x, y }; }
   return strict ? null : { x: o.x + 60*METERS, y: o.y };
 }
-function newQuest(o, not = []){
-  const kinds = Object.keys(QUEST_KIND).filter(k => !not.includes(k)), kind = kinds[(Math.random()*kinds.length)|0];
+function newQuest(o, not = [], requestedKind){
+  const kinds = Object.keys(QUEST_KIND).filter(k => !not.includes(k)), kind = requestedKind || kinds[(Math.random()*kinds.length)|0];
   if (kind === 'calf'){ const c = questSpot(o, 50, 130), m = questSpot(o, 40, 110); return { kind, state: 'find', x: c.x, y: c.y, mx: m.x, my: m.y }; }
   if (kind === 'shells'){ const c = questSpot(o, 40, 110); return { kind, got: 0, shells: [0, 1, 2].map(() => { const a = Math.random()*TAU, d = (8 + Math.random()*25)*METERS; return { x: c.x + Math.cos(a)*d, y: c.y + Math.sin(a)*d, got: false }; }) }; }
   if (kind === 'treasure'){ const c = questSpot(o, 50, 140, (x, y) => depthAt(x, y) < 16); return { kind, x: c.x, y: c.y }; }
@@ -1732,7 +1734,11 @@ function boardFix(o){
 }
 function questDone(o, i){
   const q = save.board[i], [c, xp] = QUEST_KIND[q.kind].pay; save.questsDone = (save.questsDone || 0) + 1;
+  if (q.kind === 'calf' || q.kind === 'shells'){ save.whaleQuest ||= {}; save.whaleQuest[q.kind] = true; }
   save.board.splice(i, 1, newQuest(o, [...save.board.map(v => v.kind), q.kind]));   // a new quest, of a kind you don't already have
+  const w = save.whaleQuest;
+  if (w?.started){ const next = save.board.findIndex(q => (q.kind === 'calf' || q.kind === 'shells') && !w[q.kind]); if (next >= 0){ questPick = next; leagueGuide = homeGuide = false; } }
+  awardWhalePrize(o);
   addCoins(c, `Quest complete! ${QUEST_KIND[q.kind].icon}`); addXP(xp); persist(); flushCloud(); [523, 659, 784, 1047, 1319].forEach((f, k) => sfx(f, .22, 'triangle', .07, k*.12));
   banner('New quest!', `${QUEST_KIND[save.board[i].kind].icon} ${questText(save.board[i])}`); o.qT = 0;
 }
@@ -1741,10 +1747,10 @@ function questStep(o, dt){
   const dep = o.depth || 0, near = (x, y, m) => Math.hypot(x - o.x, y - o.y) < m*METERS;
   for (let i = 0; i < 3; i++){ const q = save.board[i]; let done = false;
     if (q.kind === 'calf'){
-      if (q.state === 'find' && near(q.x, q.y, 5)){ q.state = 'lead'; questPick = i; banner('You found the baby whale!', 'Bring her to her mom: follow the gold arrow'); sfx(784, .2, 'triangle', .06); }
+      if (q.state === 'find' && near(q.x, q.y, 5)){ q.state = 'lead'; questPick = i; leagueGuide = homeGuide = false; persist(); banner('You found the baby whale!', 'Bring her to her mom: follow the gold arrow'); sfx(784, .2, 'triangle', .06); }
       else if (q.state === 'lead'){ const bx = o.x - Math.cos(o.ang)*4*METERS, by = o.y - Math.sin(o.ang)*4*METERS, k = Math.min(1, dt*1.5); q.x += (bx - q.x)*k; q.y += (by - q.y)*k; q.ang = Math.atan2(o.y - q.y, o.x - q.x);
         if (Math.hypot(q.x - q.mx, q.y - q.my) < 14*METERS){ banner('Reunited!', 'The baby whale is back with her mom'); done = true; } } }
-    else if (q.kind === 'shells'){ for (const sh of q.shells) if (!sh.got && near(sh.x, sh.y, 3) && dep < 2.5){ sh.got = true; q.got++; sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1); if (q.got < 3) banner(`Song shell ${q.got} of 3!`, 'Find the next golden glow'); } done = q.got >= 3; }
+    else if (q.kind === 'shells'){ for (const sh of q.shells) if (!sh.got && near(sh.x, sh.y, 3) && dep < 2.5){ sh.got = true; q.got++; persist(); sfx(1175, .25, 'sine', .06); sfx(1568, .3, 'sine', .05, .1); if (q.got < 3) banner(`Song shell ${q.got} of 3!`, 'Find the next golden glow'); } done = q.got >= 3; }
     else if (q.kind === 'treasure') done = near(q.x, q.y, 1.8) && dep > depthAt(q.x, q.y) - 2.2;
     else if (q.kind === 'bottle'){ done = near(q.x, q.y, 2.2) && dep < 1.5; if (done) say('Message in a bottle', q.note, 9); }
     else if (q.kind === 'pearls') done = (save.pearls || 0) - q.start >= q.need;
@@ -1758,17 +1764,42 @@ function questStep(o, dt){
 }
 function renderQuests(){
   const o = ocean; boardFix(o);
+  const w = save.whaleQuest;
+  $('qpWhale').innerHTML = w?.started ? `<div class="lggoal"><i aria-hidden="true">🐋</i><div><b>Help the whale family</b><p>${w.calf ? '✓ Baby whale safely home.' : 'Find my baby and bring her home!'}<br>${w.shells ? '✓ All 3 song shells collected.' : 'Collect 3 glowing song shells.'}</p><small>${w.reward ? 'Prize earned: ☀️ Sun Stone! Hold it up close to the Kraken three times.' : 'Prize for BOTH tasks: ☀️ Sun Stone — its light can defeat the Kraken.'}</small>${w.reward && !krakenBeaten() ? '<button class="btn primary" type="button" data-whale-prize>Equip Sun Stone</button>' : ''}</div></div>` : '';
   $('qpExplain').textContent = `Finish one and a new quest takes its place. Tap Show me the way to follow a quest with the gold arrow.${save.questsDone ? ` Quests done so far: ${save.questsDone}.` : ''}`;
   $('qpList').innerHTML = save.board.map((q, i) => { const t = questTarget(q), [c] = QUEST_KIND[q.kind].pay;
-    return `<div class="lggoal${i === questPick ? ' done' : ''}"><i aria-hidden="true">${QUEST_KIND[q.kind].icon}</i><div><b>${htmlText(questText(q))}</b><p>${t ? `${Math.round(Math.hypot(t.x - o.x, t.y - o.y)/METERS)} m away.` : 'You can do this one anywhere.'}${i === questPick ? ' The gold arrow is showing this one.' : ''}</p><small>Reward: ${c} coins</small>${t && i !== questPick ? `<button class="btn primary" type="button" data-quest="${i}">Show me the way</button>` : ''}</div></div>`; }).join('');
+    return `<div class="lggoal${i === questPick ? ' done' : ''}"><i aria-hidden="true">${QUEST_KIND[q.kind].icon}</i><div><b>${htmlText(questText(q))}</b><p>${t ? `${Math.round(Math.hypot(t.x - o.x, t.y - o.y)/METERS)} m away.` : 'You can do this one anywhere.'}${i === questPick && !leagueGuide && !homeGuide ? ' The gold arrow is showing this one.' : ''}</p><small>Reward: ${c} coins</small>${t ? `<button class="btn primary" type="button" data-quest="${i}">Show me the way</button>` : ''}</div></div>`; }).join('');
 }
 function openQuests(){ if (mode !== 'ocean' || paused || !ocean) return; paused = true; ptr.down = false; renderQuests(); $('questPanel').hidden = false; resetPick(); }
 function closeQuests(){ $('questPanel').hidden = true; paused = false; graceAfterPause(); showPick(); }
 $('questChip').onclick = () => { initAudio(); openQuests(); }; $('qpClose').onclick = closeQuests;
 $('qpList').addEventListener('click', e => { const b = e.target.closest('[data-quest]'); if (!b) return; questPick = +b.dataset.quest; leagueGuide = false; homeGuide = false; ocean.qT = 0; closeQuests();
   sfx(700, .08, 'triangle', .05); banner('Follow the gold arrow!', questText(save.board[questPick])); });
-// talking to a whale: she points you to your quests
-function whaleTalk(o, b){ say('Humpback whale', 'Ooooooo... Hello, little one! Tap your quests at the top left. Maybe a baby whale somewhere needs your help!', 8); }
+function awardWhalePrize(o){
+  const w = save.whaleQuest;
+  if (!w?.calf || !w.shells || w.reward) return;
+  w.started = w.reward = true; o.held = 'sunstone'; o.lgT = 0;
+  banner('The whale gives you a Sun Stone!', 'Baby rescued + 3 song shells collected · Your prize is saved');
+  say('Humpback whale', 'Thank you for bringing my baby home and finding our song shells! This Sun Stone is yours. Swim close to the Kraken and hold it up three times to defeat it!', 14);
+  persist(); flushCloud();
+}
+// Talking starts real, selectable objectives and keeps any progress already made.
+function whaleTalk(o, b){
+  boardFix(o); save.whaleQuest ||= {}; const w = save.whaleQuest; w.started = true;
+  for (const kind of ['calf','shells']) if (!w[kind] && !save.board.some(q => q.kind === kind)){
+    const i = save.board.findIndex(q => q.kind !== 'calf' && q.kind !== 'shells');
+    save.board[i] = newQuest(o, [], kind);
+  }
+  const kind = !w.calf ? 'calf' : !w.shells ? 'shells' : null;
+  const i = save.board.findIndex(q => q.kind === kind);
+  if (i >= 0){ questPick = i; leagueGuide = homeGuide = false; o.qT = 0; }
+  awardWhalePrize(o); persist(); flushCloud(); openQuests();
+}
+$('qpWhale').addEventListener('click', e => {
+  if (!e.target.closest('[data-whale-prize]') || !save.whaleQuest?.reward || krakenBeaten()) return;
+  ocean.held = 'sunstone'; ocean.lgT = 0; closeQuests();
+  banner('Sun Stone equipped!', 'Swim close to the Kraken and hold it up three times');
+});
 // the quest things you can see: the baby whale and her mom, song shells, the treasure chest, the bottle
 let calfModel = null, momModel = null, qChest = null, qBottle = null; const shellGlow = [];
 function drawQuest(t){
@@ -1997,6 +2028,7 @@ function krakenStep(o, dt){
 const popH = p => p.t < .3 ? p.t/.3 : p.t < 2.8 ? 1 : Math.max(0, 1 - (p.t - 2.8)/.5);   // how far up a tentacle is, 0 to 1
 function useOnKraken(){
   const o = ocean, it = o && heldItem2(o); if (!it || paused || krakenBeaten() || time < kr.useT) return;
+  if (o.onLand || Math.hypot(o.x - KRAKEN.x, o.y - KRAKEN.y) >= 14*METERS) return;
   kr.useT = time + 1.5;
   if (it.id === 'sunstone'){
     kr.hits++; kr.flinchT = time + 2.5; kr.pops = []; kr.useT = time + 2.5;
@@ -2199,6 +2231,8 @@ const newOcean = () => ({ x:HOUSE.x, y:HOUSE.y + HOUSE.r - 110, vx:0, vy:0, ang:
 function startOcean(){
   updShipChest();
   syncHouse(); placeLighthouse(); ocean = newOcean(); save.houseFound = true;
+  awardWhalePrize(ocean);
+  if (save.whaleQuest?.reward && !krakenBeaten()) ocean.held = 'sunstone';
   boardFix(ocean); for (const q of save.board) if (q.kind === 'calf' && q.state === 'lead'){ q.x = ocean.x; q.y = ocean.y + 4*METERS; }   // (the baby whale you were leading is right behind you)
   parts = []; setMode('ocean'); $('airChip').hidden = true;
   banner('Your island!', 'Press Build to build, or swim out and explore the oceans of the world');
@@ -2236,6 +2270,8 @@ function personNear(o){
   return null;
 }
 function friendNear(o){
+  const mom = save.board?.find(q => q.kind === 'calf');
+  if (mom && !o.onLand && Math.hypot(o.x - mom.mx, o.y - mom.my) < 430) return { id: 'whale', bx: mom.mx, by: mom.my };
   const me = curChar().id; if (me === 'swimmer') return personNear(o); if (!SPECIES_NAME[me] || o.onLand) return null;
   let best = null, bd = 150;
   const cx = Math.floor(o.x/CH), cy = Math.floor(o.y/CH);
